@@ -25,6 +25,9 @@
  * -m   file  the same RAM, once, at the end
  * -P   from:to:file  with the profiling core (build_trace_core.sh), write
  *      "address executions cycles" for each 68000 instruction run in those frames
+ * -T   tick,lo,hi:file  with the profiling core, write for each frame
+ *      "frame ticks idle": how many times the instruction at hex address tick
+ *      ran, and the cycles spent in the hex range lo..hi (the wait loop)
  * -i   input script, one event per line: "frame port BUTTONS", e.g.
  *      "120 0 B+RIGHT". The buttons are held until the port's next line.
  *      Buttons: UP DOWN LEFT RIGHT A B C START. "-" releases everything.
@@ -275,6 +278,9 @@ int main(int argc, char **argv)
     FILE *log_out = NULL, *ram_out = NULL;
     int prof_from = -1, prof_to = -1;
     const char *prof_path = NULL;
+    unsigned tick_at = 0, idle_lo = 0, idle_hi = 0, last_ticks = 0;
+    unsigned long long last_idle = 0;
+    FILE *tick_out = NULL;
 
     if (argc < 3) { fprintf(stderr, "usage: runner core rom [options]\n"); return 1; }
     for (int i = 3; i < argc; i++) {
@@ -307,6 +313,11 @@ int main(int argc, char **argv)
             snprintf(pbuf, sizeof pbuf, "%s", argv[++i]);
             if (sscanf(pbuf, "%d:%d:%n", &prof_from, &prof_to, &used) < 2 || !used) { fprintf(stderr, "-P from:to:file\n"); return 1; }
             prof_path = pbuf + used;
+        }
+        else if (!strcmp(argv[i], "-T")) {
+            int used = 0;
+            if (sscanf(argv[++i], "%x,%x,%x:%n", &tick_at, &idle_lo, &idle_hi, &used) < 3 || !used) { fprintf(stderr, "-T tick,lo,hi:file\n"); return 1; }
+            tick_out = fopen(argv[i] + used, "w");
         }
         else if (!strcmp(argv[i], "-q")) quiet = 1;
     }
@@ -365,14 +376,14 @@ int main(int argc, char **argv)
     uint8_t *keep = NULL;
     int mismatches = 0;
 
-    if (prof_path) {
+    if (prof_path || tick_out) {
         trace_hits = dlsym(core.h, "retro_trace_hits");
         trace_cycles = dlsym(core.h, "retro_trace_cycles");
-        if (!trace_hits || !trace_cycles) { fprintf(stderr, "-P needs the profiling core\n"); return 1; }
+        if (!trace_hits || !trace_cycles) { fprintf(stderr, "-P and -T need the profiling core\n"); return 1; }
     }
 
     for (int f = 0; f < nframes; f++) {
-        if (prof_path && f == prof_from) {
+        if (prof_path && f == prof_from && !tick_out) {
             memset(trace_hits, 0, TRACE_WORDS * sizeof *trace_hits);
             memset(trace_cycles, 0, TRACE_WORDS * sizeof *trace_cycles);
         }
@@ -422,6 +433,13 @@ int main(int argc, char **argv)
             fprintf(log_out, "%d %08lx %04x\n", f, crc32(0, frame, fw * fh * 3), pads[0]);
         if (ram_out) write_ram(ram_out);
         if (prof_path && f == prof_to) write_profile(prof_path);
+        if (tick_out) {
+            unsigned long long idle = 0;
+            for (unsigned a = idle_lo / 2; a <= idle_hi / 2; a++) idle += trace_cycles[a];
+            fprintf(tick_out, "%d %u %llu\n", f, trace_hits[tick_at / 2] - last_ticks, idle - last_idle);
+            last_ticks = trace_hits[tick_at / 2];
+            last_idle = idle;
+        }
         for (int i = 0; i < nshots; i++)
             if (shots[i].frame == f && frame) save_png(shots[i].path, scale);
         if (video_out && frame && f >= video_from && (f & 1) == 0) fwrite(frame, 3, fw * fh, video_out);
@@ -435,6 +453,7 @@ int main(int argc, char **argv)
         if (f) { write_ram(f); fclose(f); }
     }
     if (log_out) fclose(log_out);
+    if (tick_out) fclose(tick_out);
     if (ram_out) fclose(ram_out);
     if (video_out) fclose(video_out);
     if (!quiet) fprintf(stderr, "ran %d frames, %ux%u, %ld audio frames\n", nframes, fw, fh, audio_frames);

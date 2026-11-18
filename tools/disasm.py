@@ -43,9 +43,9 @@ def main():
     extra = list(args.entry)
     if args.entries and os.path.exists(args.entries):
         extra += [l.split('#')[0].strip() for l in open(args.entries) if l.split('#')[0].strip()]
-    for e in extra:
-        todo.setdefault(int(e, 16), f'entry_{int(e, 16):06x}')
     labels, code = dict(todo), {}
+    for e in extra:
+        todo.setdefault(int(e, 16), None)
     stack = list(todo)
     while stack:
         pc = stack.pop()
