@@ -4,5 +4,13 @@
   "title": "The project starts",
   "note": "This began as an idea for a 32X port. The complaints people have about the game are mostly about its design (deaths with little warning, restarting floors, fights that play alike), and the 32X wouldn't fix those, so it's now a straight patch for the Genesis version. The three goals are fairness, bug fixes, and smoother performance where that's possible.\n\nThe target is The Immortal (USA, Europe), 1 MB, serial T-50186. Its checksum is correct and its header declares no save RAM. Nothing in the game has been examined or changed yet.\n\nThe game's screenshots and clips will appear here but stay out of git, so they only show on the machine that made them.",
   "files": []
+ },
+ {
+  "time": "2026-11-18 15:58",
+  "title": "The game runs under test, and the first findings",
+  "note": "The game now runs headless with scripted input, and a profiling build of PicoDrive shows where its time goes. All eight levels can be reached directly.\n\nThe game updates once every 5 video frames, 12 times a second. In random walks 23% of those updates came late, and about half on level 6. On levels 5 and 6 the late ones spend much longer building object graphics. On levels 2, 4 and 8 the cause is still unknown. These timings are from the emulator.\n\nThree lives per level is confirmed. After the third death the game offers a new game from the very first room, or asks for a certificate, even though it already has a way to reload a level without one.\n\nDetails are in docs/how-the-game-works.md. The picture shows the eight levels and stays on this machine.",
+  "files": [
+   "local/20261118_155857_levels.png"
+  ]
  }
 ]
