@@ -1,0 +1,49 @@
+# The game, and anything made from it, stays out of the repository.
+/rom/
+/extracted/
+/disasm/
+/build/
+/scratch/
+
+# ROMs and archives, wherever they turn up. (.md is a ROM extension too, but it
+# is also Markdown, so a .md ROM is only kept out by living in rom/.)
+*.gen
+*.smd
+*.bin
+*.68k
+*.sgd
+*.32x
+*.zip
+*.rar
+*.7z
+
+# Saves and emulator states hold copies of the game's memory.
+*.srm
+*.sav
+*.state
+*.state[0-9]*
+*.savestate
+
+# Disassembly listings.
+*.dis
+*.lst
+
+# Sound and pictures are ignored by default, since most will be the game's.
+*.vgm
+*.vgz
+*.wav
+*.mp3
+*.ogg
+*.flac
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.mp4
+*.webm
+
+# Charts and diagrams of our own go here to be tracked.
+!/docs/progress/ours/**
+
+__pycache__/
+*.pyc
