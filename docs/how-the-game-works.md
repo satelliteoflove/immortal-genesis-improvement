@@ -120,7 +120,9 @@ measure what a player would feel.
 ### PicoDrive against BlastEm
 
 The same scripted opening, level jump and random walks were run on both emulators, using a
-BlastEm libretro core built 2026-11-16. Ticks were read from the game's own deadline at
+BlastEm libretro core built 2026-11-16 (version 1.0.1-pre). That build's emulation code was
+last synced with BlastEm itself on 2026-07-27, so it lacks later upstream fixes, including
+some to DMA. Ticks were read from the game's own deadline at
 `FF12E6`. Across all levels 23.0% of ticks were late on both.
 
 | Level | PicoDrive: ticks, late, worst gap | BlastEm: ticks, late, worst gap |
