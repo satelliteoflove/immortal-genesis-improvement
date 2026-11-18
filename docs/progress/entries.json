@@ -24,5 +24,11 @@
   "title": "The BlastEm fork is now the reference",
   "note": "The fork is built from source with two bugs fixed: it wouldn't compile without OpenGL, and headless runs counted every frame twice. Both are logged in docs/blastem-fork-fixes.md to offer back later, and nothing has been submitted.\n\nThe newer upstream DMA fixes weren't needed. The game's DMA only reads work RAM and ROM around 020000 to 03FFFF, never the range those fixes cover.\n\nRuns repeat exactly, and turning the profiler on doesn't change video memory on any level. On this build 23.8% of updates ran late, and 58% on level 6. Object graphics cost a little more than PicoDrive counted, so that routine remains the first target.",
   "files": []
+ },
+ {
+  "time": "2026-11-18 17:15",
+  "title": "Object graphics are about ten times cheaper",
+  "note": "The game was unpacking object tiles bit by bit every time it drew them, which took over half of all CPU time on level 6. The patch now unpacks them ahead of time into a larger, 2 MB ROM, built from your own copy of the game.\n\nLate updates fell from 58% to 20% on level 6 and from 41% to 24% on level 5, and the worst stall on those levels went from 11 frames to 7. Across all levels it's 23.8% down to 16.4%. The other levels barely moved, so something else is holding them back.\n\nThis also turned up a bug in the original game: a slip in its tile search takes the top off the wall torch's flame. The flame is whole again. All of this is tested in emulators only, and not on real hardware.",
+  "files": []
  }
 ]

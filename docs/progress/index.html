@@ -15,8 +15,12 @@ figcaption { color: #8b93a1; font-size: .8rem; margin-top: .2rem; }
 img, video { image-rendering: pixelated; max-width: 100%; border: 1px solid #2a2e36; background: #000; display: block; }
 </style></head>
 <body><h1>The Immortal (Genesis patch): progress</h1>
-<div class="sub">Newest first. Last entry 2026-11-18 16:49. Reload to see new entries.</div>
-<article><time>2026-11-18 16:49</time><h2>The BlastEm fork is now the reference</h2><p>The fork is built from source with two bugs fixed: it wouldn&#x27;t compile without OpenGL, and headless runs counted every frame twice. Both are logged in docs/blastem-fork-fixes.md to offer back later, and nothing has been submitted.
+<div class="sub">Newest first. Last entry 2026-11-18 17:15. Reload to see new entries.</div>
+<article><time>2026-11-18 17:15</time><h2>Object graphics are about ten times cheaper</h2><p>The game was unpacking object tiles bit by bit every time it drew them, which took over half of all CPU time on level 6. The patch now unpacks them ahead of time into a larger, 2 MB ROM, built from your own copy of the game.
+
+Late updates fell from 58% to 20% on level 6 and from 41% to 24% on level 5, and the worst stall on those levels went from 11 frames to 7. Across all levels it&#x27;s 23.8% down to 16.4%. The other levels barely moved, so something else is holding them back.
+
+This also turned up a bug in the original game: a slip in its tile search takes the top off the wall torch&#x27;s flame. The flame is whole again. All of this is tested in emulators only, and not on real hardware.</p><div class="media"></div></article><article><time>2026-11-18 16:49</time><h2>The BlastEm fork is now the reference</h2><p>The fork is built from source with two bugs fixed: it wouldn&#x27;t compile without OpenGL, and headless runs counted every frame twice. Both are logged in docs/blastem-fork-fixes.md to offer back later, and nothing has been submitted.
 
 The newer upstream DMA fixes weren&#x27;t needed. The game&#x27;s DMA only reads work RAM and ROM around 020000 to 03FFFF, never the range those fixes cover.
 
