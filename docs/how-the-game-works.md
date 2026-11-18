@@ -2,8 +2,8 @@
 
 Notes from running and disassembling The Immortal (USA, Europe). Addresses are for that
 ROM. Each section says what was seen happening in the running game and what has only been
-read from the code so far. Timing comes from PicoDrive and was checked against BlastEm, a
-much more exacting emulator. None of it has been confirmed on real hardware.
+read from the code so far. Timing comes from PicoDrive and was checked against BlastEm in two
+builds, described below. None of it has been confirmed on real hardware.
 
 `tools/harness/levels.py` reproduces the first timing table below and
 `tools/harness/compare_cores.py` the second.
@@ -145,3 +145,32 @@ PicoDrive artifact, and the game's tick never runs early.
 
 PicoDrive stays the tool for finding where time goes, since only its profiling build counts
 cycles per instruction. BlastEm is the check on whether a change really helps.
+
+### The BlastEm fork
+
+Our reference is now a build of [ulalume/blastem](https://github.com/ulalume/blastem), which
+can measure cycles between chosen addresses without changing the ROM. It's 10 changes behind
+BlastEm itself. Two of those are DMA fixes for sources from `800000` to `DFFFFF`. The game
+never used that range in these runs: on all eight levels, every DMA from the 68000 read from
+work RAM (`FF0000` and up) or from ROM at `020000` to `03FFFF`. So those fixes weren't needed.
+Two bugs in the fork had to be fixed first; see `docs/blastem-fork-fixes.md`.
+
+`tools/harness/fork_timing.py` runs the same opening, jumps and walks. A second run of each
+level gave identical video memory on all 6,499 frames, and so did a run with the profiler
+turned off, on all eight levels.
+
+| Level | Ticks | Late | Worst gap (frames) | Object graphics, cycles per tick: on time / late |
+|---|---|---|---|---|
+| 1 | 905 | 1% | 7 | 221k / 173k |
+| 2 | 585 | 23% | 9 | 183k / 185k |
+| 3 | 2082 | 10% | 9 | 129k / 161k |
+| 4 | 1362 | 16% | 8 | 175k / 180k |
+| 5 | 1199 | 41% | 11 | 141k / 360k |
+| 6 | 1783 | 58% | 11 | 377k / 540k |
+| 7 | 1528 | 15% | 8 | 207k / 255k |
+| 8 | 1767 | 19% | 6 | 124k / 152k |
+
+Across all levels 23.8% of ticks were late. Level 6 came out worse here, at 58% against about
+51%, and object graphics cost roughly 10 to 15% more than PicoDrive's count on the busy
+levels. The walks drift apart between emulators, so small differences between tables don't
+mean much, but PicoDrive's cycle counts should be read as a little optimistic.

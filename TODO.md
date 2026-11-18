@@ -33,7 +33,8 @@ reviews unless they say otherwise, and what to change is still to be decided.
 Optimizing the existing code comes first. The game's timing doesn't change until we know how
 the optimized game really runs.
 
-- [x] Check the timing on a more accurate emulator. BlastEm agrees with PicoDrive.
+- [x] Check the timing on a more accurate emulator. The BlastEm fork is the reference now.
+- [ ] Offer the fork fixes back when we're ready (`docs/blastem-fork-fixes.md`). Not yet.
 - [ ] Record a realistic route through the levels to measure, in place of random walks.
 - [ ] Slowdown: 23% of ticks ran late in random walks, and about half on level 6. Object
       graphics are the first suspect on levels 5 and 6. Levels 2, 4 and 8 need another answer.

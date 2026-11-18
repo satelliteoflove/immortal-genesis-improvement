@@ -28,6 +28,8 @@
  * -T   tick,lo,hi:file  with the profiling core, write for each frame
  *      "frame ticks idle": how many times the instruction at hex address tick
  *      ran, and the cycles spent in the hex range lo..hi (the wait loop)
+ * -D   file  with the profiling core, write how many 68000-to-VDP DMAs used each
+ *      top byte of source address, as "XX0000 count"
  * -W   addr:file  write the 32-bit value at hex RAM address addr after every
  *      frame, one a line. Works on any core, unlike -T.
  * -p   frame:addr=value  before that frame, set the byte at hex 68000 address
@@ -306,6 +308,7 @@ int main(int argc, char **argv)
     static struct ev evs[65536];
     const char *script = NULL, *audio_path = NULL, *ram_path = NULL, *load_path = NULL;
     FILE *log_out = NULL, *ram_out = NULL, *watch_out = NULL;
+    const char *dma_path = NULL;
     unsigned watch_addr = 0;
     static struct pokeval pokes[64];
     int npokes = 0;
@@ -361,6 +364,7 @@ int main(int argc, char **argv)
             if (sscanf(argv[++i], "%x:%n", &watch_addr, &used) < 1 || !used) { fprintf(stderr, "-W addr:file\n"); return 1; }
             watch_out = fopen(argv[i] + used, "w");
         }
+        else if (!strcmp(argv[i], "-D")) dma_path = argv[++i];
         else if (!strcmp(argv[i], "-b")) {
             if (sscanf(argv[++i], "%d,%d,%d", &id_a, &id_b, &id_c) != 3) { fprintf(stderr, "-b a,b,c\n"); return 1; }
         }
@@ -499,6 +503,14 @@ int main(int argc, char **argv)
     if (ram_path) {
         FILE *f = fopen(ram_path, "wb");
         if (f) { write_ram(f); fclose(f); }
+    }
+    if (dma_path) {
+        unsigned *dma = dlsym(core.h, "retro_trace_dma");
+        FILE *f = fopen(dma_path, "w");
+        if (!dma || !f) { fprintf(stderr, "-D needs the profiling core\n"); return 1; }
+        for (int i = 0; i < 256; i++)
+            if (dma[i]) fprintf(f, "%02x0000 %u\n", i, dma[i]);
+        fclose(f);
     }
     if (log_out) fclose(log_out);
     if (watch_out) fclose(watch_out);

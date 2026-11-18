@@ -1,0 +1,16 @@
+diff --git a/render_sdl.c b/render_sdl.c
+index 7f795ce..5e73a88 100755
+--- a/render_sdl.c
++++ b/render_sdl.c
+@@ -2583,7 +2583,11 @@ void render_framebuffer_updated(uint8_t which, int width)
+ 		return;
+ 	}
+ 	//TODO: Maybe fixme for render API
++#ifdef DISABLE_OPENGL
++	process_framebuffer(texture_buf, which, width);
++#else
+ 	process_framebuffer(which < FRAMEBUFFER_USER_START ? texture_buf : extras[which - FRAMEBUFFER_USER_START].texture_buf, which, width);
++#endif
+ }
+ 
+ void render_video_loop(void)

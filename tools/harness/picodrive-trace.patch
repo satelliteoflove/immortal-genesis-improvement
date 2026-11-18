@@ -27,3 +27,27 @@ index b0ee0f0..ebd444a 100644
  static opcode_func JumpTable[0x10000];
  
  // exception cycle table (taken from musashi core)
+diff --git a/pico/videoport.c b/pico/videoport.c
+index 87cd132..759c6f1 100644
+--- a/pico/videoport.c
++++ b/pico/videoport.c
+@@ -787,6 +787,7 @@ static NOINLINE void DmaFill(int data)
+ 
+ // VDP command handling
+ 
++unsigned int retro_trace_dma[256]; /* harness: 68000-to-VDP DMAs by top byte of source */
+ static NOINLINE void CommandDma(void)
+ {
+   struct PicoVideo *pvid = &Pico.video;
+@@ -807,8 +808,10 @@ static NOINLINE void CommandDma(void)
+   source |= pvid->reg[0x17] << 16;
+ 
+   method=pvid->reg[0x17]>>6;
+-  if (method < 2)
++  if (method < 2) {
++    retro_trace_dma[(source << 1 >> 16) & 0xff]++;
+     DmaSlow(len, source << 1); // 68000 to VDP
++  }
+   else if (method == 3)
+     DmaCopy(len); // VRAM Copy
+   else {
