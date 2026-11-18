@@ -1,0 +1,8 @@
+[
+ {
+  "time": "2026-11-18 15:47",
+  "title": "The project starts",
+  "note": "This began as an idea for a 32X port. The complaints people have about the game are mostly about its design (deaths with little warning, restarting floors, fights that play alike), and the 32X wouldn't fix those, so it's now a straight patch for the Genesis version. The three goals are fairness, bug fixes, and smoother performance where that's possible.\n\nThe target is The Immortal (USA, Europe), 1 MB, serial T-50186. Its checksum is correct and its header declares no save RAM. Nothing in the game has been examined or changed yet.\n\nThe game's screenshots and clips will appear here but stay out of git, so they only show on the machine that made them.",
+  "files": []
+ }
+]
