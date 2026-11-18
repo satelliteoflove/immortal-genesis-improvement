@@ -33,7 +33,7 @@ reviews unless they say otherwise, and what to change is still to be decided.
 Optimizing the existing code comes first. The game's timing doesn't change until we know how
 the optimized game really runs.
 
-- [ ] Check the timing on a more accurate emulator. BlastEm is the likely choice.
+- [x] Check the timing on a more accurate emulator. BlastEm agrees with PicoDrive.
 - [ ] Record a realistic route through the levels to measure, in place of random walks.
 - [ ] Slowdown: 23% of ticks ran late in random walks, and about half on level 6. Object
       graphics are the first suspect on levels 5 and 6. Levels 2, 4 and 8 need another answer.

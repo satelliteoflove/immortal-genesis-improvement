@@ -2,10 +2,11 @@
 
 Notes from running and disassembling The Immortal (USA, Europe). Addresses are for that
 ROM. Each section says what was seen happening in the running game and what has only been
-read from the code so far. All timing comes from PicoDrive, which doesn't time a Genesis
-exactly, so it hasn't been confirmed on real hardware.
+read from the code so far. Timing comes from PicoDrive and was checked against BlastEm, a
+much more exacting emulator. None of it has been confirmed on real hardware.
 
-`tools/harness/levels.py` reproduces the timing table below.
+`tools/harness/levels.py` reproduces the first timing table below and
+`tools/harness/compare_cores.py` the second.
 
 ## Useful RAM
 
@@ -115,3 +116,30 @@ is the first thing to look at there. On levels 2, 4 and 8 it costs about the sam
 the tick is late or not, so something else is holding those back, and that isn't known yet.
 A random walk also isn't how anyone plays, so these figures show where to look and don't
 measure what a player would feel.
+
+### PicoDrive against BlastEm
+
+The same scripted opening, level jump and random walks were run on both emulators, using a
+BlastEm libretro core built 2026-11-16. Ticks were read from the game's own deadline at
+`FF12E6`. Across all levels 23.0% of ticks were late on both.
+
+| Level | PicoDrive: ticks, late, worst gap | BlastEm: ticks, late, worst gap |
+|---|---|---|
+| 1 | 909, 1%, 8 | 906, 1%, 7 |
+| 2 | 1136, 25%, 11 | 522, 20%, 9 |
+| 3 | 1997, 9%, 9 | 1995, 9%, 9 |
+| 4 | 1357, 16%, 9 | 1355, 16%, 9 |
+| 5 | 1206, 43%, 11 | 1193, 44%, 11 |
+| 6 | 1876, 51%, 11 | 1875, 52%, 11 |
+| 7 | 1599, 14%, 8 | 1567, 14%, 8 |
+| 8 | 1767, 19%, 7 | 1767, 19%, 6 |
+
+Level 2 is the weak row. Its walks wander into deaths and prompts that stop the game, and
+they do so at different moments on each emulator, so it has few ticks and they aren't
+comparable. On BlastEm two of its four walks ended at Game Over.
+
+PicoDrive shows a few ticks 4 frames apart (1.9%). BlastEm shows none, so those look like a
+PicoDrive artifact, and the game's tick never runs early.
+
+PicoDrive stays the tool for finding where time goes, since only its profiling build counts
+cycles per instruction. BlastEm is the check on whether a change really helps.

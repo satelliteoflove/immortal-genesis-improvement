@@ -44,6 +44,8 @@ It runs the game headless in PicoDrive, using the core and source that 32xKarts 
     tools/harness/run.sh -n 600 -s 599:scratch/shot.png
     tools/harness/sheet.py scratch/sheet.png 840 90 12 -i tools/harness/input/new_game.txt
     tools/harness/levels.py                # reach every level, measure its timing
+    tools/harness/get_blastem.sh           # BlastEm's libretro core, into build/cores/
+    tools/harness/compare_cores.py         # the same timing run on PicoDrive and BlastEm
     tools/disasm.py                        # writes disasm/, which git ignores
 
 `tools/harness/runner.c` lists its options. What's been learned is in
