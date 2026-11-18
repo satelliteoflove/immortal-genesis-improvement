@@ -2,11 +2,15 @@
 """Split each game tick into parts, on the BlastEm fork, and compare late ticks with on-time ones.
 
     tools/harness/tick_parts.py [rom] [name:start:end ...]
+    tools/harness/tick_parts.py --headroom [rom]
 
 Uses the walks from fork_timing.py, on the patched ROM by default. Each part is a pair of
 addresses; the default parts follow the main loop at 013470 and the drawing at 01564E. The
 fork allows seven parts alongside the tick itself. Figures are thousands of cycles per
 tick, and a tick has about 639k before it runs late.
+
+--headroom shows how much work each tick does, leaving out its waits for vertical blank
+and its timed pauses, and how many ticks wouldn't fit a shorter tick.
 """
 import collections
 import os
@@ -20,6 +24,8 @@ import fork_timing as ft
 
 DEFAULT = ['logic:1347c:13480', 'check:13484:13488', 'prep:1348c:13490', 'sprites:15652:15656',
            'upload:15656:1565a', 'vwait:1565a:1565e', 'after:1565e:15732']
+HEADROOM = ['work:1347c:13494', 'vblank:14e3a:14e4c', 'vblank2:14e4e:14e6c', 'pause:153da:15404']
+FRAME = 127.8                   # thousands of 68000 cycles in a video frame
 FIELD = re.compile(r'(\w+)=(\d+):(\d+)')
 
 
@@ -55,8 +61,33 @@ def run(rom, parts, level, walk):
     return level, ticks
 
 
+def percentile(values, share):
+    return sorted(values)[min(len(values) - 1, int(len(values) * share))]
+
+
+def headroom(rom):
+    parts = [p.split(':') for p in HEADROOM]
+    jobs = [(l, w) for l in range(8) for w in range(cc.WALKS)]
+    with ThreadPoolExecutor(os.cpu_count()) as pool:
+        done = list(pool.map(lambda j: run(rom, parts, *j), jobs))
+    every = []
+    print('level  ticks  median    90%    99%    max   over 4, 3 and 2 frames of work')
+    for level in [*range(8), None]:
+        if level is None:
+            work = every
+        else:
+            work = [(t[1]['work'] - t[1]['vblank'] - t[1]['vblank2'] - t[1]['pause']) / 1000
+                    for l, found in done if l == level for t in found if t[0] < cc.PAUSE]
+            every += work
+        over = '  '.join(f'{100 * sum(w > n * FRAME for w in work) / len(work):4.1f}%' for n in (4, 3, 2))
+        print(f'{"all" if level is None else level + 1:>5} {len(work):6} ' +
+              ''.join(f'{percentile(work, p):7.0f}' for p in (.5, .9, .99)) + f'{max(work):7.0f}   {over}')
+
+
 def main():
     args = sys.argv[1:]
+    if args and args[0] == '--headroom':
+        return headroom(args[1] if len(args) > 1 else os.path.join(ft.ROOT, 'build', 'immortal-patched.md'))
     rom = args.pop(0) if args and ':' not in args[0] else os.path.join(ft.ROOT, 'build', 'immortal-patched.md')
     parts = [p.split(':') for p in (args or DEFAULT)]
     names = [p[0] for p in parts]

@@ -270,5 +270,25 @@ Three things back this up:
 | 8 | 19% | 0% | 6 | 5 |
 
 Across all levels, 2.0% of ticks are late, down from 23.8% in the original. Vertical blanks are no
-longer missed. The late ticks that remain, on levels 2, 6 and 7, spend 500k cycles or more in the
-game logic (`011200`) rather than in drawing.
+longer missed.
+
+### What's still late
+
+Nearly all the late ticks left aren't the CPU running out of time. They're on levels 2, 6 and 7,
+and they spend about 490k cycles inside the wait for vertical blank (`014E3A`). On levels 2 and 6
+the waits come from a drawing loop at `0074A8`, which waits four frames per step. On level 7 most
+come from `011776`, which waits two. These look like deliberate animations, though what's being
+animated hasn't been identified. Making them faster would change how they look, so they're left
+alone.
+
+### Room to spare
+
+`tools/harness/tick_parts.py --headroom` measures the work in each tick without those waits. The
+median tick now needs about 212k cycles, 90% need under 408k and 99% under 548k, against 639k
+available. The heaviest are camera-step ticks, which still spend about 220k in the three map
+routines. A shorter tick would need more of this removed: 4.0% of ticks wouldn't fit in 4 frames
+and 14% wouldn't fit in 3. These are random walks, so a real route may differ.
+
+The largest remaining costs, as shares of work outside waits, are the sprite masking at `01428C`
+(14%), the sound mailbox with the Z80 at `01624E` (7%) and sprite tile uploads through `0150E6`
+(6%).

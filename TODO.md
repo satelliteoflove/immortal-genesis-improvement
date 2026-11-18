@@ -40,7 +40,10 @@ the optimized game really runs.
       to 20%, and level 5 from 41% to 24%.
 - [x] Background tiles: only new ones are sent when the camera moves. Late ticks across all
       levels went from 16.4% to 2.0%, and the game no longer misses vertical blanks.
-- [ ] Slowdown that's left: 2.0% of ticks, mostly levels 2 and 6, from spikes in game logic.
+- [ ] Slowdown that's left: 2.0% of ticks, mostly deliberate waits in animations on levels 2, 6
+      and 7. Find out what those animations are.
+- [ ] More headroom, if we want a faster tick: sprite masking (`01428C`), then the map routines
+      on camera steps (`013D34`, `013B16`, `013B78`).
 - [ ] Release the patch as tools that build it from the player's own ROM, for now. The
       unpacked tiles are the game's graphics, so an ordinary IPS or BPS file would contain them.
 - [ ] Try the patched ROM on real hardware.
