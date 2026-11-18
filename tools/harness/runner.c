@@ -28,6 +28,8 @@
  * -T   tick,lo,hi:file  with the profiling core, write for each frame
  *      "frame ticks idle": how many times the instruction at hex address tick
  *      ran, and the cycles spent in the hex range lo..hi (the wait loop)
+ * -p   frame:addr=value  before that frame, set the byte at hex 68000 address
+ *      addr (in 0xff0000-0xffffff) to hex value. Can be repeated.
  * -i   input script, one event per line: "frame port BUTTONS", e.g.
  *      "120 0 B+RIGHT". The buttons are held until the port's next line.
  *      Buttons: UP DOWN LEFT RIGHT A B C START. "-" releases everything.
@@ -219,6 +221,15 @@ static void write_profile(const char *path)
     fclose(f);
 }
 
+static void poke(unsigned addr, unsigned value)
+{
+    uint8_t *(*data)(unsigned) = dlsym(core.h, "retro_get_memory_data");
+    uint8_t *ram = data ? data(RETRO_MEMORY_SYSTEM_RAM) : NULL;
+    if (ram) ram[(addr & 0xffff) ^ 1] = value;
+}
+
+struct pokeval { int frame; unsigned addr, value; };
+
 static uint16_t parse_buttons(const char *s)
 {
     static const struct { const char *n; int id; } map[] = {
@@ -276,6 +287,8 @@ int main(int argc, char **argv)
     static struct ev evs[65536];
     const char *script = NULL, *audio_path = NULL, *ram_path = NULL, *load_path = NULL;
     FILE *log_out = NULL, *ram_out = NULL;
+    static struct pokeval pokes[64];
+    int npokes = 0;
     int prof_from = -1, prof_to = -1;
     const char *prof_path = NULL;
     unsigned tick_at = 0, idle_lo = 0, idle_hi = 0, last_ticks = 0;
@@ -318,6 +331,10 @@ int main(int argc, char **argv)
             int used = 0;
             if (sscanf(argv[++i], "%x,%x,%x:%n", &tick_at, &idle_lo, &idle_hi, &used) < 3 || !used) { fprintf(stderr, "-T tick,lo,hi:file\n"); return 1; }
             tick_out = fopen(argv[i] + used, "w");
+        }
+        else if (!strcmp(argv[i], "-p") && npokes < 64) {
+            struct pokeval *q = &pokes[npokes++];
+            if (sscanf(argv[++i], "%d:%x=%x", &q->frame, &q->addr, &q->value) != 3) { fprintf(stderr, "-p frame:addr=value\n"); return 1; }
         }
         else if (!strcmp(argv[i], "-q")) quiet = 1;
     }
@@ -389,6 +406,8 @@ int main(int argc, char **argv)
         }
         for (int i = 0; i < nev; i++)
             if (evs[i].frame == f) pads[evs[i].port] = evs[i].b;
+        for (int i = 0; i < npokes; i++)
+            if (pokes[i].frame == f) poke(pokes[i].addr, pokes[i].value);
         if ((crc_out || rewind_n || f == state_frame) && (f > 30 || load_path)) {
             if (!sbuf) { sn = core.ser_size(); sbuf = malloc(sn); }
             memset(sbuf, 0, sn);

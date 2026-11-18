@@ -28,7 +28,7 @@ def target_of(ins):
     if m:
         return int(m.group(1), 16)
     m = re.fullmatch(r'\$([0-9a-f]+)\(pc\)', ins.op_str.strip())
-    return (ins.address + 2 + int(m.group(1), 16)) & 0xffffff if m else None
+    return int(m.group(1), 16) if m else None  # capstone has already added the PC
 
 
 def main():
