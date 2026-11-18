@@ -38,11 +38,11 @@ the optimized game really runs.
 - [ ] Record a realistic route through the levels to measure, in place of random walks.
 - [x] Object graphics: tiles are unpacked ahead of time. Level 6 went from 58% of ticks late
       to 20%, and level 5 from 41% to 24%.
-- [ ] Slowdown that's left: 16.4% of ticks still run late in random walks, mostly from
-      something other than object graphics. Find it, starting with levels 2, 4 and 8.
-- [ ] Decide how the patch is released. The unpacked tiles are the game's graphics, so an
-      ordinary IPS or BPS file would contain them. `tools/build_rom.py` makes them from the
-      player's own ROM instead.
+- [x] Background tiles: only new ones are sent when the camera moves. Late ticks across all
+      levels went from 16.4% to 2.0%, and the game no longer misses vertical blanks.
+- [ ] Slowdown that's left: 2.0% of ticks, mostly levels 2 and 6, from spikes in game logic.
+- [ ] Release the patch as tools that build it from the player's own ROM, for now. The
+      unpacked tiles are the game's graphics, so an ordinary IPS or BPS file would contain them.
 - [ ] Try the patched ROM on real hardware.
 - [ ] Controls said to feel less responsive than the NES version. Measure the delay from
       button to screen.

@@ -40,6 +40,12 @@ copy. Commits meant for those projects carry no AI attribution.
   before they alternated between about 1,000 and 127,000.
 - **Upstream:** the same code is in upstream `vdp.c`. We haven't run upstream to confirm it.
 
+## Seen but not looked into
+
+A write to `A14000` crashes the headless build with a segfault in `machine_freeze()`, called
+from `unused_write`. A test ROM of ours did this by accident. We haven't worked out why, or
+whether it also happens with a window open.
+
 ## Additions only this project needs
 
 `tools/harness/blastem-fork/harness/0001-control-file-poke-peek.patch` (branch

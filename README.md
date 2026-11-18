@@ -6,7 +6,8 @@ game. It started as an idea for a 32X port (hence the folder's name), but the pr
 people raised with the game aren't ones the 32X would fix, so this is a straight patch for
 the Genesis.
 
-So far the patch speeds up object graphics and restores the wall torch's flame. `TODO.md` has
+So far the patch speeds up object graphics and background scrolling, and restores the wall
+torch's flame. `TODO.md` has
 what we're looking into and `docs/progress/index.html` is the running record.
 
 ## The ROM
@@ -53,6 +54,8 @@ It runs the game headless in PicoDrive, using the core and source that 32xKarts 
     tools/harness/compare_cores.py         # the same timing run on PicoDrive and BlastEm
     tools/harness/build_blastem_fork.sh    # our patched build of the BlastEm fork (needs SDL2, GLEW)
     tools/harness/fork_timing.py           # timing and cycle counts on that build
+    tools/harness/tick_parts.py            # which part of a tick is taking the time
+    tools/harness/hotspots.py              # the busiest routines on each level
     tools/disasm.py                        # writes disasm/, which git ignores
 
 `tools/harness/runner.c` lists its options. What's been learned is in

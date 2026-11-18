@@ -228,3 +228,47 @@ walks drift once timing changes, so small differences between the two columns do
 The game also runs closer to its intended speed on levels 5 and 6 now, which means less of the
 slowdown players have been getting there, and enemies and traps there arrive sooner in real
 time. None of this has been tried on real hardware.
+
+## The background tile patch
+
+With object graphics out of the way, `tools/harness/tick_parts.py` showed where late ticks went.
+Almost all of them were ticks where the camera crossed an 8-pixel step. Those run three
+routines from `015600`: `013D34` works out the 612 cells on screen, `013B16` gives each tile a
+slot in video memory, and `013B78` frees unused slots and sends tiles. Together they took about
+500k of the 639k cycles a tick has.
+
+`013B16` marked every tile on screen as needing to be sent, not just new ones. In the walks that
+meant 346,317 tiles sent for only 13,466 new ones, so 96% of the sending was repeating what
+video memory already held. `013B78` also stepped through all 2,048 table entries at about 70
+cycles each, and it did all this with interrupts masked for around two frames. That made the
+game miss vertical blanks, up to 6% of them on level 5, which is when it reads the pad.
+
+The patch sends only newly allocated tiles and scans the table about three times faster, keeping
+the original's order so slots are handed out exactly as before. The new `013B78` lives in space
+the old object code left free.
+
+Three things back this up:
+
+- `--check` runs the old and new routines on 24 passes of random screens. RAM and video memory
+  come out identical, and all registers are kept. Breaking the patch on purpose makes it fail.
+- A test build compared each skipped tile against video memory during play, across eight levels
+  with walks that also press buttons. All 685,562 matched.
+- Reading the code, only one other routine in normal play writes to the tile area: `0158EC`,
+  which puts 7 status tiles in slots 0 to 6. Slots are handed out from 611 downward, so a screen
+  would need over 600 different tiles to reach them, and the game behaved the same way before.
+  The rest are start-up code, and a room reset (`015A7C`) empties the table.
+
+| Level | Late, graphics patch only | Late now | Worst gap then | Worst gap now |
+|---|---|---|---|---|
+| 1 | 1% | 0% | 7 | 5 |
+| 2 | 22% | 12% | 10 | 8 |
+| 3 | 11% | 0% | 7 | 6 |
+| 4 | 17% | 0% | 7 | 5 |
+| 5 | 24% | 0% | 7 | 6 |
+| 6 | 20% | 5% | 7 | 6 |
+| 7 | 14% | 1% | 7 | 6 |
+| 8 | 19% | 0% | 6 | 5 |
+
+Across all levels, 2.0% of ticks are late, down from 23.8% in the original. Vertical blanks are no
+longer missed. The late ticks that remain, on levels 2, 6 and 7, spend 500k cycles or more in the
+game logic (`011200`) rather than in drawing.
