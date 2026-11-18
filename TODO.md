@@ -14,11 +14,12 @@ reviews unless they say otherwise, and what to change is still to be decided.
 ## Fairness
 
 - [ ] Deaths with little or no warning: traps that kill within seconds of entering a room.
-- [ ] Three lives per level is confirmed. Game Over sends you back to the first room unless
-      you have a certificate to type in. The game can already reload a level without one.
+- [ ] Game Over gets a screen offering Continue (restart the current level) or End (back to
+      the main menu). Decided, not built. Three lives per level stay as they are. Check what
+      the player is carrying after a Continue.
 - [ ] Items that can be used up in the wrong place, forcing a restart.
-- [ ] Passwords. The header declares no save RAM and the ROM is 1 MB, so there's room to
-      add saving, though it would need a cartridge or emulator that provides the RAM.
+- [ ] Battery saves in place of typing certificates. Looks very doable at the start of each
+      level; see "Saving" in `docs/how-the-game-works.md`. Not decided or built.
 - [ ] Fights that start with little warning.
 - [ ] Fights that all play alike.
 - [ ] Ladders, which can kill when approached from the wrong angle.
@@ -29,6 +30,11 @@ reviews unless they say otherwise, and what to change is still to be decided.
 
 ## Performance
 
+Optimizing the existing code comes first. The game's timing doesn't change until we know how
+the optimized game really runs.
+
+- [ ] Check the timing on a more accurate emulator. BlastEm is the likely choice.
+- [ ] Record a realistic route through the levels to measure, in place of random walks.
 - [ ] Slowdown: 23% of ticks ran late in random walks, and about half on level 6. Object
       graphics are the first suspect on levels 5 and 6. Levels 2, 4 and 8 need another answer.
 - [ ] Controls said to feel less responsive than the NES version. Measure the delay from

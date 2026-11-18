@@ -67,6 +67,23 @@ Between levels the game sets the flag at `FF1088` and loads straight from those 
 no typing. Setting the same flag by hand, with a level number, does load that level, which
 is how the harness reaches all eight.
 
+## Saving
+
+Nothing has been built or tested here. This is what the ROM and the code read so far suggest.
+
+The ROM is 1 MB and its header's save RAM field is blank, so battery RAM could sit at the
+usual `200000`, well clear of the ROM. None of the code reached so far touches that area or
+the cartridge's mapper port, though only part of the code has been reached. The header
+checksum doesn't appear to be read either, and it can be corrected anyway.
+
+What a certificate holds is only a handful of small values, gathered when a level ends
+(`012876`), so saving at the start of a level would take very little space. Saving in the
+middle of a level would mean keeping the state of its rooms and objects, and how much that
+comes to isn't known.
+
+There's a run of about 10 KB of unused-looking `FF` bytes at `0FD65C`, and the ROM could also
+be made larger, so new code should have room.
+
 ## Drawing
 
 Only partly explored. The routine at `02E3E4` builds graphics for objects, 32 bytes per
