@@ -28,11 +28,16 @@
  * -T   tick,lo,hi:file  with the profiling core, write for each frame
  *      "frame ticks idle": how many times the instruction at hex address tick
  *      ran, and the cycles spent in the hex range lo..hi (the wait loop)
+ * -W   addr:file  write the 32-bit value at hex RAM address addr after every
+ *      frame, one a line. Works on any core, unlike -T.
  * -p   frame:addr=value  before that frame, set the byte at hex 68000 address
  *      addr (in 0xff0000-0xffffff) to hex value. Can be repeated.
  * -i   input script, one event per line: "frame port BUTTONS", e.g.
  *      "120 0 B+RIGHT". The buttons are held until the port's next line.
- *      Buttons: UP DOWN LEFT RIGHT A B C START. "-" releases everything.
+ *      Buttons: UP DOWN LEFT RIGHT A B C START, or #n for libretro button n.
+ *      "-" releases everything.
+ * -b   a,b,c  libretro button numbers for the pad's A, B and C, for cores that
+ *      lay the pad out differently from PicoDrive (give it before -i)
  */
 #include <dlfcn.h>
 #include <stdarg.h>
@@ -221,6 +226,17 @@ static void write_profile(const char *path)
     fclose(f);
 }
 
+static unsigned long peek32(unsigned addr)
+{
+    uint8_t *(*data)(unsigned) = dlsym(core.h, "retro_get_memory_data");
+    uint8_t *ram = data ? data(RETRO_MEMORY_SYSTEM_RAM) : NULL;
+    unsigned long v = 0;
+    if (ram)
+        for (unsigned i = 0; i < 4; i++)
+            v = v << 8 | ram[((addr + i) & 0xffff) ^ 1];
+    return v;
+}
+
 static void poke(unsigned addr, unsigned value)
 {
     uint8_t *(*data)(unsigned) = dlsym(core.h, "retro_get_memory_data");
@@ -230,19 +246,22 @@ static void poke(unsigned addr, unsigned value)
 
 struct pokeval { int frame; unsigned addr, value; };
 
+static int id_a = RETRO_DEVICE_ID_JOYPAD_Y, id_b = RETRO_DEVICE_ID_JOYPAD_B, id_c = RETRO_DEVICE_ID_JOYPAD_A;
+
 static uint16_t parse_buttons(const char *s)
 {
-    static const struct { const char *n; int id; } map[] = {
+    const struct { const char *n; int id; } map[] = {
         { "UP", RETRO_DEVICE_ID_JOYPAD_UP }, { "DOWN", RETRO_DEVICE_ID_JOYPAD_DOWN },
         { "LEFT", RETRO_DEVICE_ID_JOYPAD_LEFT }, { "RIGHT", RETRO_DEVICE_ID_JOYPAD_RIGHT },
-        { "A", RETRO_DEVICE_ID_JOYPAD_Y }, { "B", RETRO_DEVICE_ID_JOYPAD_B },
-        { "C", RETRO_DEVICE_ID_JOYPAD_A }, { "START", RETRO_DEVICE_ID_JOYPAD_START },
+        { "A", id_a }, { "B", id_b },
+        { "C", id_c }, { "START", RETRO_DEVICE_ID_JOYPAD_START },
     };
     uint16_t v = 0;
     char buf[128], *t;
     strncpy(buf, s, sizeof buf - 1); buf[sizeof buf - 1] = 0;
     for (t = strtok(buf, "+ \t\r\n"); t; t = strtok(NULL, "+ \t\r\n"))
-        for (unsigned i = 0; i < sizeof map / sizeof map[0]; i++)
+        if (t[0] == '#') v |= 1 << atoi(t + 1);
+        else for (unsigned i = 0; i < sizeof map / sizeof map[0]; i++)
             if (!strcmp(t, map[i].n)) v |= 1 << map[i].id;
     return v;
 }
@@ -286,7 +305,8 @@ int main(int argc, char **argv)
     struct shot shots[256];
     static struct ev evs[65536];
     const char *script = NULL, *audio_path = NULL, *ram_path = NULL, *load_path = NULL;
-    FILE *log_out = NULL, *ram_out = NULL;
+    FILE *log_out = NULL, *ram_out = NULL, *watch_out = NULL;
+    unsigned watch_addr = 0;
     static struct pokeval pokes[64];
     int npokes = 0;
     int prof_from = -1, prof_to = -1;
@@ -335,6 +355,14 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "-p") && npokes < 64) {
             struct pokeval *q = &pokes[npokes++];
             if (sscanf(argv[++i], "%d:%x=%x", &q->frame, &q->addr, &q->value) != 3) { fprintf(stderr, "-p frame:addr=value\n"); return 1; }
+        }
+        else if (!strcmp(argv[i], "-W")) {
+            int used = 0;
+            if (sscanf(argv[++i], "%x:%n", &watch_addr, &used) < 1 || !used) { fprintf(stderr, "-W addr:file\n"); return 1; }
+            watch_out = fopen(argv[i] + used, "w");
+        }
+        else if (!strcmp(argv[i], "-b")) {
+            if (sscanf(argv[++i], "%d,%d,%d", &id_a, &id_b, &id_c) != 3) { fprintf(stderr, "-b a,b,c\n"); return 1; }
         }
         else if (!strcmp(argv[i], "-q")) quiet = 1;
     }
@@ -451,6 +479,7 @@ int main(int argc, char **argv)
         if (log_out && frame)
             fprintf(log_out, "%d %08lx %04x\n", f, crc32(0, frame, fw * fh * 3), pads[0]);
         if (ram_out) write_ram(ram_out);
+        if (watch_out) fprintf(watch_out, "%lu\n", peek32(watch_addr));
         if (prof_path && f == prof_to) write_profile(prof_path);
         if (tick_out) {
             unsigned long long idle = 0;
@@ -472,6 +501,7 @@ int main(int argc, char **argv)
         if (f) { write_ram(f); fclose(f); }
     }
     if (log_out) fclose(log_out);
+    if (watch_out) fclose(watch_out);
     if (tick_out) fclose(tick_out);
     if (ram_out) fclose(ram_out);
     if (video_out) fclose(video_out);
