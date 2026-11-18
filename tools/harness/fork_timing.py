@@ -57,10 +57,16 @@ def run(level, walk, tag, profile=True):
         f.write('\n'.join(init) + '\n')
     env = {**os.environ, 'HOME': HOME, 'SDL_VIDEODRIVER': 'dummy', 'SDL_AUDIODRIVER': 'dummy',
            'BLASTEM_NO_GUI': '1', 'BLASTEM_KIT_INIT': base + '.init'}
-    out = subprocess.run([BLASTEM, '-b', str(cc.START + cc.FRAMES), ROM], env=env, capture_output=True,
-                         text=True, errors='replace', timeout=300).stdout
+    done = subprocess.run([BLASTEM, '-b', str(cc.START + cc.FRAMES), ROM], env=env, capture_output=True,
+                          text=True, errors='replace', timeout=300)
+    out = done.stdout
     hashes = HASH.findall(out)
     reached = PEEK.search(out)
+    if done.returncode or len(hashes) < cc.START + cc.FRAMES - 1 or not reached:
+        with open(base + '.failed', 'w') as f:
+            f.write(f'exit {done.returncode}, {len(hashes)} frames, reached {reached}\n--- stderr\n{done.stderr}'
+                    f'\n--- end of stdout\n{out[-1500:]}')
+        raise RuntimeError(f'{tag} level {level + 1} walk {walk} failed; see {base}.failed')
     spans, last, spent = [], None, 0
     for frame, _total, _cycles, hits, obj, _objhits in PROF.findall(out):
         frame = int(frame)
