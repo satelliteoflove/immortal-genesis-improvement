@@ -36,10 +36,20 @@ the optimized game really runs.
 - [x] Check the timing on a more accurate emulator. The BlastEm fork is the reference now.
 - [ ] Offer the fork fixes back when we're ready (`docs/blastem-fork-fixes.md`). Not yet.
 - [ ] Record a realistic route through the levels to measure, in place of random walks.
-- [ ] Slowdown: 23% of ticks ran late in random walks, and about half on level 6. Object
-      graphics are the first suspect on levels 5 and 6. Levels 2, 4 and 8 need another answer.
+- [x] Object graphics: tiles are unpacked ahead of time. Level 6 went from 58% of ticks late
+      to 20%, and level 5 from 41% to 24%.
+- [ ] Slowdown that's left: 16.4% of ticks still run late in random walks, mostly from
+      something other than object graphics. Find it, starting with levels 2, 4 and 8.
+- [ ] Decide how the patch is released. The unpacked tiles are the game's graphics, so an
+      ordinary IPS or BPS file would contain them. `tools/build_rom.py` makes them from the
+      player's own ROM instead.
+- [ ] Try the patched ROM on real hardware.
 - [ ] Controls said to feel less responsive than the NES version. Measure the delay from
       button to screen.
+
+## Bugs fixed
+
+- [x] The wall torch's flame loses its top, from a slip in the game's tile search.
 
 ## Things to keep
 

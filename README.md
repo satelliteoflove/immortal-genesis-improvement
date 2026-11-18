@@ -6,8 +6,8 @@ game. It started as an idea for a 32X port (hence the folder's name), but the pr
 people raised with the game aren't ones the 32X would fix, so this is a straight patch for
 the Genesis.
 
-Nothing has been patched yet. `TODO.md` has what we're looking into and
-`docs/progress/index.html` is the running record.
+So far the patch speeds up object graphics and restores the wall torch's flame. `TODO.md` has
+what we're looking into and `docs/progress/index.html` is the running record.
 
 ## The ROM
 
@@ -22,6 +22,11 @@ The patch is made for one dump, The Immortal (USA, Europe):
 Put your own copy in `rom/` and check it:
 
     tools/romcheck.py
+
+## Building the patched ROM
+
+    tools/build_rom.py            # writes build/immortal-patched.md, 2 MB
+    tools/build_rom.py --check    # also tests the result (needs the BlastEm fork build)
 
 ## What's kept in the repository
 

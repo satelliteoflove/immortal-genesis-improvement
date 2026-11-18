@@ -22,7 +22,7 @@ ROOT = os.path.dirname(os.path.dirname(HERE))
 OUT = os.path.join(ROOT, 'scratch', 'fork-timing')
 BLASTEM = os.environ.get('BLASTEM', os.path.join(ROOT, 'build', 'blastem-fork', 'blastem'))
 HOME = os.path.join(ROOT, 'build', 'blastem-home')
-ROM = sorted(glob.glob(os.path.join(ROOT, 'rom', '*')))[0]
+ROM = os.environ.get('ROM', sorted(glob.glob(os.path.join(ROOT, 'rom', '*')))[0])
 TICK = '134a8'
 OBJECT_GRAPHICS = ('2e3e4', '2f4e0')
 PROF = re.compile(r'KIT PROF frame=(\d+) total=(\d+) tick=(\d+):(\d+) objgfx=(\d+):(\d+)')

@@ -75,7 +75,9 @@ Nothing has been built or tested here. This is what the ROM and the code read so
 The ROM is 1 MB and its header's save RAM field is blank, so battery RAM could sit at the
 usual `200000`, well clear of the ROM. None of the code reached so far touches that area or
 the cartridge's mapper port, though only part of the code has been reached. The header
-checksum doesn't appear to be read either, and it can be corrected anyway.
+checksum isn't read, but the game does check itself at boot: `0FFFB0` adds up the first
+megabyte and halts on a solid screen if the total is wrong. Any patch has to get past that,
+and ours turns off the branch at `0FFFD0`.
 
 What a certificate holds is only a handful of small values, gathered when a level ends
 (`012876`), so saving at the start of a level would take very little space. Saving in the
@@ -88,9 +90,27 @@ be made larger, so new code should have room.
 ## Drawing
 
 Only partly explored. The routine at `02E3E4` builds graphics for objects, 32 bytes per
-tile, into RAM at `FF2000`, looking each one up with a binary search. The code around
-`014802` queues the matching sprites, in blocks of 4 by 4 tiles. `01428C` handles the queue
-afterwards. How the room itself reaches the screen hasn't been traced yet.
+tile, into RAM at `FF2000`. The code around `014802` queues the matching sprites, in blocks
+of 4 by 4 tiles. `01428C` handles the queue afterwards. How the room itself reaches the
+screen hasn't been traced yet.
+
+Object tiles are numbered from 1 to 29,670, and tile 0 is blank. The index at `02DCEC` splits
+them into runs, each with a fixed packed size per tile. Most are compressed with one fixed
+code tree, and the rest are stored whole. The tree is written out as code from `02E6D6`, one
+test and branch per bit, with each packed byte first spread into 8 bytes through the table at
+`02D4EC`. That made an object tile cost about 5,000 cycles on level 6, every time it was
+needed, with nothing kept between uses.
+
+### The missing torch flame
+
+The search through that index accepts a tile number equal to the first tile of the *next*
+run. It's harmless nearly everywhere, because the two runs agree on where such a tile starts
+and the tree stops by itself after 32 bytes. It goes wrong at one spot: tile 25793 begins the
+final run of stored tiles, and the search lands on the run before it, so the stored bytes get
+decoded as if compressed. On level 4 that tile is the top of the wall torch's flame, so the
+original game draws the torch with the top of its flame missing. Comparing the original ROM's
+picture with the corrected tile shows it. The walks also asked for this tile on levels 2, 3
+and 5 to 8, and those uses haven't been looked at.
 
 ## Performance
 
@@ -174,3 +194,37 @@ Across all levels 23.8% of ticks were late. Level 6 came out worse here, at 58% 
 51%, and object graphics cost roughly 10 to 15% more than PicoDrive's count on the busy
 levels. The walks drift apart between emulators, so small differences between tables don't
 mean much, but PicoDrive's cycle counts should be read as a little optimistic.
+
+## The object graphics patch
+
+`tools/build_rom.py` unpacks all the object tiles from your ROM into a new second megabyte
+(`100000` onward, ending well short of `200000`), and replaces `02E3E4` with a routine that
+copies them. The work per tile drops to a table lookup and a 32-byte copy.
+
+`--check` tests this in the BlastEm fork. A test ROM runs the game's own decoder on every tile
+number and compares the output with the unpacked table, and all 29,671 match, the torch tile
+included as the game decodes it. A second test ROM confirms that the new routine writes the
+right tiles and leaves every register as it found it. The old routine's work buffer at
+`FF9656` is no longer written, and no other code we've reached refers to it. Clean-boot runs of
+all eight levels never asked for a tile number outside the table.
+
+Same opening, jumps and walks as the table above, on the same emulator:
+
+| Level | Late before | Late now | Worst gap before | Worst gap now | Object graphics per tick, before / now (on-time ticks) |
+|---|---|---|---|---|---|
+| 1 | 1% | 1% | 7 | 7 | 221k / 16k |
+| 2 | 23% | 22% | 9 | 10 | 183k / 21k |
+| 3 | 10% | 11% | 9 | 7 | 129k / 15k |
+| 4 | 16% | 17% | 8 | 7 | 175k / 18k |
+| 5 | 41% | 24% | 11 | 7 | 141k / 18k |
+| 6 | 58% | 20% | 11 | 7 | 377k / 21k |
+| 7 | 15% | 14% | 8 | 7 | 207k / 13k |
+| 8 | 19% | 19% | 6 | 6 | 124k / 11k |
+
+Across all levels, late ticks went from 23.8% to 16.4%. Levels 5 and 6 are the ones that
+changed. Late ticks elsewhere come from something else, which is the next thing to find. The
+walks drift once timing changes, so small differences between the two columns don't mean much.
+
+The game also runs closer to its intended speed on levels 5 and 6 now, which means less of the
+slowdown players have been getting there, and enemies and traps there arrive sooner in real
+time. None of this has been tried on real hardware.
