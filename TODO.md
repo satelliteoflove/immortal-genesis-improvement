@@ -1,18 +1,21 @@
 # TODO
 
-Everything under the three goals is a lead from reviews or from the ROM's header. None of
-it has been checked in the game yet, and what to change is still to be decided.
+What's been found so far is in `docs/how-the-game-works.md`. Items below are leads from
+reviews unless they say otherwise, and what to change is still to be decided.
 
 ## First: see how the game works
 
-- [ ] Get it running under a test harness: scripted input, screenshots, frame timing.
-- [ ] Find the main loop, how it draws, and what it does in the vertical blank.
-- [ ] Find how deaths, lives per floor and passwords work.
+- [x] Get it running under a test harness: scripted input, screenshots, frame timing.
+- [x] Find the main loop and its timing.
+- [x] Find how deaths and lives work.
+- [ ] Trace how a room reaches the screen.
+- [ ] Enter a real certificate and confirm what it holds.
 
 ## Fairness
 
 - [ ] Deaths with little or no warning: traps that kill within seconds of entering a room.
-- [ ] Three lives per floor, and what a failed floor costs.
+- [ ] Three lives per level is confirmed. Game Over sends you back to the first room unless
+      you have a certificate to type in. The game can already reload a level without one.
 - [ ] Items that can be used up in the wrong place, forcing a restart.
 - [ ] Passwords. The header declares no save RAM and the ROM is 1 MB, so there's room to
       add saving, though it would need a cartridge or emulator that provides the RAM.
@@ -26,7 +29,8 @@ it has been checked in the game yet, and what to change is still to be decided.
 
 ## Performance
 
-- [ ] Slowdown on busy screens.
+- [ ] Slowdown: 23% of ticks ran late in random walks, and about half on level 6. Object
+      graphics are the first suspect on levels 5 and 6. Levels 2, 4 and 8 need another answer.
 - [ ] Controls said to feel less responsive than the NES version. Measure the delay from
       button to screen.
 

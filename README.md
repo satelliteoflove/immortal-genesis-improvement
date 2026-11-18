@@ -35,6 +35,20 @@ The game isn't, and neither is anything made from it. `.gitignore` keeps these o
 Addresses, hashes and our own descriptions of how the game works are fine to track.
 Stretches of the game's code or data pasted into notes are not.
 
+## The test harness
+
+It runs the game headless in PicoDrive, using the core and source that 32xKarts fetches:
+
+    make                                   # build/runner
+    tools/harness/build_trace_core.sh      # PicoDrive with a profile of the 68000
+    tools/harness/run.sh -n 600 -s 599:scratch/shot.png
+    tools/harness/sheet.py scratch/sheet.png 840 90 12 -i tools/harness/input/new_game.txt
+    tools/harness/levels.py                # reach every level, measure its timing
+    tools/disasm.py                        # writes disasm/, which git ignores
+
+`tools/harness/runner.c` lists its options. What's been learned is in
+`docs/how-the-game-works.md`.
+
 ## The progress page
 
     tools/progress.py "Title" "What changed, what to look at." shot.png clip.mp4
