@@ -20,7 +20,7 @@ import compare_cores as cc
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 OUT = os.path.join(ROOT, 'scratch', 'fork-timing')
-BLASTEM = os.path.join(ROOT, 'build', 'blastem-fork', 'blastem')
+BLASTEM = os.environ.get('BLASTEM', os.path.join(ROOT, 'build', 'blastem-fork', 'blastem'))
 HOME = os.path.join(ROOT, 'build', 'blastem-home')
 ROM = sorted(glob.glob(os.path.join(ROOT, 'rom', '*')))[0]
 TICK = '134a8'

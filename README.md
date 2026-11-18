@@ -46,7 +46,7 @@ It runs the game headless in PicoDrive, using the core and source that 32xKarts 
     tools/harness/levels.py                # reach every level, measure its timing
     tools/harness/get_blastem.sh           # BlastEm's libretro core, into build/cores/
     tools/harness/compare_cores.py         # the same timing run on PicoDrive and BlastEm
-    tools/harness/build_blastem_fork.sh    # our patched build of the BlastEm fork (needs SDL2)
+    tools/harness/build_blastem_fork.sh    # our patched build of the BlastEm fork (needs SDL2, GLEW)
     tools/harness/fork_timing.py           # timing and cycle counts on that build
     tools/disasm.py                        # writes disasm/, which git ignores
 

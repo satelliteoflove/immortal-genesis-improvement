@@ -20,7 +20,9 @@ copy. Commits meant for those projects carry no AI attribution.
   with an error.
 - **Fix:** without OpenGL, pass the main buffer. `process_framebuffer()` only uses the buffer
   for the main picture in that configuration.
-- **Tested:** the fork now builds and runs the game headless. Debug windows weren't tried.
+- **Tested:** the fork builds with `NOGL=1` and runs the game headless, with the same video
+  memory on every frame as the normal OpenGL build. Debug windows weren't tried. Our own build
+  uses OpenGL now, so it doesn't rely on this fix.
 - **Upstream:** the same line is in upstream `render_sdl.c`, so the same failure is likely
   there. We haven't built upstream to confirm it.
 

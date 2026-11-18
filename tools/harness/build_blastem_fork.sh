@@ -1,6 +1,6 @@
 #!/bin/bash
 # Builds build/blastem-fork/blastem from a clean clone of ulalume/blastem at a fixed
-# commit, with our patches on top. Built without OpenGL, needing only SDL2.
+# commit, with our patches on top. Needs SDL2 and GLEW (libsdl2-dev, libglew-dev).
 #   blastem-fork/fixes/    bugs we fixed; see docs/blastem-fork-fixes.md
 #   blastem-fork/harness/  additions only this project needs
 set -e
@@ -15,5 +15,5 @@ git checkout -q "$commit"
 for p in "$patches"/fixes/*.patch "$patches"/harness/*.patch; do
     git apply "$p"
 done
-make NOGL=1 CPU=x86_64 LIBS=sdl2 -j"$(nproc)" blastem > ../blastem-fork-build.log 2>&1
+make CPU=x86_64 -j"$(nproc)" blastem > ../blastem-fork-build.log 2>&1
 echo "built build/blastem-fork/blastem"
