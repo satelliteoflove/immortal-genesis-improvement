@@ -12,5 +12,11 @@
   "files": [
    "local/20261118_155857_levels.png"
   ]
+ },
+ {
+  "time": "2026-11-18 16:17",
+  "title": "BlastEm agrees with PicoDrive",
+  "note": "The same scripted runs now work on BlastEm, a much more exacting emulator. Across all eight levels 23.0% of the game's updates ran late on both, and level by level the figures match within a point, apart from level 2, where the random walks end early at deaths and prompts. The 4-frame gaps PicoDrive showed don't appear on BlastEm, so they look like a PicoDrive quirk.\n\nPicoDrive stays in use for profiling, and BlastEm becomes the check on whether an optimization really helps. None of this has been run on a real Genesis yet.",
+  "files": []
  }
 ]

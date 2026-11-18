@@ -15,8 +15,10 @@ figcaption { color: #8b93a1; font-size: .8rem; margin-top: .2rem; }
 img, video { image-rendering: pixelated; max-width: 100%; border: 1px solid #2a2e36; background: #000; display: block; }
 </style></head>
 <body><h1>The Immortal (Genesis patch): progress</h1>
-<div class="sub">Newest first. Last entry 2026-11-18 15:58. Reload to see new entries.</div>
-<article><time>2026-11-18 15:58</time><h2>The game runs under test, and the first findings</h2><p>The game now runs headless with scripted input, and a profiling build of PicoDrive shows where its time goes. All eight levels can be reached directly.
+<div class="sub">Newest first. Last entry 2026-11-18 16:17. Reload to see new entries.</div>
+<article><time>2026-11-18 16:17</time><h2>BlastEm agrees with PicoDrive</h2><p>The same scripted runs now work on BlastEm, a much more exacting emulator. Across all eight levels 23.0% of the game&#x27;s updates ran late on both, and level by level the figures match within a point, apart from level 2, where the random walks end early at deaths and prompts. The 4-frame gaps PicoDrive showed don&#x27;t appear on BlastEm, so they look like a PicoDrive quirk.
+
+PicoDrive stays in use for profiling, and BlastEm becomes the check on whether an optimization really helps. None of this has been run on a real Genesis yet.</p><div class="media"></div></article><article><time>2026-11-18 15:58</time><h2>The game runs under test, and the first findings</h2><p>The game now runs headless with scripted input, and a profiling build of PicoDrive shows where its time goes. All eight levels can be reached directly.
 
 The game updates once every 5 video frames, 12 times a second. In random walks 23% of those updates came late, and about half on level 6. On levels 5 and 6 the late ones spend much longer building object graphics. On levels 2, 4 and 8 the cause is still unknown. These timings are from the emulator.
 
