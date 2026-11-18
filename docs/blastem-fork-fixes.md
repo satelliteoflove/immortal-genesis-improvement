@@ -40,6 +40,20 @@ copy. Commits meant for those projects carry no AI attribution.
   before they alternated between about 1,000 and 127,000.
 - **Upstream:** the same code is in upstream `vdp.c`. We haven't run upstream to confirm it.
 
+### 3. Generated code can land out of range, stopping the emulator at startup
+
+- **Patch:** `tools/harness/blastem-fork/fixes/0003-keep-generated-code-in-range.patch`
+- **Branch:** `fix/code-allocation-range`
+- **Problem:** `alloc_code()` passes `mmap` an address near the executable, but without
+  `MAP_FIXED` that's only a hint. If the kernel places the block elsewhere, generated code can be
+  too far away for a 32-bit call, and the emulator stops with "out of range for a 32-bit
+  displacement". With address space randomization it depends on the run.
+- **Fix:** check where the block landed, and if it's out of range, release it and try further
+  addresses. After 32 tries it keeps what it got, which is what it always did.
+- **Tested:** we started the emulator 30,000 times before and after. It failed 37 times without
+  the fix and not at all with it.
+- **Upstream:** not checked yet, because retrodev.com wasn't reachable when this was written.
+
 ## Seen but not looked into
 
 A write to `A14000` crashes the headless build with a segfault in `machine_freeze()`, called

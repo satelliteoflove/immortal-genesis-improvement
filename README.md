@@ -59,8 +59,8 @@ It runs the game headless in PicoDrive, using the core and source that 32xKarts 
     tools/disasm.py                        # writes disasm/, which git ignores
 
 `tools/harness/runner.c` lists its options. What's been learned is in
-`docs/how-the-game-works.md`, and fixes made to the emulator are in
-`docs/blastem-fork-fixes.md`.
+`docs/how-the-game-works.md`, the performance work is written up in `docs/optimizations.md`, and
+fixes made to the emulator are in `docs/blastem-fork-fixes.md`.
 
 ## The progress page
 

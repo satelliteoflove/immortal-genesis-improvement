@@ -5,8 +5,9 @@
 
 Boots ROM (the patched one by default) in the profiling core, jumps to each level as
 compare_cores.py does, walks at random and adds up cycles. Routines are the sub_ labels
-in disasm/immortal.dis, so run tools/disasm.py first. Time spent waiting for the next
-tick is shown apart. Output goes in scratch/hotspots/, which git ignores.
+in disasm/immortal.dis, so run tools/disasm.py first, plus the patch's relocated routine.
+Time spent waiting (for the next tick, for vertical blank, in timed pauses) is shown apart.
+Output goes in scratch/hotspots/, which git ignores.
 """
 import bisect
 import collections
@@ -22,7 +23,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 OUT = os.path.join(ROOT, 'scratch', 'hotspots')
 CORE = os.path.join(ROOT, 'build', 'picodrive_trace_libretro.so')
-WAIT = (0x1349C, 0x134A7)
+WAITS = ((0x1349C, 0x134A7),     # the main loop, until the next tick is due
+         (0x14E06, 0x14E0B),     # reading the pad variable, nearly always from a pause
+         (0x14E3A, 0x14E6D),     # the two waits for vertical blank
+         (0x153DA, 0x15405))     # timed pauses
+PATCH_ROUTINES = [0x2E480]      # the new tile routine, which sits inside the old 02E3E4
 TOP = 12
 
 
@@ -35,7 +40,7 @@ def routines():
         elif pending and re.match(r'[0-9a-f]{6}  ', line):
             starts.append(int(line[:6], 16))
             pending = False
-    return sorted(set(starts))
+    return sorted({*starts, *PATCH_ROUTINES})
 
 
 def run(rom, level, walk):
@@ -62,7 +67,8 @@ def main():
         for line in open(path):
             address, _hits, cycles = line.split()
             address = int(address, 16)
-            name = 'waiting' if WAIT[0] <= address <= WAIT[1] else starts[max(bisect.bisect_right(starts, address) - 1, 0)]
+            waiting = any(low <= address <= high for low, high in WAITS)
+            name = 'waiting' if waiting else starts[max(bisect.bisect_right(starts, address) - 1, 0)]
             per_level[level][name] += int(cycles)
     every = collections.Counter()
     for level in range(8):

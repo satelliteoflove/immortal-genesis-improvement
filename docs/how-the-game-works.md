@@ -114,6 +114,9 @@ and 5 to 8, and those uses haven't been looked at.
 
 ## Performance
 
+The full story of the optimization work is in `docs/optimizations.md`. This section and the ones
+below keep the measurements as they were taken.
+
 The wizard was walked at random for 200 seconds on each level, the same way every run, with
 levels reached by the jump described above. A tick is late when it takes more than 5 video
 frames. Gaps of 12 frames or more were left out, since those are messages and transitions.
@@ -290,5 +293,5 @@ routines. A shorter tick would need more of this removed: 4.0% of ticks wouldn't
 and 14% wouldn't fit in 3. These are random walks, so a real route may differ.
 
 The largest remaining costs, as shares of work outside waits, are the sprite masking at `01428C`
-(14%), the sound mailbox with the Z80 at `01624E` (7%) and sprite tile uploads through `0150E6`
+(14%), what looks like the link to the sound driver at `01624E` (7%) and sprite tile uploads through `0150E6`
 (6%).
