@@ -1,0 +1,29 @@
+diff --git a/cpu/fame/famec.c b/cpu/fame/famec.c
+index b0ee0f0..ebd444a 100644
+--- a/cpu/fame/famec.c
++++ b/cpu/fame/famec.c
+@@ -254,10 +254,16 @@
+ 
+ #else
+ 
++/* Profiling for the harness: cycles and executions per instruction address. */
+ #define NEXT \
+     do { \
++        u32 trace_i = (((uptr)PC - BasePC) & 0xffffff) >> 1; \
++        s32 trace_c = ctx->io_cycle_counter, trace_d; \
+         FETCH_WORD(Opcode); \
+         JumpTable[Opcode](ctx); \
++        trace_d = trace_c - ctx->io_cycle_counter; \
++        retro_trace_hits[trace_i]++; \
++        if (trace_d > 0) retro_trace_cycles[trace_i] += trace_d; \
+     } while (ctx->io_cycle_counter > 0);
+ 
+ #define RET(A) { \
+@@ -526,6 +532,7 @@ extern M68K_CONTEXT PicoCpuFS68k;
+ /* Custom function handler */
+ typedef void (*opcode_func)(M68K_CONTEXT *ctx);
+ 
++unsigned int retro_trace_hits[0x800000], retro_trace_cycles[0x800000];
+ static opcode_func JumpTable[0x10000];
+ 
+ // exception cycle table (taken from musashi core)

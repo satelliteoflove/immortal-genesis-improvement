@@ -23,6 +23,8 @@
  * -M   file  append the 68000's 64K of RAM after every frame, in the 68000's
  *      own byte order (big: 64K a frame)
  * -m   file  the same RAM, once, at the end
+ * -P   from:to:file  with the profiling core (build_trace_core.sh), write
+ *      "address executions cycles" for each 68000 instruction run in those frames
  * -i   input script, one event per line: "frame port BUTTONS", e.g.
  *      "120 0 B+RIGHT". The buttons are held until the port's next line.
  *      Buttons: UP DOWN LEFT RIGHT A B C START. "-" releases everything.
@@ -201,6 +203,19 @@ static void write_ram(FILE *f)
     fwrite(out, 1, n, f);
 }
 
+static unsigned *trace_hits, *trace_cycles;
+#define TRACE_WORDS 0x800000
+
+static void write_profile(const char *path)
+{
+    FILE *f = fopen(path, "w");
+    if (!f) { perror(path); exit(1); }
+    for (unsigned i = 0; i < TRACE_WORDS; i++)
+        if (trace_hits[i])
+            fprintf(f, "%06x %u %u\n", i * 2, trace_hits[i], trace_cycles[i]);
+    fclose(f);
+}
+
 static uint16_t parse_buttons(const char *s)
 {
     static const struct { const char *n; int id; } map[] = {
@@ -258,6 +273,8 @@ int main(int argc, char **argv)
     static struct ev evs[65536];
     const char *script = NULL, *audio_path = NULL, *ram_path = NULL, *load_path = NULL;
     FILE *log_out = NULL, *ram_out = NULL;
+    int prof_from = -1, prof_to = -1;
+    const char *prof_path = NULL;
 
     if (argc < 3) { fprintf(stderr, "usage: runner core rom [options]\n"); return 1; }
     for (int i = 3; i < argc; i++) {
@@ -284,6 +301,13 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "-l")) load_path = argv[++i];
         else if (!strcmp(argv[i], "-L")) log_out = fopen(argv[++i], "w");
         else if (!strcmp(argv[i], "-M")) ram_out = fopen(argv[++i], "wb");
+        else if (!strcmp(argv[i], "-P")) {
+            static char pbuf[4096];
+            int used = 0;
+            snprintf(pbuf, sizeof pbuf, "%s", argv[++i]);
+            if (sscanf(pbuf, "%d:%d:%n", &prof_from, &prof_to, &used) < 2 || !used) { fprintf(stderr, "-P from:to:file\n"); return 1; }
+            prof_path = pbuf + used;
+        }
         else if (!strcmp(argv[i], "-q")) quiet = 1;
     }
     if (script) {
@@ -341,7 +365,17 @@ int main(int argc, char **argv)
     uint8_t *keep = NULL;
     int mismatches = 0;
 
+    if (prof_path) {
+        trace_hits = dlsym(core.h, "retro_trace_hits");
+        trace_cycles = dlsym(core.h, "retro_trace_cycles");
+        if (!trace_hits || !trace_cycles) { fprintf(stderr, "-P needs the profiling core\n"); return 1; }
+    }
+
     for (int f = 0; f < nframes; f++) {
+        if (prof_path && f == prof_from) {
+            memset(trace_hits, 0, TRACE_WORDS * sizeof *trace_hits);
+            memset(trace_cycles, 0, TRACE_WORDS * sizeof *trace_cycles);
+        }
         for (int i = 0; i < nev; i++)
             if (evs[i].frame == f) pads[evs[i].port] = evs[i].b;
         if ((crc_out || rewind_n || f == state_frame) && (f > 30 || load_path)) {
@@ -387,6 +421,7 @@ int main(int argc, char **argv)
         if (log_out && frame)
             fprintf(log_out, "%d %08lx %04x\n", f, crc32(0, frame, fw * fh * 3), pads[0]);
         if (ram_out) write_ram(ram_out);
+        if (prof_path && f == prof_to) write_profile(prof_path);
         for (int i = 0; i < nshots; i++)
             if (shots[i].frame == f && frame) save_png(shots[i].path, scale);
         if (video_out && frame && f >= video_from && (f & 1) == 0) fwrite(frame, 3, fw * fh, video_out);
