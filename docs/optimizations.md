@@ -10,20 +10,23 @@ on real hardware or judged by someone playing it.
 The game runs one update, or tick, every 5 video frames. A tick that takes longer starts the next
 one late, and the game never catches up, so a late tick is lost time.
 
-| Level | Late: original | Late: object tiles | Late: background tiles | Late: now | Worst gap: original | Worst gap: now |
-|---|---|---|---|---|---|---|
-| 1 | 1% | 1% | 0% | 0% | 7 | 5 |
-| 2 | 23% | 22% | 12% | 11% | 9 | 6 |
-| 3 | 10% | 11% | 0% | 0% | 9 | 6 |
-| 4 | 16% | 17% | 0% | 0% | 8 | 5 |
-| 5 | 41% | 24% | 0% | 0% | 11 | 5 |
-| 6 | 58% | 20% | 5% | 4% | 11 | 6 |
-| 7 | 15% | 14% | 1% | 1% | 8 | 6 |
-| 8 | 19% | 19% | 0% | 0% | 6 | 5 |
-| **All** | **23.8%** | **16.4%** | **2.0%** | **1.7%** | | |
+| Level | Late: original | Late: object tiles | Late: background tiles | Late: all changes, 2 MB | Late: now, 1 MB | Worst gap: original | Worst gap: now |
+|---|---|---|---|---|---|---|---|
+| 1 | 1% | 1% | 0% | 0% | 0% | 7 | 5 |
+| 2 | 23% | 22% | 12% | 11% | 11% | 9 | 7 |
+| 3 | 10% | 11% | 0% | 0% | 0% | 9 | 7 |
+| 4 | 16% | 17% | 0% | 0% | 0% | 8 | 5 |
+| 5 | 41% | 24% | 0% | 0% | 0% | 11 | 6 |
+| 6 | 58% | 20% | 5% | 4% | 4% | 11 | 10 |
+| 7 | 15% | 14% | 1% | 1% | 0% | 8 | 5 |
+| 8 | 19% | 19% | 0% | 0% | 0% | 6 | 5 |
+| **All** | **23.8%** | **16.4%** | **2.0%** | **1.7%** | **1.7%** | | |
 
-Each column adds one change to the one before it, and "now" has the sprite masking and camera
-step changes as well. Late ticks stopped being the useful measure after the background tile
+Each column adds one change to the one before it, and "all changes" has the sprite masking and
+camera step changes as well. Up to there the patch was a 2 MB ROM holding every object tile
+unpacked. The build is now 1 MB, the size of the original, and uses the game's own packed
+graphics; "One megabyte" below has how. Sections before that one describe the 2 MB build where
+they give numbers. Late ticks stopped being the useful measure after the background tile
 change, because nearly all that remain are deliberate waits. From there on the measure is
 headroom: how much of a tick's time its work needs.
 
@@ -67,7 +70,8 @@ was 54% of all the cycles in the run, waiting included.
 | Spreading the bytes | 20% | 23% |
 | Decoding bits | 49% | 58% |
 
-**The change.** There are 29,671 tile numbers, and they come to about 950 KB unpacked. That fits
+**The change.** This was the first version, and the 1 MB build does it differently; see "One
+megabyte" below. There are 29,671 tile numbers, and they come to about 950 KB unpacked. That fits
 in a second megabyte of ROM, from `100000` to `1E7CFF`, leaving `200000` free for save RAM. The
 new routine looks a tile up by number and copies 32 bytes. It's 98 bytes long, against about
 4 KB before, and it uses the same inputs and outputs. The tiles are generated from the player's
@@ -99,8 +103,10 @@ to the first tile of the *next* run. That's usually harmless, because both runs 
 the tile starts. At tile 25793 it isn't: the tile begins a run of uncompressed tiles, the search
 lands on the compressed run before it, and the bytes get decoded as if they were compressed. On
 level 4 this tile is the top of the wall torch's flame, so the original draws the torch with the
-top missing. The unpacked table holds the correct tile. The walks also asked for this tile on
-levels 2, 3 and 5 to 8, and those uses haven't been looked at.
+top missing. The 2 MB build's unpacked table held the correct tile. The 1 MB build does the
+search in its own routine, which takes a run to end one number sooner, so the game's search and
+its slip are no longer used. The walks also asked for this tile on levels 2, 3 and 5 to 8, and
+those uses haven't been looked at.
 
 ## Background tiles
 
@@ -319,6 +325,108 @@ decoder gone that RAM never changes, so it looked free, and the patch keeps the 
 counts, the fight timer and the music and text flags there. Put the decoder back and it writes
 over all of them. The first test build froze in level 7's fight for that reason. Any build that
 keeps the decoder has to keep those values somewhere else; the test build used `FFA800`.
+
+## One megabyte: remembering unpacked tiles
+
+The 2 MB build was fast because nothing was unpacked while the game ran. The 1 MB build gets most
+of that back by remembering. The new object routine keeps the last 640 tiles it unpacked in RAM,
+and only calls the game's decoder for a tile it doesn't have.
+
+**The RAM.** The decoder's working space runs to `FF9755`, and the game's code names no fixed
+address from `FF9760` to `FFBFFF`. `FFC000` and up is used by the Sega logo
+and nothing else: the code that names those addresses is all between `000320` and `000CDC`, and
+once the logo is done the game clears the whole stretch and leaves it. A test build filled
+`FF9800` to `FFF7FF` with a pattern once play began and watched it over all 32 walks, and no byte
+changed, so the stack, at the top of RAM, never came down that far either. That's the evidence.
+It covers walking, fights and deaths on every level, but not the ending or every screen of the
+game.
+
+| RAM | Use |
+|---|---|
+| `FF9760` to `FF97A9` | The patch's own values, moved out of the decoder's working space: background tile counts, fight timer, music and text flags |
+| `FF9800` to `FF9FFF` | Tags: which tile each place holds, 16 bytes a set |
+| `FFA000` to `FFA07F` | A byte a set: which of its places is replaced next |
+| `FFA080` to `FFF07F` | The tiles, 32 bytes each |
+
+**How it's laid out.** A tile's low 7 bits choose one of 128 sets, and each set holds 5 tiles.
+Objects use runs of neighboring tile numbers, so the low bits spread them evenly. When a set is
+full, the tile that has been there longest goes. A place's tag is zero until its tile is whole,
+so a reset in the middle can't leave half a tile that passes for a whole one, and the game's
+clearing of RAM at startup empties the memory.
+
+Every tile asked for on one walk of levels 2, 5, 6 and 7 was recorded and played back through
+different layouts. The share of requests that had to be unpacked:
+
+| Layout | Tiles | RAM | Level 2 | Level 5 | Level 6 | Level 7 |
+|---|---|---|---|---|---|---|
+| One place a tile, 256 | 256 | 8.7 KB | 20.3% | 33.7% | 21.6% | 43.2% |
+| One place a tile, 512 | 512 | 17.4 KB | 14.9% | 20.3% | 12.5% | 25.7% |
+| 128 sets of 4 | 512 | 17.5 KB | 8.5% | 8.5% | 2.3% | 16.3% |
+| 128 sets of 5 | 640 | 22.7 KB | 7.0% | 6.1% | 1.7% | 14.1% |
+| No limit | | | 3.5% | 1.8% | 0.8% | 10.7% |
+
+Sets matter much more than size: a tile with one place to live is pushed out by any other tile
+that shares it. "No limit" is the floor, a tile's first appearance.
+
+**The routine.** It's 292 bytes at `0FFBD0`, and `02E3E4` jumps to it. By a count of
+instructions a tile it has costs about 320 cycles, against about 260 for the 2 MB build's copy.
+Unpacking one measured about 6,000. To find it
+the routine compares the tile's number, as the game stores it, with the set's five tags.
+
+A tile it doesn't have is unpacked by the game's decoder, called as a subroutine: its two exits,
+at `02E4C2` and `02F4D4`, become returns. The decoder is entered at `02E48E`, after its search
+for the run of tiles the number belongs to. The game halved its way through the whole index for
+every tile, about 700 cycles by the same count. The new routine starts from a 256-byte table, one entry for each
+128 tile numbers, and steps forward: no steps for 54% of tile numbers, one for 44%, never more
+than four. That pays for the look-up and the copy into the memory, so a picture made wholly of
+new tiles takes what it took in the original. Without it such pictures were about a frame slower
+than the original. The index's end marker at `02E3DE` becomes `FFFF` so the stepping stops there.
+
+**Fitting in 1 MB.** Everything the patch adds goes in `0FD65C` to `0FFFAF`, 10,580 bytes that
+are all `FF` in the original, just before the boot check. The masking tables take 8,192 of them.
+The routines that sat in the old decoder's place moved there too, since the decoder is back.
+10,090 bytes are used and 490 are left.
+
+**The result.** Late ticks are in the table at the top: 1.7% overall. The 2 MB build measured
+1.5% on the same day, and the two differ by less than one run differs from the next.
+Frames to a finished picture, all levels:
+
+| Build | 1 frame | 2 frames | 3 frames | 4 frames | 5 or more |
+|---|---|---|---|---|---|
+| Original | 2.1% | 22.5% | 26.3% | 20.8% | 28.3% |
+| 1 MB, now | 29.3% | 56.3% | 12.8% | 1.4% | 0.2% |
+| 2 MB | 43.4% | 47.3% | 8.7% | 0.5% | 0.1% |
+
+So the 1 MB build has less to spare than the 2 MB one, and it shows in how many pictures need a
+second or third frame. It doesn't show in late ticks, because a tick has 5 frames.
+
+| Level | Object graphics a tick: original | 1 MB, now | 2 MB |
+|---|---|---|---|
+| 1 | 221k | 30k | 16k |
+| 2 | 183k | 35k | 19k |
+| 3 | 129k | 33k | 17k |
+| 4 | 175k | 35k | 17k |
+| 5 | 141k | 37k | 19k |
+| 6 | 377k | 39k | 23k |
+| 7 | 207k | 31k | 16k |
+| 8 | 124k | 26k | 14k |
+
+Fights are held to the original's pace, and still are: 6 frames a picture in the main loop every
+time. The animation loop is 8 frames for 87% of pictures. The rest are 11 and 13 frames, in a
+death animation where nearly every tile of every picture is new, and the original takes 11 to 14
+on the same pictures. The 2 MB build drew those in 8.
+
+**How it was checked.** `tools/build_rom.py --check` has two new tests.
+
+| Check | What it does |
+|---|---|
+| Every tile | Asks the routine for each of the 29,671 tile numbers in a list of 8: the tile, the tile again, five others of its set, and the tile again. So each is unpacked, found, pushed out and unpacked again. All 237,368 answers are compared with the build script's own unpacking, with tile 25793 as it should be. None differ |
+| Remembering | Asks for a tile, turns the remembered copy inside out, and asks again. The second answer must be the inside-out copy, which shows it was copied and not unpacked |
+| Registers | A list of 16 tiles, with blanks, repeats and a set overfilled, comes out right and leaves every register as it was |
+| Deliberate breaks | The game's search put back, a place read from its neighbor, tags stored wrongly and the turn never moving on each made a check fail. A real slip in blank tiles, made along the way, was caught by the register check |
+
+Not checked: real hardware, and anyone's eye. The torch hasn't been looked at in play on this
+build, though its tile comes out right.
 
 ## What's left
 

@@ -38,6 +38,8 @@ the optimized game really runs.
 - [ ] Record a realistic route through the levels to measure, in place of random walks.
 - [x] Object graphics: tiles are unpacked ahead of time. Level 6 went from 58% of ticks late
       to 20%, and level 5 from 41% to 24%.
+- [x] Back to a 1 MB ROM with the game's own packed graphics. The object routine remembers the
+      last 640 tiles it unpacked in spare RAM. Late ticks are 1.7%, as with the 2 MB build.
 - [x] Background tiles: only new ones are sent when the camera moves. Late ticks across all
       levels went from 16.4% to 2.0%, and the game no longer misses vertical blanks.
 - [ ] Slowdown that's left: 2.0% of ticks, mostly deliberate waits in animations on levels 2, 6
@@ -56,8 +58,10 @@ the optimized game really runs.
 - [ ] Find out whether drawing that finishes after vertical blank shows on screen (16% of plain
       ticks, 52% of camera steps). Sending sprite tiles in vertical blank would fix it, and would
       shorten the Z80's stops as well.
-- [ ] Release the patch as tools that build it from the player's own ROM, for now. The
-      unpacked tiles are the game's graphics, so an ordinary IPS or BPS file would contain them.
+- [ ] Release the patch as tools that build it from the player's own ROM, for now. The 1 MB
+      build no longer carries unpacked tiles, but it still holds things made from the game: the
+      masking tables, 448 bytes of cell data and the sound link's own instructions. Whether a
+      plain IPS or BPS file is all right with those in it is undecided.
 - [ ] Try the patched ROM on real hardware.
 - [ ] Controls said to feel less responsive than the NES version. Measure the delay from
       button to screen.

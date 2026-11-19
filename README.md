@@ -26,7 +26,7 @@ Put your own copy in `rom/` and check it:
 
 ## Building the patched ROM
 
-    tools/build_rom.py            # writes build/immortal-patched.md, 2 MB
+    tools/build_rom.py            # writes build/immortal-patched.md, 1 MB like the original
     tools/build_rom.py --check    # also tests the result (needs the BlastEm fork build)
 
 ## What's kept in the repository

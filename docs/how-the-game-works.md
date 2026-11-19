@@ -24,6 +24,9 @@ The game keeps most of its variables relative to a base of `FF0300`.
 | `FF9624` | Count of vertical blanks (long) | Seen |
 | `FF12E6` | The count at which the next tick may begin (long) | Seen |
 | `FF962A` | Pad 1, as read in the vertical blank | Read from code |
+| `FF9656` to `FF9755` | The object decoder's working space: a packed tile's bits, one to a byte | Seen |
+| `FF9760` to `FFBFFF` | No fixed address here is named anywhere in the code | Read from code |
+| `FFC000` to `FFF7FF` | Used by the Sega logo, then cleared and left alone | Seen on 32 walks |
 
 ## The main loop
 
@@ -280,9 +283,13 @@ along mask edges. `docs/optimizations.md` has the details and the fix.
 
 ## The object graphics patch
 
-`tools/build_rom.py` unpacks all the object tiles from your ROM into a new second megabyte
-(`100000` onward, ending well short of `200000`), and replaces `02E3E4` with a routine that
-copies them. The work per tile drops to a table lookup and a 32-byte copy.
+The first version of the patch unpacked all the object tiles from your ROM into a new second
+megabyte and replaced `02E3E4` with a routine that copied them. The rest of this section
+describes that 2 MB build.
+
+The patch is 1 MB now. `02E3E4` jumps to a routine that keeps the last 640 tiles it unpacked in
+RAM from `FF9800` to `FFF07F`, which the game only touches while starting up, and calls the game's
+decoder for the rest. `docs/optimizations.md` has the details under "One megabyte".
 
 `--check` tests this in the BlastEm fork. A test ROM runs the game's own decoder on every tile
 number and compares the output with the unpacked table, and all 29,671 match, the torch tile
