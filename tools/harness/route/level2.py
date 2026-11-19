@@ -48,23 +48,34 @@ def slime_resting(g, n):
 
 
 def first_room(g, log):
-    """Room 4. Two slimes come for the wizard from the start and their touch kills. The gem
-    and the bones are left for later, when the oil is on his boots: now it is only to the
-    door in the top left wall, which opens to UP, and one slime starts beside it.
+    """Room 4. Two slimes come for the wizard from the start and their touch kills. The
+    sword is taken from the bones on the way (search them? the sword, take it? search
+    further? no: further down is a slime) and then it is out by the door in the top left
+    wall, which opens to UP. The sword isn't carried; FF0A1A goes to 1. The gem is left for
+    later, when the oil is on his boots.
 
-    The slimes' moves are fixed by the game's state, with no chance in them, so the route
-    first waits for slime 10 to begin its first rest. From that update on the room plays
-    the same on both ROMs whatever the delay was. Then a walk along the top wall reaches
-    the door with the slimes behind. Waiting anywhere from 16 to 36 updates after that
-    first rest got through; the route waits 26, the middle."""
+    The slimes' moves are fixed by the game's state, with no chance in them while the
+    random numbers agree, so the route first waits for slime 10 to begin its first rest.
+    From that update on the room plays the same on both ROMs whatever the delay was. Then
+    the walk below was found by trying waits from a state kept there: 24 to 28 updates
+    got through (and a few others), so the route waits 27."""
     for _ in range(100):
         if slime_resting(g, 10):
             break
         tick(g)
     else:
         fail(g, LEVEL, 'slime 10 never rested')
-    ticks(g, 26)
-    go(g, (100, 30), (80, 40), (61, 54))
+    ticks(g, 27)
+    go(g, (100, 60), (70, 92))
+    try:
+        walk_to(g, *thing_xy(g, BONES), near=1)
+    except Stuck:
+        pass                            # the bones are solid; the box comes all the same
+    search(g, 'yyn')
+    if g.byte(SWORD) != 1:
+        fail(g, LEVEL, 'the bones did not give the sword')
+    log('took the sword')
+    go(g, (52, 70), (61, 54))
     through_door(g, 'UP', 1)
     log('out of the first room')
 
@@ -189,14 +200,15 @@ def back_to_the_first_room(g, log):
 GEM_KIND = 0x39
 
 
-def gems_and_sword(g, log):
-    """Room 4 again, oiled: the slimes still come and sit on the wizard, but each update
-    they do only takes 1 off the oil. The stone is dropped from the inventory (no
-    question) a little in from the door, and the first slime to cross it turns it into a
-    gem, there on the floor: its kind goes from 3A to 39, about 35 updates later. Then the
-    gem that was always here, the one the stone became, and the bones (search them? the
-    sword, take it? search further? no: further down is a slime). The sword isn't
-    carried; FF0A1A goes to 1. Out by the bottom door to room 3."""
+def gems(g, log):
+    """Room 4 again, oiled. The slimes still come for the wizard, and each update one of
+    them moves while touching him takes 1 off the oil (one sitting on him at rest takes
+    nothing). The stone is dropped from the inventory (no question) a little in from the
+    door, and the first slime to cross it turns it into a gem, there on the floor: its kind
+    goes from 3A to 39, up to about 35 updates later. Then the gem that was always here
+    and the one the stone became, and straight back out by the top left door: the bottom
+    door is twice as far, and a slime following the wizard down to it cost up to 19 of the
+    oil, which room 6 needs."""
     go(g, (80, 50))
     use(g, STONE)
     g.until(lambda g: not busy(g) and place(g, STONE) == 0x84, limit=300)
@@ -213,17 +225,27 @@ def gems_and_sword(g, log):
     walk_to(g, *thing_xy(g, STONE), near=1)
     search(g, 'y', STONE)
     log(f'took both gems; oil left {oil_left(g)}')
-    try:
-        walk_to(g, *thing_xy(g, BONES), near=1)
-    except Stuck:
-        pass                            # the bones are solid; the box comes all the same
-    search(g, 'yyn')
-    if g.byte(SWORD) != 1:
-        fail(g, LEVEL, 'the bones did not give the sword')
-    log(f'took the sword; oil left {oil_left(g)}')
-    go(g, (66, 110), (68, 126))
-    through_door(g, 'DOWN', 3)
-    log(f'in the dwarf\'s passage; oil left {oil_left(g)}')
+    go(g, (61, 54))
+    through_door(g, 'UP', 1)
+    log(f'out of room 4; oil left {oil_left(g)}')
+
+
+TROLL = 7
+
+
+def troll(g, log):
+    """Rooms 1 and 2 to room 3, the long way round, with no slimes. Room 2 is a long
+    corridor with a troll (5 health) part way down; fight(patient=True) beat him without a
+    blow taken. Its door to room 3 is in the right hand wall at the far end."""
+    go(g, (100, 175), (40, 175))
+    through_door(g, 'DOWN', 2)
+    go(g, (24, 40), (24, 120))
+    health_left = attack(g, TROLL, patient=True)
+    log(f'beat the troll, health {health_left}')
+    read(g)
+    go(g, (20, 130), (30, 180), (60, 200))
+    through_door(g, 'RIGHT', 3)
+    log("in the dwarf's passage")
 
 
 def dwarf(g, log):
@@ -311,7 +333,7 @@ CLIMBING = 0x2B                         # the wizard's state at FF0934 on a ladd
 
 
 STEPS = [first_room, merchant, to_the_goblins, goblins, king, back_to_the_first_room,
-         gems_and_sword, dwarf, locked_door, holes]
+         gems, troll, dwarf, locked_door, holes]
 
 
 def play(g, log=print):
