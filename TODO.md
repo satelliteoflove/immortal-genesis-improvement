@@ -62,6 +62,10 @@ the optimized game really runs.
 - [ ] Controls said to feel less responsive than the NES version. Measure the delay from
       button to screen.
 
+- [ ] Smoother movement at the same game speed. A trial build (`tools/build_rom.py --smooth`)
+      draws an in-between picture each update; see `docs/smoother-movement.md`. Waiting on a
+      verdict from watching and playing it. Fights can't be smoothed this way.
+
 ## Bugs fixed
 
 - [x] The wall torch's flame loses its top, from a slip in the game's tile search.

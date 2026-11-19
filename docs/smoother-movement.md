@@ -69,16 +69,70 @@ sits 60% of the way along, movement is still at an even speed.
 - **Sampled sound.** Sending sprite tiles twice an update doubles the time the Z80 is stopped for
   it, unless the upload moves into vertical blank first.
 
+## The trial build
+
+`tools/build_rom.py --smooth` writes `build/immortal-smooth.md` beside the normal build, which it
+leaves alone. The trial replaces the main loop's two drawing calls at `01348C` with a call to one
+new routine at `02E800`. Fights, menus and the title screen don't go through those calls, so
+they're as they were.
+
+**What it does each update.** If the conditions below hold, it saves the list's positions, moves
+each one and the camera 3/8 of the way back toward the last update's, draws that at frame 2, puts
+the real values back and draws again at frame 4. If the in-between picture was late, the real one
+follows 2 frames after it, and never later than the update's end. Otherwise it draws once, as the
+game did, at frame 4.
+
+**Pairing.** The list has no names for things. The first attempt paired each entry with the one in
+the same place in last update's list, and it went wrong at once: entries come and go, several share
+a sprite set, and on level 4 the wizard and a ladder were drawn pulled toward each other for one
+picture. Each entry is now paired with the nearest entry of last update's list that has the same
+sprite set and is within 16 pixels of where this one would have been if it hadn't moved in the
+room. An entry with no pair is drawn where it really is. A wrong pair can still happen when two
+things of one set are within 16 pixels of each other, and then it puts something at most 6 pixels
+out for one picture.
+
+Over steady walks on all eight levels, 3,732 entries in 696 updates: 78% hadn't moved in the room,
+21% had moved and were paired, 1.2% had no pair, and in 2.8% of cases two entries took the same
+partner (mostly identical things drawn on top of each other). 11% were paired with a different
+place in the list, which is what the first attempt got wrong.
+
+**No in-between picture when:**
+
+- sprites are already waiting when drawing starts. Message text is drawn that way, outside the list.
+- the list is empty.
+- the game logic took 2 frames or more, so frame 2 has gone.
+- the last update drawn was more than 8 frames ago, as after a fight or a pause.
+- the camera moved more than 16 pixels, as on a change of room.
+
+**How often it happens.** On random walks in the BlastEm fork, 96 to 100% of updates got an
+in-between picture on six of the levels. Level 2 got 82 to 90% and level 6 got 89 to 100%, and what
+stopped it there was nearly always the game logic taking too long. Late updates went from 1.5% to
+1.9% on the same walks. Object graphics are unpacked twice an update now, 33k cycles where it was
+16k, which a later version could avoid by keeping the first picture's tiles.
+
+**What the screen does.** Measured from clips of the same scripted walk on both builds, a walk
+with the camera following on level 4 changed the picture 136 times in 680 frames on the normal
+build, at gaps of 5 frames, and 262 times on the trial, at gaps of 2 and 3.
+
+**Fights.** A fight runs in its own loop from `011590`, with its own drawing at `015738` and
+`015768`. The two fighters stand at fixed places and only change pose. There's nothing to blend,
+so this method can't smooth a fight, and the trial doesn't touch one. Fights were run on the trial
+on levels 3 and 7 and the game carried on afterwards.
+
+**Memory.** RAM from `FF969F` to `FFFEA8` was zero in 30 snapshots taken across five levels, so
+it's taken to be unused. The trial uses `FFA000` to `FFA225`.
+
+**The cost that's certain.** The real picture now waits for frame 4. On the normal build it's
+usually up by frame 1 or 2, so what the player does shows 2 to 3 frames later, though most of the
+movement shows at frame 2 in the in-between picture.
+
 ## What isn't known
 
-- Whether anything draws to the screen outside the list. The walks didn't show any, but they didn't
-  cover fights, spells, deaths or messages.
-- Whether the routines with their own waits, such as the animations at `0074A8`, go through the
-  same drawing and would need the in-between picture turned off.
-- How it looks. That's the real test, and it needs a build to watch.
-
-## Memory
-
-The patch has 190 spare bytes of RAM at `FF96A0`, left over from the old object decoder. Positions
-are a byte each as the game hands them over, so the previous list fits in about 100 bytes. Whether
-there's other free RAM hasn't been looked into.
+- How it looks and feels in play. The clips say the pictures are there and nothing is out of
+  place in the stretches that were looked at. They don't say whether it's better.
+- Whether the wizard seems to slide. He moves in smaller steps but his legs change no more often.
+- What happens with spells, deaths, traps and message text. None of those were looked at.
+- Whether any wrong pairs show. They were counted, not watched.
+- Sampled sound on levels 3, 4 and 7. Sprite tiles are sent twice an update now, so the Z80 is
+  stopped twice as long for them. Nobody has listened.
+- Real hardware. All of this was run in BlastEm.
