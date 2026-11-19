@@ -578,7 +578,8 @@ FLY_TOP = 5
 
 
 def flying(g):
-    return g.byte(FLYING) == 1
+    """True on the carpet (the byte is 1) and under level 6's levitation spell (0E)."""
+    return g.byte(FLYING) in (1, 0x0E)
 
 
 def fly_speed(g):
