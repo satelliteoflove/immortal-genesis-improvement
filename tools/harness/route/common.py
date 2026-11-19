@@ -304,7 +304,7 @@ def ray(dx, dy, slack=5):
     return None
 
 
-def hunt(g, creatures, limit=900, log=None):
+def hunt(g, creatures, limit=900, log=None, inside=None):
     """Kill flying creatures with fireballs: level 5's lizards, which sit still for a while,
     fly about, and at times swoop back and forth through the wizard, biting on each pass.
     A scroll or book must be armed. Returns the number of shots; raises Died or RouteError.
@@ -313,7 +313,10 @@ def hunt(g, creatures, limit=900, log=None):
     one of his eight lines is shot from up to 110 away. One in the air is shot when it is on
     a line, 10 to 34 away, and either turning (slow) or coming at him: its swoops run along
     his lines, so the ball meets it head on. With nothing to shoot he walks onto a line
-    of one that is sitting, and otherwise stands still, which keeps a swoop regular."""
+    of one that is sitting, and otherwise stands still, which keeps a swoop regular.
+
+    inside(x, y), if given, says where he may step: hunt knows nothing of walls, doors or
+    traps, so fence it in where a step could leave the room."""
     creatures = list(creatures)
     last, still = {}, dict.fromkeys(creatures, 0)
     fired = 0
@@ -344,8 +347,10 @@ def hunt(g, creatures, limit=900, log=None):
                     max(abs(vx), abs(vy)) <= 2 or dx * vx + dy * vy < 0):
                 shot = n, line, far
                 break
+        if shot and not _may_step(inside, wx, wy, shot[1]):
+            shot = None
         if not shot:
-            tick(g, walk or '')
+            tick(g, walk if walk and _may_step(inside, wx, wy, walk) else '')
             continue
         n, line, far = shot
         fire(g, line)
@@ -360,6 +365,16 @@ def hunt(g, creatures, limit=900, log=None):
                 break
     raise RouteError(f'hunt: creatures {creatures} not all dead after {limit} updates and '
                      f'{fired} shots, room {g.room}, frame {g.frame}')
+
+
+def _may_step(inside, x, y, buttons):
+    """Whether inside() allows the spot one update of walking with buttons leads to."""
+    if not inside:
+        return True
+    across = -1 if 'LEFT' in buttons else 1 if 'RIGHT' in buttons else 0
+    down = -1 if 'UP' in buttons else 1 if 'DOWN' in buttons else 0
+    size = 2 if across and down else 3 if across else 4
+    return bool(inside(x + across * size, y + down * size))
 
 
 def _onto_a_line(dx, dy, slack=3):

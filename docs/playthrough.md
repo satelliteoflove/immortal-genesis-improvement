@@ -30,7 +30,7 @@ and the Genesis ROM accepts all of them:
 | 2 | `cddff10006f70` |
 | 3 | `f47ef21000e10` |
 | 4 | `level4.py` gets past the troll, takes the carpet and flies the first flame room (room 4) to the door of the second | Those parts pass on both ROMs |
-| 5 | `d630f43000eb0` |
+| 5 | `level5.py` takes the egg, buys the potion, goes through the hole, beats both trolls, empties the chest, shoots both lizards and takes the key | Those parts pass on both ROMs |
 | 6 | `563ff53010a41` |
 | 7 | `c250f63010ac1` |
 | 8 | `e011f730178c1` |
@@ -440,6 +440,28 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
   each direction for 7 updates, finds the doors a flyer can't use. A room's coordinates run
   0 to 255 both ways and other rooms' floors show up in the corners; only the part joined
   to the doorway matters.
+- 2026-11-19, level 5, **fireballs at moving targets: `hunt(g, creatures)`**. What a
+  fireball does: it starts about 12 ahead of the wizard the way he faces and flies 6 an
+  update across, 8 up or down, or 4 and 4 on a diagonal, for about 22 updates; at a wall it
+  turns and runs along it. Its x and y are `FF0F80` and `FF0F88`. It kills what it comes
+  within about 5 of. Level 5's flying lizards (creatures; health 1) sit still for 15 to 60
+  updates, fly about, and sometimes swoop back and forth through the wizard, a point of
+  health each pass, about one pass in 10 updates. A swoop runs along one of the wizard's
+  eight lines and stays regular while he stands still, so `hunt` shoots a sitting lizard
+  from up to 110 away when it is on a line (`ray(dx, dy)` gives the buttons), and a flying
+  one when it is on a line, 10 to 34 away and turning or coming at him. Both lizards fell
+  in 3 or 4 shots and 2 or 3 health on both ROMs. Give `inside=` a test of where he may
+  step if there is a door or trap near. A creature's heading is at `FF0948` + n (0 to 7)
+  and the spot it is making for at `FF09D4` + n and `FF09E8` + n.
+- 2026-11-19, level 5, **a spell on a clock**. Level 5's fireball book is not a count of
+  shots: its byte at `FF0B6C` + thing starts at 250 when the book is armed and drops 1
+  every 4 updates whether or not anything is fired (so `shots(g)` reads time there, and
+  `fire`'s check that the count fell still passes). 1,000 updates, then the book leaves
+  the carried list. Arm such a thing in the room where it's wanted.
+- 2026-11-19, level 5, **a dead creature that carried something** (the lizard with the
+  key: the key's place is `40` + the creature's number) asks to be searched by itself a
+  few updates after it dies if the wizard is close. If he shot it from far off, walk to
+  `creature_xy(g, n)`, where it fell, and the question comes: `search(g, 'yy', KEY)`.
 
 ## Where each level stands
 

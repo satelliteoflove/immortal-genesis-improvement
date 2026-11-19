@@ -22,11 +22,13 @@ LEVEL = 5
 
 BAIT, EGG, POTION, CHEST, SENSOR, NOTE, FIREBALLS, WATER = 2, 4, 13, 7, 8, 9, 10, 11
 TROLLS = 2, 3
+LIZARDS = 4, 5
+KEY = 14
 
 
 def play(g, log=print, until=None):
     """until names a place to stop early, for exploring: 'egg', 'room0', 'bought', 'hole',
-    'room2', 'trolls', 'chest'."""
+    'room2', 'trolls', 'chest', 'lizards'."""
     if g.level != 4 or g.room != 8:
         fail(g, LEVEL, f'expected the first room of level 5, found level {g.level} room {g.room}')
 
@@ -113,11 +115,39 @@ def play(g, log=print, until=None):
     if poisoned(g):
         fail(g, LEVEL, 'the water did not cure the potion')
     log('emptied the chest and drank the water, carrying', carried(g))
+    if until == 'chest':
+        return
+
+    # The door is in the top left wall near the left corner, and opens to UP.
+    go(g, (60, 90), (24, 92))
+    through_door(g, 'UP', 4)
+
+    # Room 4. Two flying lizards (creatures 4 and 5); one of them carries the key (thing 14)
+    # to the door at the bottom left. The fireball book runs down by the clock from the
+    # moment it is armed, about 1,000 updates, so it is armed here and not at the chest.
     use(g, FIREBALLS)
     read(g)
-    if g.byte(0x0A17) != FIREBALLS:
+    if armed(g) != FIREBALLS:
         fail(g, LEVEL, 'the fireballs are not armed')
-    if until == 'chest':
+    carrier = place(g, KEY) - CARRIED
+    if carrier not in LIZARDS:
+        fail(g, LEVEL, f'the key is not with a lizard: its place is {place(g, KEY):02x}')
+    # Out of the doorway first: DOWN from where he comes in leads back to room 2.
+    go(g, (205, 40))
+    shots_fired = hunt(g, LIZARDS, log=log, inside=lambda x, y: x < 214 and y > 20)
+    log('both lizards dead after', shots_fired, 'shots')
+    # A lizard that dies close by is searched at once; otherwise walk to where it fell.
+    for _ in range(20):
+        if busy(g):
+            break
+        tick(g)
+    if not busy(g):
+        where = creature_xy(g, carrier)
+        if walk_to(g, *where) != 'busy':
+            fail(g, LEVEL, f'no question at the dead lizard at {where}')
+    search(g, 'yy', KEY)
+    log('took the key, carrying', carried(g))
+    if until == 'lizards':
         return
 
     fail(g, LEVEL, 'the route is not written past the chest in room 2')
