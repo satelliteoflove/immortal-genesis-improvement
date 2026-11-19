@@ -291,6 +291,35 @@ same input lands on different ticks. So each change has its own proof.
 | Sound test ROM | With the Z80 parked in a loop, old and new links play six songs for 256 frames each and then 256 frames of silence, with the Z80's 48 bytes set at random before every call. The 68000's sound memory, the Z80's memory and all registers come out the same. Six deliberate breaks, in both copies, the skip and the call to the music, all made it fail |
 | Masking in play | A test build ran both routines on the game's own sprites, in alternating order, on every tick of 32 walks. 30,886 calls agreed. Masking a tile twice changes nothing, so a second routine that disagrees shows up as a changed tile. A deliberately broken routine gave 6,436 disagreements |
 
+## With the game's own decoder: would 1 MB do?
+
+A test build kept every change above except the unpacked object tiles, so the game's own decoder
+ran as in the original. It was for timing only. It wasn't a 1 MB ROM yet, and it lived in
+`scratch/`.
+
+| Level | Late: original | Late: own decoder, all else changed | Late: unpacked tiles | Object graphics a tick, own decoder |
+|---|---|---|---|---|
+| 1 | 1% | 0% | 0% | 222k |
+| 2 | 23% | 6% | 12% | 153k |
+| 3 | 10% | 2% | 0% | 153k |
+| 4 | 16% | 0% | 0% | 176k |
+| 5 | 41% | 30% | 0% | 172k |
+| 6 | 58% | 64% | 3% | 366k |
+| 7 | 15% | 0% | 0% | 208k |
+| 8 | 19% | 0% | 0% | 136k |
+| **All** | **23.8%** | **14.7%** | **1.5%** | |
+
+So the other changes are enough on six levels and not on levels 5 and 6, where decoding alone
+takes one and a half to three frames of every tick. The walks go different ways once timing
+changes, so small differences between columns don't mean much, and level 2's are mostly
+deliberate waits.
+
+**A trap found on the way.** The game's decoder uses RAM from `FF9656` as working space. With the
+decoder gone that RAM never changes, so it looked free, and the patch keeps the background tile
+counts, the fight timer and the music and text flags there. Put the decoder back and it writes
+over all of them. The first test build froze in level 7's fight for that reason. Any build that
+keeps the decoder has to keep those values somewhere else; the test build used `FFA800`.
+
 ## What's left
 
 **Late ticks.** Nearly all the remaining ones aren't a CPU problem. They spend about 490k cycles
