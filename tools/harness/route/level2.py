@@ -3,10 +3,11 @@
 
     tools/harness/route/level2.py [--original] [--delay N] [--quiet]
 
-The route: out of room 4 past its slimes; in room 1 the stone, the charm and the oil; room
-0's goblins and the dust; room 5's guards, the spores and the king's key; back to room 4
-with the oil on, where a slime turns the stone into a gem, and the other gem and the
-sword; room 3's dwarf and his gem; room 6's locked door; room 7's holes and the ladder.
+The route: room 4's gem and the sword, past its slimes; in room 1 the charm, the stone and
+the oil; room 0's goblins and the dust; room 5's guards, the spores and the king's key;
+back through room 1 to room 2's troll; room 3's dwarf and his gem; room 6 with the oil on,
+where a slime turns the stone into a gem, and its locked door; room 7's holes and the
+ladder. Room 4 is not gone back to: its slimes would use up the oil that room 6 needs.
 
 The rooms: 4 is the first (two slimes, a gem, a pile of bones), with doors to 1 (top left)
 and 3 (bottom). 1 is the big room of the will-o'-the-wisps, the merchant and the stone, with
@@ -48,24 +49,28 @@ def slime_resting(g, n):
 
 
 def first_room(g, log):
-    """Room 4. Two slimes come for the wizard from the start and their touch kills. The
-    sword is taken from the bones on the way (search them? the sword, take it? search
-    further? no: further down is a slime) and then it is out by the door in the top left
-    wall, which opens to UP. The sword isn't carried; FF0A1A goes to 1. The gem is left for
-    later, when the oil is on his boots.
+    """Room 4. Two slimes come for the wizard from the start and their touch kills. The gem
+    lying in the room is taken, then the sword from the bones (search them? the sword,
+    take it? search further? no: further down is a slime), and it is out by the door in the
+    top left wall, which opens to UP. The sword isn't carried; FF0A1A goes to 1.
 
     The slimes' moves are fixed by the game's state, with no chance in them while the
     random numbers agree, so the route first waits for slime 10 to begin its first rest.
     From that update on the room plays the same on both ROMs whatever the delay was. Then
-    the walk below was found by trying waits from a state kept there: 24 to 28 updates
-    got through (and a few others), so the route waits 27."""
+    the walk below was found by trying waits from a state kept there: 5 to 9 updates got
+    through (and a dozen others between 1 and 36), so the route waits 7."""
     for _ in range(100):
         if slime_resting(g, 10):
             break
         tick(g)
     else:
         fail(g, LEVEL, 'slime 10 never rested')
-    ticks(g, 27)
+    ticks(g, 7)
+    go(g, (100, 40))
+    if walk_to(g, *thing_xy(g, GEM), near=1) != 'busy':
+        wait_busy(g, limit=60)
+    search(g, 'y', GEM)
+    log('took the gem')
     go(g, (100, 60), (70, 92))
     try:
         walk_to(g, *thing_xy(g, BONES), near=1)
@@ -84,19 +89,19 @@ CHARMED = 0x0BB6                        # 1 once the charm scroll has been read
 
 
 def merchant(g, log):
-    """Room 1, the big room. Take the stone from its far left corner, read the charm (the
-    wisps follow the wizard about after that and leave him alone), and buy the slime oil
-    from the merchant on the ledge to the right. He asks 80 gold first, which is refused;
-    walked into again he asks 60, which is taken."""
-    go(g, (160, 175), (100, 175), (40, 165))
-    walk_to(g, 25, 140, near=1)
-    search(g, 'y', STONE)
-    log('took the stone')
+    """Room 1, the big room. Read the charm at once (the wisps follow the wizard about
+    after that and leave him alone; before it they hit him), take the stone from the far
+    left corner, and buy the slime oil from the merchant on the ledge to the right. He
+    asks 80 gold first, which is refused; walked into again he asks 60, which is taken."""
     use(g, CHARM)
     read(g)
     if g.byte(CHARMED) != 1:
         fail(g, LEVEL, 'the charm was read but the wisps are not charmed')
     log('read the charm')
+    go(g, (160, 175), (100, 175), (40, 165))
+    walk_to(g, 25, 140, near=1)
+    search(g, 'y', STONE)
+    log('took the stone')
     go(g, (60, 170), (150, 170))
     walk_to(g, 150, 140)
     wait_busy(g)
@@ -181,65 +186,26 @@ def oil_left(g):
     return g.byte(OIL_LEFT)
 
 
-def back_to_the_first_room(g, log):
-    """Rooms 5, 0 and 1 back to room 4, rubbing the oil on the wizard's boots by the door."""
+def back_to_room_1(g, log):
+    """Rooms 5 and 0 back to room 1, by the doors they were come in by."""
     go(g, (72, 40), (66, 86), (66, 104))
     through_door(g, 'LEFT', 0)
     go(g, (170, 180), (160, 200))
     through_door(g, 'LEFT', 1)
-    go(g, (110, 50), (60, 110), (60, 150), (100, 165), (160, 175))
-    use(g, OIL)
-    read(g)
-    g.until(lambda g: not busy(g) and oil_left(g) == 80, limit=300)
-    log('oiled the boots')
-    go(g, (166, 218))
-    through_door(g, 'DOWN', 4)
-    log('back in the first room')
+    log('back in room 1')
 
 
 GEM_KIND = 0x39
 
 
-def gems(g, log):
-    """Room 4 again, oiled. The slimes still come for the wizard, and each update one of
-    them moves while touching him takes 1 off the oil (one sitting on him at rest takes
-    nothing). The stone is dropped from the inventory (no question) a little in from the
-    door, and the first slime to cross it turns it into a gem, there on the floor: its kind
-    goes from 3A to 39, up to about 35 updates later. Then the gem that was always here
-    and the one the stone became, and straight back out by the top left door: the bottom
-    door is twice as far, and a slime following the wizard down to it cost up to 19 of the
-    oil, which room 6 needs."""
-    go(g, (80, 50))
-    use(g, STONE)
-    g.until(lambda g: not busy(g) and place(g, STONE) == 0x84, limit=300)
-    for _ in range(200):
-        if g.byte(THING_KIND + STONE) == GEM_KIND:
-            break
-        if not tick(g):
-            fail(g, LEVEL, 'the game stopped while waiting for a slime to take the stone')
-    else:
-        fail(g, LEVEL, 'no slime turned the stone into a gem')
-    log(f'a slime turned the stone into a gem; oil left {oil_left(g)}')
-    walk_to(g, *thing_xy(g, GEM), near=1)
-    search(g, 'y', GEM)
-    walk_to(g, *thing_xy(g, STONE), near=1)
-    search(g, 'y', STONE)
-    log(f'took both gems; oil left {oil_left(g)}')
-    go(g, (61, 54))
-    through_door(g, 'UP', 1)
-    log(f'out of room 4; oil left {oil_left(g)}')
-
-
-TROLL = 7
-
-
 def troll(g, log):
-    """Rooms 1 and 2 to room 3, the long way round, with no slimes. Room 2 is a long
-    corridor with a troll (5 health) part way down; fight(patient=True) beat him without a
-    blow taken. Its door to room 3 is in the right hand wall at the far end."""
-    go(g, (100, 175), (40, 175))
+    """Rooms 1 and 2 to room 3, which keeps away from room 4's slimes. Room 1's door to
+    room 2 is in the bottom left wall of its lower floor. Room 2 is a long corridor with a
+    troll (5 health) part way down; fight(patient=True) beat him without a blow taken. Its
+    door to room 3 is in the right hand wall at the far end."""
+    go(g, (110, 50), (60, 110), (60, 150), (40, 175))
     through_door(g, 'DOWN', 2)
-    go(g, (24, 40), (24, 120))
+    go(g, (24, 40))
     health_left = attack(g, TROLL, patient=True)
     log(f'beat the troll, health {health_left}')
     read(g)
@@ -267,6 +233,10 @@ def dwarf(g, log):
         fail(g, LEVEL, 'the dwarf did not give his gem')
     log('the dwarf gave his gem')
     go(g, (80, 140), (120, 200))
+    use(g, OIL)
+    read(g)
+    g.until(lambda g: not busy(g) and oil_left(g) == 80, limit=300)
+    log('oiled the boots')
     if walk_to(g, 175, 200) != 'room' or g.room != 6:
         fail(g, LEVEL, 'did not come to room 6')
     tick(g)
@@ -280,7 +250,29 @@ def dwarf(g, log):
 def locked_door(g, log):
     """Room 6, a long passage with two slimes, oiled, to the locked door at its far right
     end. The door is walked into from the left (RIGHT); the king's key opens it and the
-    wizard walks through by himself."""
+    wizard walks through by himself.
+
+    First the stone: dropped from the inventory (no question) just inside the door, it
+    lies on the floor until a slime crosses it, and that turns it into a gem: its kind goes
+    from 3A to 39. The slimes come for the wizard, so it doesn't take long. With the oil
+    on, each update a slime spends touching the wizard (posting action 2 to him) takes 1
+    off the oil and nothing else."""
+    go(g, (44, 52))
+    use(g, STONE)
+    g.until(lambda g: not busy(g) and place(g, STONE) == 0x80 + g.room, limit=300)
+    for _ in range(400):
+        if g.byte(THING_KIND + STONE) == GEM_KIND:
+            break
+        if not tick(g):
+            fail(g, LEVEL, 'the game stopped while waiting for a slime to take the stone')
+    else:
+        fail(g, LEVEL, 'no slime turned the stone into a gem')
+    log(f'a slime turned the stone into a gem; oil left {oil_left(g)}')
+    go(g, (52, 58))                     # off it: a thing underfoot doesn't ask
+    if walk_to(g, *thing_xy(g, STONE), near=1) != 'busy':
+        wait_busy(g, limit=60)
+    search(g, 'y', STONE)
+    log(f'took it; oil left {oil_left(g)}')
     go(g, (60, 64), (120, 86), (190, 86), (196, 76))
     log(f'at the locked door; oil left {oil_left(g)}')
     bump(g, 'RIGHT')
@@ -332,8 +324,8 @@ def holes(g, log):
 CLIMBING = 0x2B                         # the wizard's state at FF0934 on a ladder
 
 
-STEPS = [first_room, merchant, to_the_goblins, goblins, king, back_to_the_first_room,
-         gems, troll, dwarf, locked_door, holes]
+STEPS = [first_room, merchant, to_the_goblins, goblins, king, back_to_room_1, troll,
+         dwarf, locked_door, holes]
 
 
 def play(g, log=print):
