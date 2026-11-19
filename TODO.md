@@ -58,10 +58,13 @@ the optimized game really runs.
 - [ ] Find out whether drawing that finishes after vertical blank shows on screen (16% of plain
       ticks, 52% of camera steps). Sending sprite tiles in vertical blank would fix it, and would
       shorten the Z80's stops as well.
-- [ ] Release the patch as tools that build it from the player's own ROM, for now. The 1 MB
-      build no longer carries unpacked tiles, but it still holds things made from the game: the
-      masking tables, 448 bytes of cell data and the sound link's own instructions. Whether a
-      plain IPS or BPS file is all right with those in it is undecided.
+- [x] Patch files. The 1 MB build no longer carries unpacked tiles. It still holds a few small
+      things made from the game: the masking tables, 448 bytes of cell data, the sound link's
+      own instructions and a table made from the tile index. Chris decided on 2026-11-19 that
+      those bits and pieces aren't a problem in a patch file. `tools/make_patch.py` writes BPS
+      and IPS files.
+- [ ] Try the patch files with a patcher other than our own, such as Flips.
+- [ ] Release the patch: where it goes, what it's called and what the notes say.
 - [ ] Try the patched ROM on real hardware.
 - [ ] Controls said to feel less responsive than the NES version. Measure the delay from
       button to screen.
