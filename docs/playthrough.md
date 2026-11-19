@@ -742,6 +742,14 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
   where a goblin stops him with a warning at a line across the corridor (y about 76),
   then fights (thing 5, the chest behind him, has three bombs: `search(g, 'yyyy', 6, 7,
   8)`). The potion in room 5 is thing 4 at (127, 41), taken with `read(g, 'y')`.
+- 2026-11-19, level 6, **`--delay` may not shake the dice**. Level 6's first act is to wait
+  on RAM for the spider's legs, and that wait swallows the delay: with `--delay` 0 to 31
+  the run after it was the same game to the frame, so the six runs said little about the
+  parts that go by chance (where the corridor's sacks land, how long the spider waits).
+  If your route starts with a wait like that, test each chancy part by itself while
+  exploring: load a state kept just before it, idle N updates with `tick(g)` for 30
+  values of N, and run that part of the route each time, on both ROMs. That gave 30
+  different corridors and 30 different spider timings here, and all passed.
 
 ## Where each level stands
 

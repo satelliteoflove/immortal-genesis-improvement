@@ -19,7 +19,7 @@ CERTIFICATE = '563ff53010a41'
 LEVEL = 6
 
 HOLE, FAR_HOLE = 13, 14
-BOTTLE, CHEST, SPELL = 5, 6, 7
+BOTTLE, SPELL = 5, 7
 
 LEGS = 0x0BAE               # the thing number of the hole with legs showing, FF for neither
 SPIDER = 1                  # the big spider of room 1 is creature 1
@@ -64,9 +64,10 @@ def big_spider(g, log):
     the web miss, and run in while it waits. Reaching the spider starts a fight like any
     other. The run is 8 updates, up the column x 94: with the spider alive, x 100 and
     beyond below y 90 is a swarm of small spiders, and the egg sack at (80, 47) is to the
-    left."""
+    left. It mostly rears within 3 updates of his crossing the line; once in 30 tries it
+    took 22. Standing over the line is safe until it does."""
     go(g, (94, 92))
-    for _ in range(40):                         # over the line until it rears
+    for _ in range(150):                        # over the line until it rears
         if rearing(g):
             break
         tick(g, 'UP' if xy(g)[1] > 84 else '')
@@ -237,6 +238,8 @@ def play(g, log=print):
     chest(g, log)
 
     # The next ladder down is the hole at (87, 74), safe from its top and its right.
+    # The corridor's clock is already running as he climbs off the ladder at the bottom, so
+    # the spell is used the moment he can be steered.
     go(g, (66, 36), (66, 56), (87, 60))
     through_door(g, 'DOWN', 3)
     corridor(g, log)
@@ -249,6 +252,8 @@ def play(g, log=print):
             break
         if dead(g):
             fail(g, LEVEL, 'the last ladder killed the wizard')
+    if retries(g) != 2:
+        log('lives lost on the way:', 2 - retries(g))
     return end_of_level(g)
 
 
