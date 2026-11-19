@@ -43,6 +43,7 @@ A tick has about 639,000 68000 cycles, at about 127,800 per frame.
 | `tools/harness/tick_parts.py --headroom` | How much work each tick does, leaving out its waits |
 | `tools/harness/hotspots.py` | Cycles per routine on each level, using the PicoDrive profiling core |
 | `tools/build_rom.py --check` | Builds the patch and runs its test ROMs |
+| `tools/harness/sound_writes.py` | Logs every write two ROMs make to the sound chips over the same walks, and compares them |
 
 Every walk boots the game, jumps to a level through the game's own reload flags, and plays
 3,000 frames of random movement, four walks per level.
@@ -213,6 +214,41 @@ it reads the cells from the wrong place. The test with random maps found this, b
 version of the new routine didn't do it. The new routine now does the same thing, so that nothing
 changes. Whether any level's map is tall enough to reach it hasn't been checked.
 
+## The sound link
+
+**What it costs.** Sound is the largest thing left. Every frame, from the vertical blank handler,
+`01624E` stops the Z80, copies 48 bytes out of its memory, lets it go, runs the music and sound
+effect sequencers on the 68000 (`015E9C` and `0165AE`), then stops the Z80 again and copies the 48
+bytes back if anything changed. That's about 5,900 cycles a frame, or 29,500 a tick, which is
+18% of the work in a typical tick. The sequencers take 3,200 of it and the two copies 1,150 each.
+
+**The change.** The 68000 can only reach Z80 memory a byte at a time, so the copies can't use
+longer moves. They were loops, though, and a loop spends nearly as long counting as copying. The
+new link at `02E600` has the 48 moves written out for each copy. Everything else in it is the
+original's instructions in the original order. It costs about 5,000 cycles a frame, so a tick has
+about 4,600 more to spare.
+
+**What it does to the sound.** Nothing changes in what's sent to the Z80. What changes is how long
+the Z80 is stopped: about 0.08 ms for each copy, where it was about 0.15 ms. On levels 3, 4 and 7
+the Z80 plays sampled sounds, which showed up in the sound chip logs as a steady stream of writes
+to the YM2612's sample register. While it's stopped, the sample it's playing waits. In the logs
+from level 4 the normal step between sample writes is 5 or 6 units of 1/44,100 s, and the stretched
+steps went from 12 or 13 to 9 or 10. So the hitches in sampled sounds are shorter, and those sounds
+run about 0.7% faster, around an eighth of a semitone. Music and effects made by the FM chip aren't
+timed by the Z80 and shouldn't change at all. Nobody has listened to it, so this is the one change
+here with a known effect on output that hasn't been judged by ear.
+
+**Not done.** The sequencers are about 1,600 bytes of branching code that step through the song
+data. They could be rewritten to be perhaps a third faster, which would gain about 5,000 cycles a
+tick. That's a small return for rewriting the music player, so it's left alone.
+
+**A dead end worth knowing.** The plan was to prove this change by showing that the game makes the
+same sound chip writes before and after. `sound_writes.py` does that comparison, and a ROM against
+itself matches write for write. But any change to timing sends the game a different way from the
+title screen on, even a version of the new link padded to take the same number of cycles as the
+old. The emulator models the 68000's memory refresh delays, so two different runs of instructions
+can't be made to take exactly the same time. The tool is kept for the logs it makes.
+
 ## How the changes were checked
 
 A frame-by-frame comparison with the original doesn't work once the game runs faster, because the
@@ -230,6 +266,7 @@ same input lands on different ticks. So each change has its own proof.
 | Cell test ROM | Old and new `013D34` run on 300 passes of random block maps, rooms and camera positions, on and off the map. The cells, the mask shapes and all registers come out the same. Six deliberate breaks all made it fail, one of them being to leave out the quirk described above |
 | Cells in play | A test build ran both routines on every camera step of 32 walks and compared their output. 3,941 steps agreed. A deliberately broken routine disagreed on all 3,941 |
 | Tile counts in play | A test build recounted the tile table after every sync and compared it with the running counts. 3,943 syncs, none wrong. With the "take one off" left out, 29,744 groups were wrong |
+| Sound test ROM | With the Z80 parked in a loop, old and new links play six songs for 256 frames each and then 256 frames of silence, with the Z80's 48 bytes set at random before every call. The 68000's sound memory, the Z80's memory and all registers come out the same. Six deliberate breaks, in both copies, the skip and the call to the music, all made it fail |
 | Masking in play | A test build ran both routines on the game's own sprites, in alternating order, on every tick of 32 walks. 30,886 calls agreed. Masking a tile twice changes nothing, so a second routine that disagrees shows up as a changed tile. A deliberately broken routine gave 6,436 disagreements |
 
 ## What's left
@@ -243,15 +280,15 @@ two. They look like deliberate animations, though we haven't identified them.
 
 | Level | Median | 90% | 99% | Most | Over 4 frames | Over 3 frames | Over 2 frames |
 |---|---|---|---|---|---|---|---|
-| 1 | 172 | 230 | 284 | 334 | 0.0% | 0.0% | 1.2% |
-| 2 | 263 | 414 | 473 | 539 | 0.1% | 13.5% | 68.6% |
-| 3 | 149 | 295 | 394 | 662 | 0.4% | 1.4% | 17.3% |
-| 4 | 237 | 345 | 421 | 469 | 0.0% | 4.3% | 40.7% |
-| 5 | 142 | 303 | 427 | 506 | 0.0% | 7.0% | 36.0% |
-| 6 | 235 | 353 | 397 | 665 | 0.0% | 6.3% | 25.7% |
-| 7 | 141 | 281 | 304 | 601 | 0.1% | 0.1% | 12.6% |
-| 8 | 138 | 276 | 295 | 301 | 0.0% | 0.0% | 19.9% |
-| **All** | **161** | **295** | **423** | **665** | **0.1%** | **3.7%** | **25.8%** |
+| 1 | 164 | 226 | 279 | 330 | 0.0% | 0.0% | 1.1% |
+| 2 | 262 | 415 | 464 | 532 | 0.1% | 13.3% | 66.2% |
+| 3 | 145 | 293 | 386 | 654 | 0.4% | 1.1% | 16.5% |
+| 4 | 236 | 343 | 417 | 452 | 0.0% | 4.1% | 39.1% |
+| 5 | 140 | 302 | 422 | 504 | 0.0% | 7.0% | 35.8% |
+| 6 | 234 | 352 | 395 | 659 | 0.0% | 5.2% | 23.3% |
+| 7 | 140 | 282 | 305 | 598 | 0.1% | 0.1% | 12.8% |
+| 8 | 138 | 273 | 290 | 299 | 0.0% | 0.0% | 19.9% |
+| **All** | **155** | **294** | **420** | **659** | **0.1%** | **3.4%** | **24.9%** |
 
 How the "All" row has moved:
 
@@ -260,6 +297,7 @@ How the "All" row has moved:
 | Background tiles | 212 | 408 | 548 | 4.0% | 14.0% | 38.1% |
 | Sprite masking | 162 | 395 | 526 | 1.3% | 11.6% | 26.6% |
 | Camera steps | 161 | 295 | 423 | 0.1% | 3.7% | 25.8% |
+| The sound link | 155 | 294 | 420 | 0.1% | 3.4% | 24.9% |
 
 So 12 updates a second has plenty of room, and 15 fits nearly always. 20 would need a quarter of
 ticks to shrink, and the median tick is over half of that budget already. This doesn't settle the
@@ -269,16 +307,16 @@ question of changing the rate, because movement and timers are counted in ticks.
 
 | Routine | Share | What it is |
 |---|---|---|
-| `02E3E4` | 9.4% | The new object tile copy |
-| `01621E` block | 9.2% | Mostly `01624E`, which copies 48 bytes each way through Z80 memory, one byte at a time. It looks like the link to the sound driver |
-| `01428C` | 8.5% | The new sprite masking. 17% on level 6 |
-| `015E9C` | 7.2% | Not read yet |
-| `0150E6` | 7.1% | Starts the sprite tile DMA, and its time includes the CPU being held during DMA |
-| `02E540` | 3.4% | Assigns tile slots on a camera step |
-| `0165AE` | 3.1% | Not read yet |
-| `009930` | 2.6% | Game logic, not read yet |
+| `02E3E4` | 9.7% | The new object tile copy |
+| `01428C` | 8.7% | The new sprite masking. 17% on level 6 |
+| `015E9C` | 7.4% | The music sequencer |
+| `0150E6` | 7.4% | Starts the sprite tile DMA, and its time includes the CPU being held during DMA |
+| `02E600` | 6.4% | The new sound link, mostly its two copies through Z80 memory |
+| `02E540` | 3.5% | Assigns tile slots on a camera step |
+| `0165AE` | 3.2% | The sound effect sequencer |
+| `009930` | 2.7% | Game logic, not read yet |
 | `013D34` | 2.6% | Works out the cells on a camera step |
-| `005B78` | 2.4% | Game logic, not read yet |
+| `005B78` | 2.5% | Game logic, not read yet |
 | `01370A` | 2.3% | Not read yet |
 | `01467C` | 2.2% | Part of preparing the sprites |
 
@@ -313,6 +351,7 @@ it that way now. That's also why the other shares are higher than they were.
     tools/harness/tick_parts.py
     tools/harness/tick_parts.py --headroom
     tools/harness/hotspots.py
+    tools/harness/sound_writes.py rom/your-rom.md build/immortal-patched.md
 
 `fork_timing.py` reads the original ROM unless `ROM` is set, and needs an absolute path if you run
 it from elsewhere. The other tools default to the patched ROM.

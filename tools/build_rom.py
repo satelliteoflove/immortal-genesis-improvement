@@ -17,6 +17,8 @@ nothing of the game is stored here. What it changes:
     the scan of the 2,048-entry tile table skips the parts that are empty.
   * Screen cells. The routine that works out what's on screen after a camera step is
     rewritten to do the same thing with far less work per row.
+  * The sound link. Its two 48-byte copies through Z80 memory, made every frame, are
+    written out in full in place of loops.
   * Sprite masking. Hiding the parts of a sprite behind scenery shifted eight mask rows
     a bit at a time for every tile. The shifted masks are now worked out here, and tiles
     with nothing in front of them are skipped early.
@@ -29,8 +31,8 @@ unmodified decoder on every tile number and compares the result with this script
 unpacking. One calls the new object routine and checks its output, and that it leaves
 every register as it found it. One feeds random screens to the background routines, old
 and new, and requires the same RAM and the same video memory from both. One does the same
-for sprite masking, with random sprites and scenery, and one for the screen cells, with
-random maps. They need the BlastEm fork
+for sprite masking, with random sprites and scenery, one for the screen cells, with
+random maps, and one for the sound link, playing six songs. They need the BlastEm fork
 (tools/harness/build_blastem_fork.sh).
 """
 import bisect
@@ -50,6 +52,7 @@ ROUTINE_CHECK_ROM = os.path.join(BUILD, 'routine-check.md')
 BACKGROUND_CHECK_ROM = os.path.join(BUILD, 'background-check.md')
 MASK_CHECK_ROM = os.path.join(BUILD, 'mask-check.md')
 CELL_CHECK_ROM = os.path.join(BUILD, 'cell-check.md')
+SOUND_CHECK_ROM = os.path.join(BUILD, 'sound-check.md')
 BLASTEM = os.path.join(BUILD, 'blastem-fork', 'blastem')
 
 ROM_SIZE = 0x200000             # 2 MB, which leaves 200000 free for save RAM later
@@ -85,6 +88,11 @@ CELL_PASSES = 300               # for --check: passes of random maps and cameras
 CELL_RECORDS = 0x100000
 CELL_MAPS = 0x110000
 CELL_MAP_SETS = 8
+SOUND_LINK = 0x1624E            # once a frame: fetches 48 bytes from the Z80, runs the music, sends them back
+SOUND_LINK_END = 0x16304
+SOUND_LINK_NEW = 0x2E600
+SOUND_PASSES = 1792             # for --check: 256 frames of each of six songs, then 256 of silence
+SOUND_RECORDS = 0x100000
 MASK = 0x1428C                  # hides the parts of sprites that are behind scenery
 MASK_END = 0x14508              # the first byte after its rts
 MASK_SHAPES = 0x141CC           # 16 shapes of 32 bytes; only the first 6 are data
@@ -540,6 +548,124 @@ def check_cells(rom, patched):
         sys.exit('screen cell check FAILED')
 
 
+def sound_link(rom, origin=SOUND_LINK_NEW, count_in=48, count_out=48):
+    """The sound link with its two 48-byte copies written out in full, in place of loops.
+
+    Everything else is the original's own instructions, in the original order. The copies
+    go through Z80 memory, which the 68000 can only reach a byte at a time. The counts are
+    parameters so that a test can get them wrong on purpose.
+    """
+    def old(start, end):
+        return bytes(rom[start:end])
+    assert old(0x1626A, 0x16270) == bytes.fromhex('12D851C8FFFC')   # move.b (a0)+,(a1)+ / dbra d0
+    assert old(0x162B6, 0x162BC) == bytes.fromhex('10D951C8FFFC')   # move.b (a1)+,(a0)+ / dbra d0
+    assert old(0x16280, 0x16282) == bytes.fromhex('6100')           # bsr.w, to the music
+    assert old(0x162A4, 0x162A6) == bytes.fromhex('6716')           # beq.s, past the copy back
+    code = old(SOUND_LINK, 0x1626A) + bytes.fromhex('12D8') * count_in
+    code += bytes.fromhex('303CFFFF')                               # move.w #$FFFF,d0, as the loop left it
+    code += old(0x16270, 0x16280) + bytes.fromhex('4EB900015E4A')   # jsr in place of the bsr
+    code += old(0x16284, 0x162A4) + bytes([0x67, 16 + 2 * count_out]) + old(0x162A6, 0x162B6)
+    code += bytes.fromhex('10D9') * count_out + old(0x162BC, SOUND_LINK_END)
+    assert code[-2:] == bytes.fromhex('4E75') and origin + len(code) <= ROUTINE_RTS
+    return code
+
+
+def sound_test(pattern_at):
+    """Play six songs for 256 frames each through the sound link, with the Z80 parked.
+
+    Then the music is stopped for 256 frames, which is when the link skips its copy back.
+    Before each call the 48 bytes on the Z80's side are set at random, as if the Z80 had
+    changed them. After it, the registers, the 68000's sound memory and the Z80's memory
+    all go into a checksum.
+    """
+    c = Code(0x1F0000)
+    w, s, l = c.words, c.short, c.long
+
+    def take_bus(name):
+        w(0x33FC, 0x0100, 0x00A1, 0x1100)                           # move.w #$100,$A11100
+        c.label(name)
+        w(0x0839, 0x0000, 0x00A1, 0x1100)                           # btst #0,$A11100
+        s(0x6600, name)
+
+    def give_bus():
+        w(0x33FC, 0x0000, 0x00A1, 0x1100)
+
+    w(0x41F9, 0xFFFF, 0x0000, 0x303C, 0x3EFF)
+    c.label('clear')
+    w(0x4298)
+    l(0x51C8, 'clear')
+    w(0x33FC, 0x0100, 0x00A1, 0x1200)                               # let the Z80 out of reset
+    take_bus('bus0')
+    for at, byte in enumerate((0xF3, 0x18, 0xFE)):                  # its program: di / jr to itself
+        w(0x13FC, byte, 0x00A0, at)
+    w(0x33FC, 0x0000, 0x00A1, 0x1200, 0x707F)                       # reset it, and wait a moment
+    c.label('hold')
+    l(0x51C8, 'hold')
+    w(0x33FC, 0x0100, 0x00A1, 0x1200)
+    give_bus()
+    w(0x21FC, SOUND_RECORDS >> 16, SOUND_RECORDS & 0xFFFF, 0x8008)  # where the random bytes are
+    c.label('pass')
+    w(0x7000, 0x3038, 0x8004, 0x4A00)                               # every 256 passes, the next song
+    s(0x6600, 'same_song')
+    w(0xE048, 0x0C40, 0x0006)                                       # lsr.w #8,d0 / cmpi.w #6,d0
+    s(0x6600, 'start')
+    w(0x4EB9, 0x0001, 0x5E10)                                       # jsr stop_music
+    s(0x6000, 'same_song')
+    c.label('start')
+    w(0x4EB9, 0x0001, 0x5D10)                                       # jsr start_song
+    c.label('same_song')
+    take_bus('bus1')
+    w(0x2078, 0x8008, 0x43F9, 0x00A0, 0x0229, 0x702F)
+    c.label('random')
+    w(0x12D8)
+    l(0x51C8, 'random')
+    w(0x21C8, 0x8008)
+    give_bus()
+    w(0x41F9, pattern_at >> 16, pattern_at & 0xFFFF, 0x4CD0, 0x7FFF)
+    w(0x4EB9, SOUND_LINK >> 16, SOUND_LINK & 0xFFFF)
+    w(0x48F9, 0x7FFF, 0xFFFF, 0x8100)                               # the registers it left
+    w(0x2E38, 0x8000)                                               # move.l $8000.w,d7
+    for area, longs in ((0xFFFF8100, 15), (0xFFFF0000, 0x240 // 4)):
+        name = f'sum{area:x}'
+        w(0x41F9, area >> 16, area & 0xFFFF, 0x303C, longs - 1)
+        c.label(name)
+        w(0xE39F, 0xDE98)
+        l(0x51C8, name)
+    take_bus('bus2')
+    w(0x41F9, 0x00A0, 0x0000, 0x303C, 0x02FF)
+    c.label('z80')
+    w(0x7200, 0x1218, 0xE39F, 0xDE81)                               # each byte of Z80 memory in turn
+    l(0x51C8, 'z80')
+    give_bus()
+    w(0x21C7, 0x8000, 0x5278, 0x8004, 0x0C78, SOUND_PASSES, 0x8004)
+    l(0x6600, 'pass')
+    w(0x21FC, 0x600D, 0xF00D, 0x800C, 0x60FE)
+    return c.finish()
+
+
+def check_sound(rom, patched):
+    pattern_at = 0x1F0400
+    rnd = random.Random(1990)
+    records = bytes(rnd.randrange(256) for _ in range(SOUND_PASSES * 48))
+    registers = b''.join((0xA1B2C300 + i).to_bytes(4, 'big') for i in range(15))
+    code = sound_test(pattern_at)
+    results = []
+    for source in (with_tiles(rom, b''), patched):
+        test = bytearray(source)
+        test[SOUND_RECORDS:SOUND_RECORDS + len(records)] = records
+        test[pattern_at:pattern_at + len(registers)] = registers
+        boot_into(test, 0x1F0000, code, SOUND_CHECK_ROM)
+        got = peek(SOUND_CHECK_ROM, [*range(0xFF8000, 0xFF8006), *range(0xFF800C, 0xFF8010)], 1500)
+        if int.from_bytes(got[4:6], 'big') != SOUND_PASSES or got[6:] != bytes.fromhex('600DF00D'):
+            sys.exit('sound link check did not finish')
+        results.append(got[:4])
+    same = results[0] == results[1]
+    print(f'sound link, old against new on {SOUND_PASSES} frames of music and silence: same memory on both sides and '
+          f'registers: {"yes" if same else "NO"}')
+    if not same:
+        sys.exit('sound link check FAILED')
+
+
 def mask_tables(rom, as_game=False):
     """Every mask shape at every horizontal shift.
 
@@ -922,6 +1048,9 @@ def main():
     out[CELLS:CELLS + len(code)] = code
     tables = mask_tables(rom)
     out[MASK_TABLES:MASK_TABLES + len(tables)] = tables
+    code = sound_link(rom)
+    out[SOUND_LINK_NEW:SOUND_LINK_NEW + len(code)] = code
+    out[SOUND_LINK:SOUND_LINK + 6] = b'\x4e\xf9' + SOUND_LINK_NEW.to_bytes(4, 'big')   # jmp
     code = sprite_mask()
     out[MASK:MASK + len(code)] = code
     out[BOOT_CHECK_BRANCH:BOOT_CHECK_BRANCH + 2] = b'\x4e\x71'      # nop
@@ -932,6 +1061,7 @@ def main():
         check_background(rom, out)
         check_mask(rom, out)
         check_cells(rom, out)
+        check_sound(rom, out)
     print(f'{count} tiles unpacked, {len(fixed)} corrected {fixed}')
     print(f'wrote {os.path.relpath(OUTPUT, ROOT)}')
 

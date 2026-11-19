@@ -309,6 +309,18 @@ The largest remaining costs, as shares of work outside waits, are the object til
 at `01428C` (9%), `015E9C`, which hasn't been read (7%), and sprite tile uploads through `0150E6`
 (7%).
 
+### How sound works
+
+The music and sound effects are sequenced on the 68000, not the Z80. Once a frame, from the
+vertical blank handler, `01624E` stops the Z80, copies 48 bytes from its memory at `A00229` to
+`FF01F0`, and lets it go. Then `015E9C` steps the music's channels and `0165AE` the six sound
+effect channels, changing those bytes: 8 for each of 6 channels. If anything changed, the link
+stops the Z80 again and copies them back, and it always writes a flag at `A00259` to say whether
+it did. The Z80's part is to turn those bytes into YM2612 writes. It also plays sampled sounds on
+levels 3, 4 and 7, timing them itself, so a sample waits whenever the 68000 has the Z80 stopped.
+The 68000's sound state is `FF0000` to `FF0240`, with 80 bytes for each channel from `FF0008`.
+Songs start through `015D10` with a number in d0, and there are at least eight.
+
 ### How the screen's cells are built
 
 `013D34` fills two buffers on a camera step: 612 words at `FF6C82`, one for each 8 by 8 cell on a

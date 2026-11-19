@@ -1,0 +1,33 @@
+diff --git a/ctrl_fifo.c b/ctrl_fifo.c
+index 79fa6e3..064e34b 100644
+--- a/ctrl_fifo.c
++++ b/ctrl_fifo.c
+@@ -15,6 +15,7 @@
+ //                             ("burst 0" cancels). Every frame is captured, unlike a loop of
+ //                             screenshot commands, which only samples what the socket
+ //                             round-trip happens to land on.
++//   vgm <path>|off            start logging sound chip writes to a VGM file, or stop
+ //   vramdump <path>           dump a binary VRAM/CRAM/VSRAM/regs snapshot at the next frame
+ //                             boundary (KITVDMP1 format; see kit_prof.c for the file layout)
+ //
+@@ -187,6 +188,20 @@ static void process_command(char *line)
+ 		} else {
+ 			warning("ctrl_sock: expected 'vramdump <path>'\n");
+ 		}
++	} else if (!strcmp(cmd, "vgm")) {
++		char *path = strtok(NULL, "");
++		while (path && (*path == ' ' || *path == '\t')) {
++			path++;
++		}
++		if (!current_system || !current_system->start_vgm_log || !path || !*path) {
++			warning("ctrl_sock: expected 'vgm <path>|off' with a system running\n");
++		} else if (!strcmp(path, "off")) {
++			if (current_system->vgm_logging) {
++				current_system->stop_vgm_log(current_system);
++			}
++		} else if (!current_system->vgm_logging) {
++			current_system->start_vgm_log(current_system, path);
++		}
+ 	} else if (!strcmp(cmd, "vramhash")) {
+ 		char *state = strtok(NULL, " \t");
+ 		kit_prof_bind_system();

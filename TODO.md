@@ -46,8 +46,12 @@ the optimized game really runs.
 - [x] Camera steps: the cell routine is rewritten and the tile sync skips empty parts of its
       table. A step costs about 133k cycles where it cost 223k, and ticks needing over 3 frames
       of work went from 11.6% to 3.7%.
-- [ ] More headroom: sending sprite tiles during vertical blank, then the routines not read yet
-      (`015E9C`, `0165AE`, `009930`, `005B78`).
+- [x] The sound link's two copies through Z80 memory are written out in place of loops. About
+      900 cycles a frame saved.
+- [ ] Listen to sampled sounds on levels 3, 4 and 7 against the original. The Z80 is stopped for
+      less time now, so they should have shorter hitches and run about 0.7% faster.
+- [ ] More headroom: sending sprite tiles during vertical blank, then the game logic not read
+      yet (`009930`, `005B78`, `01370A`).
 - [ ] Release the patch as tools that build it from the player's own ROM, for now. The
       unpacked tiles are the game's graphics, so an ordinary IPS or BPS file would contain them.
 - [ ] Try the patched ROM on real hardware.

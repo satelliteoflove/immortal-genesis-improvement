@@ -67,3 +67,9 @@ whether it also happens with a window open.
 `BLASTEM_KIT_INIT`, and adds `poke` and `peek` of work RAM to scripts. It isn't a bug fix, and
 it's kept apart from the fixes above. It might interest the fork's author, but it pokes RAM
 without any regard for code translated from it, so it would want a closer look first.
+
+`tools/harness/blastem-fork/harness/0002-control-file-vgm-log.patch` (same branch) adds a
+`vgm <path>` control command, which starts the emulator's own VGM log of sound chip writes, and
+`vgm off`, which stops it. The emulator could already do this from a key binding, but not from a
+headless run. A log that's still open when a `-b` run ends is left with an empty header, though
+its data is all there.
