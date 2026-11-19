@@ -144,6 +144,7 @@ MAKE_CERTIFICATE = 0x12876      # fills the fields from the game as it stands
 CHECK_CERTIFICATE = 0x12804     # works out the check digits of the fields, into $304-$307(a4)
 DIGIT_LETTERS = 0x12A50         # the 16 letters a certificate is shown in
 PRINT = 0x13362                 # draws the letter in d0 at the text cursor
+WIZARD_HEALTH = 0x60C           # (a4): the wizard's health, in the high four bits
 SAY = 0xCD56                    # shows message d1 in a new box
 SAY_FIRST = 0xCE0E              # the same, expecting more to follow
 SAY_LOOP = 0xCF2A               # inside the message routine, past where it has found its text
@@ -877,13 +878,13 @@ def saves():
     c.label('say')
     s(0x6100, 'copy')
     w(0x1940, 0x0940)                               # move.b  d0,$940(a4)       the number a message can show
-    w(0x422C, 0x0948, 0x422C, 0x094B, 0x422C, 0x094A, 0x422C, 0x0949)
+    w(0x42AC, 0x0948)                               # clr.l   $948(a4)          the four bytes the game clears
     w(0x4EB9, NEW_BOX >> 16, NEW_BOX & 0xFFFF)
     c.label('say on')                               # as the game's routine starts, but with our text
     w(0x103C, 0x0000, 0x4278, 0x9644)               # move.b #0,d0 / clr.w $9644.w
     w(0x1940, 0x0945, 0x3F01, 0x1942, 0x0944)       # move.b d0,$945(a4) / move.w d1,-(sp) / move.b d2,$944(a4)
-    w(0x196C, 0x0300, 0x0942, 0x196C, 0x0301, 0x0943)   # keep the text address the game had
-    w(0x197C, TEXT_BUFFER & 0xFF, 0x0300, 0x197C, TEXT_BUFFER >> 8, 0x0301)
+    w(0x396C, 0x0300, 0x0942)                       # keep the text address the game had
+    w(0x397C, (TEXT_BUFFER & 0xFF) << 8 | TEXT_BUFFER >> 8, 0x0300)    # ours, low byte first
     w(0x4202)                                       # clr.b   d2
     w(0x4EF9, SAY_LOOP >> 16, SAY_LOOP & 0xFFFF)    # the game's routine carries on, and returns for us
     c.label('say more')                             # the same, after what's in the box already
@@ -950,8 +951,15 @@ def saves():
     l(0x6100, 'say more')
     w(*back, 0x4E75)
 
-    # Game Over: offer the level again.
+    # Game Over: offer the level again. Not after winning: the game ends by way of Game Over,
+    # with the wizard alive on the last level, and then it says what the original said.
     starts['game over'] = SAVES + len(c.data)
+    w(0x0C2C, 0x0007, 0x0D70)                       # cmpi.b  #7,$D70(a4)       the last level?
+    s(0x6600, 'lost')
+    w(0x0C2C, 0x0010, WIZARD_HEALTH)                # cmpi.b  #$10,health(a4)   and alive?
+    s(0x6500, 'lost')
+    w(0x123C, 0x009C, 0x4EF9, SAY >> 16, SAY & 0xFFFF)  # "Game Over / Play again?"
+    c.label('lost')
     w(0x48E7, 0x00C0)                               # movem.l a0-a1,-(sp)
     say('over', 'say')
     w(0x4CDF, 0x0300)
@@ -961,7 +969,7 @@ def saves():
     s(0x6600, 'fields')
     w(0x50F8, AGAIN, 0x4E75)                        # the first: a new game, without asking
     c.label('fields')
-    w(0x197C, 0x0001, 0x0D88)                       # any other: its certificate is still in the fields
+    w(0x50EC, 0x0D88)                               # any other: its certificate is still in the fields
     c.label('ended')
     w(0x4E75)
 
@@ -1400,8 +1408,9 @@ def finish_rom(rom, path):
     rom[0x1A4:0x1A8] = (len(rom) - 1).to_bytes(4, 'big')
     total = sum(word(rom, i) for i in range(0x200, len(rom), 2)) & 0xFFFF
     rom[0x18E:0x190] = total.to_bytes(2, 'big')
-    with open(path, 'wb') as f:
+    with open(path + '.new', 'wb') as f:          # whole or not at all, for tools reading it meanwhile
         f.write(rom)
+    os.replace(path + '.new', path)
 
 
 def test_rom(rom, table=b''):

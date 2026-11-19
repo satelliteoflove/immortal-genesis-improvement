@@ -19,6 +19,8 @@ What is checked:
   - reaching a level again replaces its save
   - Game Over: YES starts the level again with what its certificate gives, or a new game
     on the first level; NO goes on to the game's usual prompts
+  - winning the game, which ends by way of Game Over with the wizard alive on the last level,
+    gets the original's "Play again?", not the offer to try the level again
 
 Everything is written under scratch/save-check, which git ignores.
 """
@@ -200,6 +202,15 @@ def main():
     report('on level 1 with nothing saved, NO goes on to "New game?"',
            end_1.said == over and (end_1.level, end_1.items) == (0, plain.items))
     report('a second try has three lives', again_2.ram[A4 + 0xD9A] == again_1.ram[A4 + 0xD9A] == 2)
+
+    # The last level, reached as the harness reaches any level: load it from the fields.
+    last = [f'1100:{FIELDS + 0xFF0000 + 5:x}=7', '1100:ff1088=1', '1100:ff1073=1']
+    won, lost = together(
+        Run('won', 1900, new_game, last + [f'1700:{NO_RETRIES}=1']),
+        Run('lost', 1900, new_game, last + [f'1700:{NO_RETRIES}=1', f'1700:{A4 + B.WIZARD_HEALTH + 0xFF0000:x}=0']))
+    print('The end of the game')
+    report('on the last level, Game Over with the wizard alive leaves the original message', won.level == 7 and won.said == '')
+    report('with the wizard dead it offers the level again', lost.level == 7 and lost.said == over)
     sys.exit(0 if good else 1)
 
 

@@ -64,7 +64,10 @@ three lives and what the wizard carried into it. NO goes on to the prompts a gam
 with. See "Saving" below.
 
 The retry handling is at `0081D6`. It skips the retry altogether on the last level, level 8
-(`0081DE`), which hasn't been tested in play. It also has special cases for levels 2, 4, 5,
+(`0081DE`): a death there brings Game Over about 50 updates later, with the retries left
+untouched. Winning the game ends the same way. After the closing story the wizard's routine
+runs into the last level's death code and the Game Over flag goes up, so the original
+follows its ending with "Game Over / Play again?". There's no congratulations screen. It also has special cases for levels 2, 4, 5,
 7 and 8 that reset particular things on a retry, and those haven't been worked through.
 
 ## Fights
@@ -195,6 +198,12 @@ since the fields still hold the certificate the level was started from, however 
 started. On the first level there's no certificate, so it sets a flag of its own
 (`FF97AA`) that makes the loader start a new game without asking. NO changes nothing, and
 the game goes on to the loader's prompts as the original did.
+
+Winning the game also comes through Game Over (see "Death and retries"), so on the last level
+with the wizard still alive the routine leaves the original's "Game Over / Play again?"
+alone. It was offering to try level 8 again after the ending until the level 8 route found
+it. The room for that check came from shorter forms of four of the routine's own
+instructions.
 
 **Messages.** The game finds a message's text by a 16-bit address, so it can't point at new
 text high in the ROM. The new routine copies its message to `FF97B0` and enters the game's
