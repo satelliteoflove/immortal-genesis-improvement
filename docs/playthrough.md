@@ -142,6 +142,7 @@ and `disasm/immortal.dis` is the whole disassembly (made by `tools/disasm.py`, n
 | `FF0BC2`, `FF0BC3` | Level 8's dragon: how many of its 24 moves it has begun, and the slot of the animation running (`FF` between moves) | Read from code (`00BE7A`), used |
 | `FF0BBD`, `FF0BBE`, `FF0BBC` | Level 8's teacher: moves begun, the move he is in, and its animation's slot | Read from code (`00BC1E`), used |
 | `FF0BC4` | Level 8: 0 while the dragon attacks, 1 once the amulet is held up, 2 once the teacher has come | Read from code, used |
+| `FF0A15`, `FF0B97` | Level 5, room 7's floor design: 1 while the wizard stands on its middle (about 3 either way of the design's thing x and y), and how many things weigh on the middle (wizard, hatchling). The way down is open while `FF0B97` isn't 0 | Seen, level 5 |
 | `FF0B18` | 42 bytes in step with the things table: each thing's state bits. For a trap of plates (kind `37`), bit 1 is set while it has been set off | Seen, level 1 |
 | `FF0BAA` | Level 1: 1 while the amulet's reflection shows the ladder (it goes back to 0 afterward; the ladder stays) | Read from code (`009ADC`), seen |
 
@@ -812,6 +813,49 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
   hit, in 90 runs started 0 to 59 updates late on the patched ROM and 0 to 29 on the
   original (`scratch/route/level1/idle0.py`).
 
+- 2026-11-19, level 5, **fireballs at something that takes several: `shoot_down(g, n,
+  inside=...)`**. A ball can be thrown every other update (a fresh press of A each time;
+  holding nothing else, the wizard doesn't move). Balls run on along the walls for their
+  whole life, so a room fills with them and a spray toward a moving target hits now and
+  then. A hit takes 1 health and doesn't stop or slow the target. Level 5's slime (4
+  health) comes at the wizard as fast as he walks, so running only works until a corner:
+  `shoot_down` shoots it whenever it's on a line and coming or still, runs when it is
+  within 16, and sprays when it's far. It killed the slime in 4 to 30 shots, but lost in
+  about one game in eight over 60 tries, always to a chase into a corner (an orbiting
+  run and wider flee distances did worse). Where a fight goes by chance like that, pin the
+  room as level 2 says and choose the game: level 5 waits 22 updates before room 7's door,
+  in the middle of 18 to 25, which all passed on both ROMs.
+- 2026-11-19, level 5, **a monster that goes by the random numbers**. To see how often a
+  policy beats one, keep a state at the room's start, then for each of 30 seeds poke the
+  55 bytes at `FF0C02` with `random.seed(n)` bytes and run it (exploring only). Each seed
+  is a different game. Two runs from the same kept state with the same pokes didn't always
+  agree to the shot, so count rates, don't trust one run. Waiting N updates before the
+  room's door gives a different game too, and that is a thing `play()` may do.
+- 2026-11-19, level 5, **a slime's kill and where a death sends you**. It catches within
+  about 3 (its x and y against his): `action(g)` goes to 2 at once and he dies about 15
+  updates later, so `action(g)` is the early warning. After a death in room 7 the wizard
+  came back in room 4 at (56, 40) with full health, still carrying the fireball book but
+  with nothing armed: `use` it again before relying on A.
+- 2026-11-19, level 5, **a creature that follows the wizard, and walls**. The hatchling
+  flies straight at whatever it wants (the wizard, or the bait once it is down) and can't
+  get round a wall: left behind above room 7's narrow middle it sat against the side for
+  400 updates while the bait lay below. It follows if it is near when he moves off, so
+  wait for it past the narrow part, and if it isn't within 24 after 60 updates go back
+  up for it (`fetch_hatchling` in `level5.py`). Bait dropped with it close was taken
+  within a few updates.
+- 2026-11-19, level 5, **dropping a thing on a spot**. Using the bait asks "drop it here?"
+  and puts it at the wizard's own x and y, so stand on the spot first. To stand on a small
+  spot, walk at its thing's x and y with a stop on the game's own flag for it:
+  `walk_to(g, x, y, near=1, stop=lambda g: g.byte(FLAG))`; plain `near=1` dithered a step
+  away for 300 updates. Look for such a flag by diffing RAM on and off the spot (bytes
+  that change back and forth with him), as `FF0A15` was found.
+- 2026-11-19, level 5, **the end of level 5**, unlike the walkthroughs only in small
+  ways: room 7 is brown, its slime has to be dealt with (it is never mentioned as deadly),
+  and the bait goes on a round design, not a triangle. The ladder it opens leads to room
+  10, with a straw bed by the foot of the ladder (`rest()`, +2 to +3) and the ladder down
+  in the middle; LEFT onto it from (120, 74) ends the level. The route makes the
+  walkthrough's level 6 certificate `563ff53010a41` at full health on both ROMs.
+
 ## Where each level stands
 
 | Level | Route | Passes six runs |
@@ -820,7 +864,7 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
 | 2 | `level2.py` plays room 4 (past the slimes) to the door of room 1 | That part passes all six |
 | 3 | `level3.py` plays the whole level: scroll, troll and knife, the king, the gem, the knife thrown, three trolls beaten by hand, the beam, the last ladder. Certificate `573ff31000e60`, no life lost | Passes all six, at full health (rechecked by a second agent) |
 | 4 | `level4.py` plays the whole level: the troll, the carpet over both flame rooms with the ring picked up on the way, the straw bed, two trolls, the girl's trade, the triangle. Certificate `d630f43000eb0` (the walkthrough's) when fireballs cost 2 health or less; they cost 0 to 6 by chance | All six pass (the six runs make `6210e43000eb0` patched and `f4ffd43000eb0` original, health 14 and 13); 20 runs with random waits passed |
-| 5 | `level5.py` plays rooms 8, 0, 1, 2, 4 and 5 (egg, potion, hole, trolls, chest, lizards, key, worm room) to the door of the last room | Those parts pass on both ROMs |
+| 5 | `level5.py` plays the whole level: egg, potion, hole, trolls, chest, lizards, key, worm room, the slime, the hatchling and the bait, the straw bed. Certificate `563ff53010a41` (the walkthrough's), no life lost | All six pass at full health; room 7's slime is a chosen game (see "fireballs at something that takes several") |
 | 6 | `level6.py` plays the whole level: the spider hole, the big spider, the alcohol on the chest, the levitation spell down the corridor, the ladders | All six pass, with the walkthrough's certificate for level 7 |
 | 7 | `level7.py` plays the whole level: troll, ring, the fight below the ladder, the barrel, the water monster, the whirlpool. Certificate `e011f730178c1`, no life lost | Yes, all six |
 | 8 | `level8.py` plays the whole level: chest, ladder, pit, the dragon, the teacher, the closing story | All six pass |
