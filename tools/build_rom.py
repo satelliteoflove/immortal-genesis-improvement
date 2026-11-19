@@ -14,7 +14,8 @@ nothing of the game is stored here. What it changes:
     in RAM the game leaves alone, so most requests are a plain copy. The game's own
     decoder still does the unpacking.
   * The wall torch. A slip in the game's tile search decodes one tile wrongly, which
-    takes the top off the flame. One branch in the search is corrected.
+    takes the top off the flame. The new object routine does that search itself, and
+    gets it right.
   * Background tiles. Each time the camera crosses an 8-pixel step, the game sent every
     tile on screen to video memory again. Now only tiles new to the screen are sent, and
     the scan of the 2,048-entry tile table skips the parts that are empty.
@@ -74,9 +75,11 @@ PACKED = 0x6EED0                # the packed tile data
 TREE = 0x2E6D6                  # the decoder, a tree of bit tests written as code
 TREE_DONE = 0x2F4D0             # where each decoded byte branches to
 ROUTINE = 0x2E3E4               # the object graphics routine
-ROUTINE_ONE = 0x2E452           # inside its loop: here it starts on the tile whose number is in d4
-SEARCH_BRANCH = 0x2E48C         # the search's test against the next run's first tile
+DECODE = 0x2E48E                # inside its loop, after the search: unpacks tile d4 of the run at d5(a0) to (a1)+
+RAW_DONE = 0x2E4C2              # where the loop carries on after a tile stored unpacked,
+PACKED_DONE = 0x2F4D4           #   and after a packed one
 SPREAD = 0x2D4EC                # a table the decoder wants in a3
+RUN_STARTS = 0xFFEB0            # a byte for each 128 tile numbers: the run the first of them is in
 TILE_MEMORY = 0xFFBD0           # the new routine
 MEMORY_SETS = 128               # it remembers tiles in sets, chosen by the low 7 bits of the tile number,
 MEMORY_WAYS = 5                 #   of this many tiles each
@@ -243,15 +246,23 @@ def tile_memory():
     """Put each listed tile in the output buffer, as the original did, but remember them.
 
     A tile is looked for among those kept for its set. If it's there it is copied. If not,
-    the game's own decoder unpacks it into the place whose turn it is, and it is copied
-    from there. A place's tag is zero while it's being filled, so a reset in the middle
-    can't leave half a tile that looks whole. Returns the code and where its rts is.
+    the game's own decoder unpacks it to the output, and it is copied from there into the
+    place whose turn it is. A place's tag is zero until the tile is all there, so a reset
+    in the middle can't leave half a tile that looks whole.
+
+    The decoder is called as a subroutine, after its search for the run of tiles the number
+    belongs to. That search is done here instead. RUN_STARTS gives a run to start from, a
+    step or two short at most, where the game halved its way through the whole index each
+    time. And it doesn't have the game's slip of taking a run's last number plus one as part
+    of the run. Returns the code and where its rts is.
     """
     assert MEMORY_SETS == 128 and 2 <= MEMORY_WAYS <= 8
     assert MEMORY_TILES + 32 * MEMORY_SETS * MEMORY_WAYS <= 0xF800
     c = Code(TILE_MEMORY)
     w, s, l = c.words, c.short, c.long
-    w(0x48E7, 0xCDE4)                               # movem.l d0-d1/d4-d5/d7/a0-a2/a5,-(sp)
+    w(0x48E7, 0xFFFE)                               # movem.l d0-d7/a0-a6,-(sp)
+    w(0x47F9, SPREAD >> 16, SPREAD & 0xFFFF)        # lea     SPREAD,a3         both for the decoder,
+    w(0x4DF9, PACKED >> 16, PACKED & 0xFFFF)        # lea     PACKED,a6         which leaves them alone
     w(0x4BF8, 0x92FA)                               # lea     $92FA.w,a5        list of tiles
     w(0x43F9, OUTPUT_TILES >> 16 | 0xFF00, OUTPUT_TILES & 0xFFFF)  # lea $FFFF2000,a1
     w(0x3038, 0x92F6, 0xEB48, 0xD2C0)               # a1 += 32 times the next free slot
@@ -278,36 +289,49 @@ def tile_memory():
     c.label('found')
     w(0xD4C0)                                       # adda.w  d0,a2             in this set
     w(*[0x22DA] * 8)                                # move.l  (a2)+,(a1)+ eight times
+    c.label('count')
     w(0x5278, 0x92F6)                               # addq.w  #1,$92F6.w
-    c.label('next')
     l(0x51CF, 'loop')                               # dbra    d7,loop
-    w(0x4CDF, 0x27B3)                               # movem.l (sp)+,d0-d1/d4-d5/d7/a0-a2/a5
+    w(0x4CDF, 0x7FFF)                               # movem.l (sp)+,d0-d7/a0-a6
     c.label('rts')
     w(0x4E75)                                       # rts
     c.label('blank')
     w(*[0x22C0] * 8)                                # move.l  d0,(a1)+ eight times: all of d0 is zero
-    w(0x5278, 0x92F6)                               # addq.w  #1,$92F6.w
-    s(0x6000, 'next')                               # bra.s   next
+    s(0x6000, 'count')                              # bra.s   count
     c.label('miss')
     w(0x45F8, MEMORY_TURNS, 0x3A00, 0xEA4D, 0xD4C5)  # a2 = the set's turn
     w(0x7200, 0x1212)                               # moveq #0,d1 / move.b (a2),d1   whose turn it is
     w(0x5212, 0x0C12, MEMORY_WAYS, 0x6602, 0x4212)  # and the next one's after, going round
     w(0x3A00, 0xE24D, 0xDA41, 0xDA41)               # d5 = 16 times the set + 2 times the place: its tag
-    w(0x4270, 0x5000)                               # clr.w   (a0,d5.w)         nothing there while it fills
+    w(0x4270, 0x5000)                               # clr.w   (a0,d5.w)         nothing there until it's whole
+    w(0x4870, 0x5000)                               # pea     (a0,d5.w)         keep where the tag is,
     w(0xE859, 0x45F8, MEMORY_TILES, 0xD4C1, 0xD4C0)  # a2 = the place: tiles + 4096 * place + 32 * set
+    w(0x2F0A)                                       # move.l  a2,-(sp)          and the place
     w(0xE05C)                                       # ror.w   #8,d4             the tile number itself
-    s(0x6100, 'unpack')                             # bsr.s   unpack            which also counts the slot
-    w(0xE05C)                                       # ror.w   #8,d4
-    w(0x3184, 0x5000)                               # move.w  d4,(a0,d5.w)      now it holds this tile
-    w(*[0x22DA] * 8)                                # move.l  (a2)+,(a1)+ eight times
-    s(0x6000, 'next')                               # bra.s   next
-    c.label('unpack')                               # one pass of the game's routine, with a1 = the place
-    w(0x48E7, 0xFFFE, 0x224A)                       # movem.l d0-d7/a0-a6,-(sp) / movea.l a2,a1
-    w(0x47F9, SPREAD >> 16, SPREAD & 0xFFFF)        # lea     SPREAD,a3
-    w(0x4DF9, PACKED >> 16, PACKED & 0xFFFF)        # lea     PACKED,a6
-    w(0x7E00)                                       # moveq   #0,d7             one tile
-    w(0x4EF9, ROUTINE_ONE >> 16, ROUTINE_ONE & 0xFFFF)  # jmp into its loop; its own rts comes back here
+    w(0x3A04, 0xEE4D)                               # move.w d4,d5 / lsr.w #7,d5     which 128 it's in
+    w(0x41F9, RUN_STARTS >> 16, RUN_STARTS & 0xFFFF)  # lea   RUN_STARTS,a0
+    w(0x7200, 0x1230, 0x5000, 0xE749)               # d1 = 8 times the run to start from
+    w(0x41F9, INDEX >> 16, INDEX & 0xFFFF)          # lea     INDEX,a0
+    c.label('run')
+    w(0xB870, 0x100A)                               # cmp.w   10(a0,d1.w),d4    the next run's first tile
+    s(0x6500, 'unpack')                             # bcs.s   unpack            is past it: this is the run
+    w(0x5041)                                       # addq.w  #8,d1
+    s(0x6000, 'run')                                # bra.s   run
+    c.label('unpack')
+    w(0x3A01)                                       # move.w  d1,d5
+    w(0x4EB9, DECODE >> 16, DECODE & 0xFFFF)        # jsr     DECODE            32 bytes to (a1)+
+    w(0x245F, 0x285F)                               # movea.l (sp)+,a2 / movea.l (sp)+,a4
+    w(0x41E9, 0xFFE0)                               # lea     -32(a1),a0        the tile just unpacked
+    w(*[0x24D8] * 8)                                # move.l  (a0)+,(a2)+ eight times
+    w(0x38AD, 0xFFFE)                               # move.w  -2(a5),(a4)       now the place holds this tile
+    w(0x41F8, MEMORY_TAGS)                          # lea     tags,a0
+    l(0x6000, 'count')                              # bra.w   count
     return c.finish(), c.labels['rts']
+
+
+def run_starts(tiles):
+    """For each 128 tile numbers up to 32,767, the run that the first of them belongs to."""
+    return bytes(max(0, min(bisect.bisect_right(tiles.firsts, 128 * block) - 1, INDEX_LAST)) for block in range(256))
 
 
 def map_tiles():
@@ -1234,7 +1258,7 @@ def check_memory(patched, count, table, fixed):
     got = peek(MEMORY_CHECK_ROM, [0xFF0000 + i for i in (0, 1, 2, 3, 4, 5, 6, 7, 12, 13, 14, 15, 16)], 30000, 600)
     bad, reached, done = (int.from_bytes(got[a:a + 4], 'big') for a in (0, 4, 8))
     kept = got[12] == 1
-    print(f'new routine against this script, with the search corrected for {fixed}: {reached - 1} tiles each unpacked, '
+    print(f'new routine against this script, which the original gets wrong at {fixed}: {reached - 1} tiles each unpacked, '
           f'found, pushed out and unpacked again, {bad} wrong; a remembered tile is copied, not unpacked: '
           f'{"yes" if kept else "NO"}')
     if bad or reached != count or done != 0x600DF00D or not kept:
@@ -1284,8 +1308,8 @@ def check_background(rom, patched):
 def main():
     rom = open(romcheck.find_rom(), 'rb').read()
     check = '--check' in sys.argv[1:]
+    tiles = Tiles(rom)
     if check:
-        tiles = Tiles(rom)
         count = tiles.count + 1             # the game's search also accepts the end marker
         as_game = [tiles.unpack(n, tiles.run_by_game(n)) for n in range(count)]
         table = list(as_game)
@@ -1310,12 +1334,13 @@ def main():
     add(TILE_MEMORY, code)
     assert rom[ROUTINE:ROUTINE + 4] == bytes.fromhex('48E7FFFE')
     out[ROUTINE:ROUTINE + 6] = b'\x4e\xf9' + TILE_MEMORY.to_bytes(4, 'big')     # jmp
-    # The search took a tile equal to the next run's first tile as part of this run. Make
-    # it "greater or equal", and move the end marker up one so the last number still ends there.
-    assert rom[SEARCH_BRANCH - 4:SEARCH_BRANCH + 1] == bytes.fromhex('B870500A6E')
-    out[SEARCH_BRANCH] = 0x6C                                                   # bgt.s becomes bge.s
-    end = INDEX + 8 * (INDEX_LAST + 1) + 2
-    out[end:end + 2] = (word(rom, end) + 1).to_bytes(2, 'big')
+    for done in (RAW_DONE, PACKED_DONE):            # the decoder's two ways out become returns
+        assert rom[done:done + 4] == bytes.fromhex('527892F6')                  # addq.w #1,$92F6.w
+        out[done:done + 4] = bytes.fromhex('4E754E71')                          # rts, nop
+    assert rom[DECODE:DECODE + 6] == bytes.fromhex('203050003600')
+    add(RUN_STARTS, run_starts(tiles))
+    end = INDEX + 8 * (INDEX_LAST + 1) + 2              # the index's end marker, one past the last tile:
+    out[end:end + 2] = b'\xff\xff'                      #   now past any number, to stop the new search
     for old, new, code in ((MAP_TILES, MAP_TILES_NEW, map_tiles()), (TILE_SYNC, TILE_SYNC_NEW, tile_sync()),
                            (TABLE_RESET_TAIL, TABLE_RESET_NEW, table_reset_tail())):
         add(new, code)
