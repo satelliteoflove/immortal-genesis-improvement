@@ -223,8 +223,37 @@ def gems_and_sword(g, log):
     log(f'in the dwarf\'s passage; oil left {oil_left(g)}')
 
 
+def dwarf(g, log):
+    """Room 3, the long passage. The dwarf is in its top left corner. The dust is used a
+    little way short of him (do that here? yes), and walking up to him then he talks and
+    gives his gem, with no question. The door to room 6 is in the right hand wall of the
+    passage's lower end; walking at (175, 200) goes through it."""
+    go(g, (70, 110), (48, 92))
+    use(g, DUST)
+    read(g, 'y')
+    if has(g, DUST):
+        fail(g, LEVEL, 'the dust was not thrown')
+    if walk_to(g, 44, 80) == 'busy':
+        read(g)
+    if not has(g, DWARF_GEM):
+        wait_busy(g)
+        read(g)
+    if not has(g, DWARF_GEM):
+        fail(g, LEVEL, 'the dwarf did not give his gem')
+    log('the dwarf gave his gem')
+    go(g, (80, 140), (120, 200))
+    if walk_to(g, 175, 200) != 'room' or g.room != 6:
+        fail(g, LEVEL, 'did not come to room 6')
+    tick(g)
+    for _ in range(12):                 # he walks in by himself, as in through_door
+        if not walking_in(g):
+            break
+        tick(g)
+    log(f"in the slimes' passage; oil left {oil_left(g)}")
+
+
 STEPS = [first_room, merchant, to_the_goblins, goblins, king, back_to_the_first_room,
-         gems_and_sword]
+         gems_and_sword, dwarf]
 
 
 def play(g, log=print):
