@@ -297,12 +297,24 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
 - 2026-11-19, level 7, **stale table entries**. The things tables aren't cleared between
   levels: after `start_level` the entries past the level's own things still hold level 1's
   x, y and place (their kind is `FF`). Count a level's things by the kinds at `FF0AEE`.
+- 2026-11-19, level 1, **meeting creatures**: `walk_to(..., stop=fighting)` to a creature's
+  spot is a race; in one run in six the wizard arrived before the goblin reacted and the
+  route's next step failed. `meet(g, n)` walks at creature n (following it by
+  `creature_xy(g, n)`) until it fights (`'fight'`) or a box comes (`'spoke'`), and
+  `attack(g, n)` does that, reads any warning, and wins the fight. Also: a friend who is
+  close when his attacker falls speaks at once, so the `read(g)` after the fight may already
+  have taken what he gives. Check `has()` before walking over to him.
+- 2026-11-19, level 1, **aiming at doors**: the side a door is come at from matters. Room 3's
+  top door opens to UP from x 197 or less (sliding along the wall) and from x 200 the wizard
+  sticks in the corner beside it. Try the approach from a few spots with keep/back before
+  trusting it, and run all three delays early: they end walks a step apart. `walk_to` with
+  `near=1` can step back and forth over a spot for ever; leave `near` at 2.
 
 ## Where each level stands
 
 | Level | Route | Passes six runs |
 |---|---|---|
-| 1 | `level1.py` plays the first room and the big room after it (body, two goblins, key, chest) | Those parts pass all six; the rest isn't written |
+| 1 | `level1.py` plays rooms 6, 3 and 7 (body, three goblins, key, chest) to the door of room 1 | Those parts pass all six; the last four rooms aren't written |
 | 2 | not started | |
 | 3 | not started | |
 | 4 | `level4.py` gets past the troll at the start and takes the carpet | Those parts pass all six |

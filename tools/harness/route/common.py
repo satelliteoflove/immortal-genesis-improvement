@@ -453,6 +453,41 @@ def fight(g, limit=20000):
     return health(g)
 
 
+def creature_xy(g, creature):
+    """Where creature n is, in the room's coordinates (0 is the wizard)."""
+    return g.byte(WIZARD_X + creature), g.byte(WIZARD_Y + creature)
+
+
+def meet(g, creature, limit=300):
+    """Walk at creature n, following it, until it starts a fight or the game stops for a
+    text box. Returns 'fight' or 'spoke'. Use it when walk_to(..., stop=fighting) could
+    arrive before the creature has reacted, or where it has to be pushed against to speak."""
+    for _ in range(limit):
+        if fighting(g):
+            return 'fight'
+        if busy(g):
+            return 'spoke'
+        if dead(g):
+            raise Died(f'meet({creature}): the wizard died at {xy(g)} in room {g.room}, '
+                       f'frame {g.frame}')
+        (cx, cy), (wx, wy) = creature_xy(g, creature), xy(g)
+        tick(g, _toward(cx - wx, cy - wy, 1))
+    raise RouteError(f'meet({creature}): it neither fought nor spoke in {limit} updates; '
+                     f'wizard at {xy(g)}, it at {creature_xy(g, creature)}, room {g.room}')
+
+
+def attack(g, creature, limit=300):
+    """Walk at creature n until it fights, reading anything said on the way, and win the
+    fight. Returns the health left."""
+    for _ in range(6):
+        if meet(g, creature, limit) == 'fight':
+            return fight(g)
+        read(g, quiet=0)
+        if fighting(g):
+            return fight(g)
+    raise RouteError(f'attack({creature}): it kept talking and never fought (frame {g.frame})')
+
+
 # --- deaths and the end of the level ---
 
 def retries(g):

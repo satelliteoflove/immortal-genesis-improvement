@@ -41,17 +41,18 @@ def play(g, log=print):
     log('first goblin: won with health', fight(g))
     read(g)
 
-    # A second goblin is fighting a man in the bottom left. Getting close starts the fight.
+    # A second goblin (creature 3) is fighting a man (creature 2) in the bottom left.
     go(g, (151, 130), (70, 130))
-    if walk_to(g, 36, 144, stop=fighting) != 'stop':
-        fail(g, LEVEL, 'the second goblin did not come to fight')
-    log('second goblin: won with health', fight(g))
+    log('second goblin: won with health', attack(g, 3))
     read(g)
 
     # The man gives a key (thing 13), which opens the chest (thing 8) below him.
-    walk_to(g, 36, 142)
-    wait_busy(g)
-    read(g)
+    # If the wizard is close he speaks as soon as the goblin is down, and read() above has
+    # already been through it.
+    if not has(g, 13):
+        if meet(g, 2) != 'spoke':
+            fail(g, LEVEL, 'the man started a fight')
+        read(g)
     if not has(g, 13):
         fail(g, LEVEL, 'the man gave no key')
     log('have the key')
@@ -59,7 +60,26 @@ def play(g, log=print):
     search(g, 'yyyyy', 9, 10, 11, 12)
     log('opened the chest, carrying', carried(g))
 
-    fail(g, LEVEL, 'the route is not written past the chest in room 3')
+    # The far door is at the top of the room. Come at it from the left: UP from x 197 or
+    # less slides along the wall into it, and from x 200 it sticks in the corner.
+    go(g, (60, 130), (151, 130), (151, 94), (189, 20))
+    through_door(g, 'UP', 7)
+
+    # Room 7. A goblin (creature 4) warns, then fights. It carries things 15 and 16 and
+    # offers them the moment it is beaten.
+    log('third goblin: won with health', attack(g, 4))
+    search(g, 'yyy', 15, 16)
+    walk_to(g, *thing_xy(g, 14))                # gold on the floor
+    wait_busy(g)
+    read(g)
+    log('room 7 cleared, carrying', carried(g))
+
+    # The way on is a door low in the left wall. Walking LEFT slides down the wall into it.
+    go(g, (120, 100), (100, 100), (70, 132))
+    through_door(g, 'LEFT', 1)
+    log('in the arrow room')
+
+    fail(g, LEVEL, 'the route is not written past the door into room 1')
     return end_of_level(g)
 
 
