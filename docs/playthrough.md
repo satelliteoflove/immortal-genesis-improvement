@@ -899,6 +899,21 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
   the walkthrough's level 3 certificate `f47ef21000e10`; a run that lost 2 health to the
   wisps ended at `143ed21000e10`.
 
+## The whole game
+
+    tools/harness/route/whole_game.py [--original] [--delay N] [--quiet]
+
+plays from a new game to the closing story with the eight routes, each level starting as
+the game starts it, carrying what the last route left him. It passes on both ROMs: about
+86,000 frames on the patched ROM and 88,000 on the original (24 minutes of play), in under
+two minutes of real time. A change to the patch can be checked against the whole game with
+it.
+
+The certificates differ from the walkthrough's from level 4 on, because level 3's route
+leaves an optional ring and some gold behind. A route that names the level's things by
+number has to allow for that: they come after what the wizard brings, so they move along
+when he brings more or fewer. Level 4's `play()` shifts its numbers by the difference.
+
 ## Where each level stands
 
 | Level | Route | Passes six runs |

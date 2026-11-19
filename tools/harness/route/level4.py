@@ -3,9 +3,12 @@
 
     tools/harness/route/level4.py [--original] [--delay N] [--quiet]
 
-Thing numbers on this level (indexes into the tables at FF0AEE): 0 to 4 what the certificate
-gives the wizard, 5 the man in the first room (room 6), who holds 6, the flying carpet; 7 the
-straw bed; 8 the sign in the triangle; 14 the girl's ring in room 4; 18 the girl.
+Thing numbers on this level (indexes into the tables at FF0AEE), from its own certificate: 0
+to 4 what the certificate gives the wizard, 5 the man in the first room (room 6), who holds 6, the flying carpet; 7 the
+straw bed; 8 the sign in the triangle; 14 the girl's ring in room 4; 18 the girl. The level's
+own things come after what the wizard brings, so when he brings more or fewer than five (from
+level 3's route, which leaves the level's ring behind, he brings four) they all move along;
+play() moves the numbers to match.
 
 The ring and the trade with the girl aren't needed to finish the level, but they set the
 flag that decides how the game's closing story goes, so the certificate this makes has the
@@ -199,10 +202,20 @@ STAGES = [first_troll, get_carpet, first_flame_room, second_flame_room, bed_and_
           two_trolls, the_girl, past_the_girl, triangle]
 
 
+BROUGHT = 5                             # things the level's own certificate gives the wizard
+
+
 def play(g, log=print, stages=None):
     """stages, for exploring only, stops after that many of STAGES."""
+    global MAN, CARPET, BED, RING, GIRL, SIGN, BROUGHT
     if g.level != 3 or g.room != 6:
         fail(g, LEVEL, f'expected the first room of level 4, found level {g.level} room {g.room}')
+    brought = len(carried(g))
+    shift = brought - BROUGHT
+    MAN, CARPET, BED, RING, GIRL, SIGN = (n + shift for n in (MAN, CARPET, BED, RING, GIRL, SIGN))
+    BROUGHT = brought
+    if shift:
+        log(f'brought {brought} things, not 5; the level\'s own things are numbered from {MAN}')
     for stage in STAGES[:stages]:
         stage(g, log)
     if stages is not None:
