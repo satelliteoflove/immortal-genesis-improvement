@@ -109,6 +109,7 @@ and `disasm/immortal.dis` is the whole disassembly (made by `tools/disasm.py`, n
 | `FF1087` | The inventory page's first index into the carried list: 0, 5, 10 | Seen |
 | `FF0A17` | The thing number of the fireball scroll once it has been used, `FF` before | Seen |
 | `FF0A4C`, `FF0A4D` | The game's own copy of the wizard's x and y. It stops following `FF08BC`/`FF08D0` while he walks through a doorway by himself | Seen, level 1 |
+| `FF090C` + n, `FF0920` + n | Creature n's health (high four bits) and pose (low seven bits); the wizard is n 0 | Seen, level 4 |
 | `FF10AE` | Not zero while a fight is on | Seen |
 | `FF10A7`, `FF10A8` | In a fight, the enemy's health and the wizard's. A hit takes 1 | Seen |
 | `FF10B0`, `FF10B2` | In a fight, the wizard's move and the enemy's (see "Fights" below) | Read from code, used |
@@ -266,6 +267,21 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
   `read(g)`, and its kind goes to `FF`. A beaten enemy that carried things asks its questions
   the moment the fight ends, so follow `fight(g)` with `search(g, 'yyy', 15, 16)` and the
   like, not `read(g)`, which will time out on the question.
+- 2026-11-19, level 4, **a fight with no fight screen**. Level 4 opens with a troll swinging
+  at the wizard where they stand in the room: `FF10AE` stays 0, `busy` is false, `fight()`
+  doesn't apply, and the wizard can't walk until the troll is dead (a man across the room
+  kills it; then about 8 updates more). Each creature has a health byte at `FF090C` + n
+  (high four bits, the wizard is n 0) and a pose at `FF0920` + n (low seven bits). A blow
+  costs 2. Holding LEFT or RIGHT as the blow lands turns it and hits the troll; the side
+  wanted goes with the pose the troll has wound up in (`first_troll` in `level4.py`: pose
+  `13` wants LEFT, `0D`/`0E` want RIGHT). UP hits the troll but doesn't turn the blow.
+  `start_level` waits 120 frames after the level loads and blows land in that time: the
+  wizard is at 13 of the certificate's 15 when a route's `play()` begins. The original gets
+  two more swings in than the patched ROM before the troll dies.
+- 2026-11-19, level 4, **people are things too**. The man who gives the carpet is thing 5
+  in the things table, on the floor of his room, and what he gives is a thing inside him
+  (place 5). Walk to within about 7 of his thing's x and y and he talks; `read(g)`, then
+  `has(g, 6)`. The creature tables' x and y for him are something else; use the thing's.
 
 ## Where each level stands
 
@@ -274,7 +290,7 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
 | 1 | `level1.py` plays the first room and the big room after it (body, two goblins, key, chest) | Those parts pass all six; the rest isn't written |
 | 2 | not started | |
 | 3 | not started | |
-| 4 | not started | |
+| 4 | `level4.py` gets past the troll at the start and takes the carpet | Those parts pass all six |
 | 5 | not started | |
 | 6 | not started | |
 | 7 | not started | |
