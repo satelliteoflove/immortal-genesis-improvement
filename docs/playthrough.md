@@ -90,7 +90,7 @@ and `disasm/immortal.dis` is the whole disassembly (made by `tools/disasm.py`, n
 | `FF090C` | The wizard's health in the high four bits, 15 at most | Seen through a fight, level 1 |
 | `FF109A` | Retries left on this level, 2 at its start | Seen |
 | `FF0AEE` | 42 bytes, one for each thing on the level or carried, `FF` for none | Seen |
-| `FF106F` | Set when the level is over | Seen |
+| `FF106F` | Set when the level is over, and cleared again within an update | Seen |
 | `FF1072` | Set when the retries have run out | Seen |
 | `FF108C` | A certificate's 13 digits, a byte each | Seen |
 | `FF9624` | Count of vertical blanks (long) | Seen |
@@ -104,6 +104,8 @@ and `disasm/immortal.dis` is the whole disassembly (made by `tools/disasm.py`, n
 | `FF0B42` | Each thing's place: `40` carried by the wizard, `40`+n by creature n, `80`+n on the floor of room n, lower numbers inside the thing of that number | Seen |
 | `FF0DD4`+16, `FF0D54`+16, `FF0C54` | How many things the wizard carries, where his list starts, and the lists themselves (thing numbers, in inventory order) | Seen |
 | `FF1083` | The inventory's cursor: slot 0 to 5. `FF1086` is 1 if it was left with A | Seen |
+| `FF1087` | The inventory page's first index into the carried list: 0, 5, 10 | Seen |
+| `FF0A17` | The thing number of the fireball scroll once it has been used, `FF` before | Seen |
 | `FF10AE` | Not zero while a fight is on | Seen |
 | `FF10A7`, `FF10A8` | In a fight, the enemy's health and the wizard's. A hit takes 1 | Seen |
 | `FF10B0`, `FF10B2` | In a fight, the wizard's move and the enemy's (see "Fights" below) | Read from code, used |
@@ -191,12 +193,58 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
   `fight(g)` dodges whenever the enemy is in a swing and slashes otherwise, changing sides so
   the next slash skips its wind-up. It returns the health left and raises `Died`. On the
   first goblin (3 health) it won 26 runs out of 26 without being hit, on both ROMs.
+- 2026-11-19, level 1, **inventory pages**: tried with seven things. `use(g, n)` reached a
+  thing on the second page on both ROMs. "Other" on the last page goes back to the first.
+  The chest's gold went onto the wizard's own (20 became 40) without a slot of its own.
+- 2026-11-19, level 1, **fireball**: using the scroll (thing 6 on level 1) only arms it; a
+  text box says so, and `FF0A17` then holds the scroll's thing number (`FF` before). After
+  that every fresh press of A while walking fires one of its three shots, which is why
+  `read` and `use` never leave a stray A or C press behind.
+- 2026-11-19, level 1, **containers**: `search(g, answers, *things)` waits for the box,
+  answers, and checks each thing number is carried. A body or chest is solid, about 12 by
+  12; the question comes when the wizard bumps it and doesn't come again once it's empty.
+  A chest lists what's in it one question at a time, last thing in the table first. A key
+  that has been used leaves the carried list.
+- 2026-11-19, level 1, **people**: creatures' x and y are the other entries of the tables at
+  `FF08BC` and `FF08D0` (entry n is creature n, the one a thing's place `40`+n names). An
+  enemy starts the fight itself when the wizard is near, about 25 away on level 1, so walk
+  with `walk_to(g, x, y, stop=fighting)` and then call `fight(g)`. A friend talks when
+  walked into: `walk_to` returns `'busy'`, then `wait_busy(g); read(g)`. The second goblin
+  of level 1 took about 1,800 frames to beat and never landed a hit in twelve runs.
+- 2026-11-19, level 1, **dying**: health (`FF090C`, high bits) goes to 0, about 4 seconds
+  later the retries at `FF109A` drop by one, a "prepare to continue" box comes and goes by
+  itself, and the wizard stands at the room's entrance with full health. `dead(g)` is health
+  0; `revive(g)` waits it out and returns the retries left, raising `Died` on the last life.
+  `walk_to` raises `Died` if he dies on the way. The first room's marked floor tiles are a
+  trap that kills about 5 seconds after its warning if the wizard stays on them.
+- 2026-11-19, level 1, **end of the level**: `end_of_level(g)` waits for the "End of level!"
+  screen and returns the certificate from `FF108C`; end `play()` with `return
+  end_of_level(g)`. `FF106F` is set for less than an update, so it can't be waited on. The
+  screen is found by the certificate's level digit (`FF1091`) being one more than the level
+  being played, with the text box waiting. On the patched ROM the screen also says the game
+  was saved, even with no battery file. Proven by poking `FF106F` in room 3: both ROMs gave
+  `4cdcf10000220`. It is not for level 8, which has no certificate.
+- 2026-11-19, level 1, **running a level's file**: `main(LEVEL, play, CERTIFICATE)` in
+  `common.py` handles `--original`, `--delay` and `--quiet`, starts the level, gives `play`
+  a `log` that stamps each line with the frame, room, position and health, and prints one
+  line of result. `level1.py` shows the shape. `fail(g, LEVEL, message)` writes a picture
+  and raises.
+- 2026-11-19, level 1, **mapping a room**: `tools/harness/route/explore.py` has
+  `room_map(g)`, which walks everywhere from where the wizard stands (using kept states, so
+  never in `play()`) and returns a text map: where he can stand, where a step stops the game
+  (a text box, a trap, a fight), and where a step leads to another room. About a minute a
+  room. It only tries the four straight directions, so a door that is entered by sliding
+  along a wall shows as a narrow neck at the room's edge, not as a room number: walk into
+  the neck to find out. Enemies move while it runs, so make a map again after a fight.
+- 2026-11-19, level 1, **what `walk_to` can't see**: `tick` gives up after 40 frames with no
+  update and `walk_to` then returns `'busy'`. That's a text box nearly always, but check
+  with `busy(g)` and a picture when it comes somewhere unexpected.
 
 ## Where each level stands
 
 | Level | Route | Passes six runs |
 |---|---|---|
-| 1 | not started | |
+| 1 | `level1.py` plays the first room and the big room after it (body, two goblins, key, chest) | Those parts pass all six; the rest isn't written |
 | 2 | not started | |
 | 3 | not started | |
 | 4 | not started | |

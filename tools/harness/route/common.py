@@ -61,7 +61,7 @@ def fail(g, level, message):
     except Exception:
         path = 'no picture'
     raise RouteError(f'level {level}, frame {g.frame}, room {g.room}, at {xy(g)}, '
-                     f'health {health(g)}: {message} ({path})')
+                     f'health {health(g)}: {message} (picture: {path})')
 
 
 # --- reading the game's state ---
@@ -82,6 +82,11 @@ def busy(g):
 
 def fighting(g):
     return g.byte(OPPONENT) != 0
+
+
+def dead(g):
+    """True from the moment the wizard's health reaches 0 until he is put back."""
+    return health(g) == 0
 
 
 def tick(g, buttons='', limit=40):
@@ -117,6 +122,21 @@ def place(g, thing):
 
 def has(g, thing):
     return g.byte(THING_KIND + thing) != 0xFF and place(g, thing) == CARRIED
+
+
+def search(g, answers, *things, limit=600):
+    """Answer the questions of a body or chest the wizard has just walked up to, and check
+    that each thing number given is now carried.
+
+    answers is as for read(): 'y' to search, then 'y' or 'n' for each thing offered, in the
+    order the container lists them. Call it right after the walk that touches the container
+    (walk_to returns 'busy' there, or 'there' a moment before the box comes up)."""
+    wait_busy(g, limit=limit)
+    read(g, answers, quiet=0)
+    missing = [thing for thing in things if not has(g, thing)]
+    if missing:
+        raise RouteError(f'search: things {missing} were not taken; carrying {carried(g)} '
+                         f'(frame {g.frame})')
 
 
 def thing_xy(g, thing):
@@ -261,6 +281,9 @@ def walk_to(g, x, y, near=2, limit=300, stop=None):
             return 'there'
         if stop and stop(g):
             return 'stop'
+        if dead(g):
+            raise Died(f'walk_to({x}, {y}): the wizard died at {xy(g)} in room {g.room}, '
+                       f'frame {g.frame}')
         if not tick(g, buttons):
             return 'busy'
         if g.room != room:
@@ -404,7 +427,23 @@ def fight(g, limit=20000):
 # --- deaths and the end of the level ---
 
 def retries(g):
+    """Retries left on this level: 2 at its start, one fewer after each death."""
     return g.byte(RETRIES)
+
+
+def revive(g, limit=3000):
+    """After a death, wait until the wizard is back on his feet at the room's entrance and
+    the game is running. Returns the retries left; raises Died if that was the last life.
+
+    Nothing needs pressing. From health 0 to walking again is about 6 seconds."""
+    start = g.frame
+    while dead(g) or busy(g):
+        if game_over(g):
+            raise Died(f'the retries ran out (frame {g.frame})')
+        if g.frame - start > limit:
+            raise RouteError(f'revive: the wizard did not come back (frame {g.frame})')
+        g.step(1)
+    return retries(g)
 
 
 def game_over(g):
@@ -418,3 +457,72 @@ def level_over(g):
 def certificate(g):
     """The 13 letters of the certificate the game last made."""
     return ''.join('%x' % (b & 15) for b in g.bytes(CERTIFICATE, 13))
+
+
+def level_ended(g):
+    """True at the "End of level!" screen. The game has made the next level's certificate
+    by then, so its level digit is one more than the level being played."""
+    return busy(g) and g.byte(CERTIFICATE + 5) == g.level + 1
+
+
+def end_of_level(g, limit=3000):
+    """Wait for the "End of level!" screen to be up and waiting for a button, and return the
+    certificate on it. A route's play() ends with this. Not for level 8, which has no
+    certificate. Nothing is pressed, so the level counter still shows the level just played.
+
+    The flag at FF106F is only set for an instant, so don't wait on it."""
+    start = g.frame
+    while not (level_ended(g) and g.byte(LAST_LETTER) in (0x00, 0x40)):
+        if g.frame - start > limit:
+            raise RouteError(f'end_of_level: no "End of level!" screen after {limit} frames '
+                             f'(frame {g.frame}, room {g.room})')
+        if dead(g):
+            raise Died(f'end_of_level: the wizard died (frame {g.frame})')
+        g.step(1)
+    return certificate(g)
+
+
+# --- running a level's file by itself ---
+
+def main(level, play_level, start_certificate=None):
+    """What `tools/harness/route/levelN.py [--original] [--delay N] [--quiet]` runs.
+
+    Starts the game on the level (a new game when there's no certificate), waits --delay
+    frames, calls play_level(g, log) and prints the certificate it returns. Exits 1 with the
+    message, and a picture in scratch/route/levelN/, if the route raises."""
+    import argparse
+    import time
+    parser = argparse.ArgumentParser(description=f'Play level {level} from start to finish.')
+    parser.add_argument('--original', action='store_true', help='the original ROM, not the patched')
+    parser.add_argument('--delay', type=int, default=0, help='frames to wait before the first press')
+    parser.add_argument('--quiet', action='store_true', help="don't print the route's log")
+    args = parser.parse_args()
+    name = 'original' if args.original else 'patched'
+    began = time.time()
+    with play.Game(play.original() if args.original else play.PATCHED) as g:
+        if start_certificate:
+            g.start_level(start_certificate)
+        else:
+            g.new_game()
+        g.step(args.delay)
+        first = g.frame
+
+        def log(*words):
+            if not args.quiet:
+                print(f'  [{g.frame - first:6d}] room {g.room:2d} {xy(g)} health {health(g):2d}:',
+                      *words, flush=True)
+        try:
+            result = play_level(g, log)
+        except Exception as error:
+            path = os.path.join(ROOT, 'scratch', 'route', f'level{level}',
+                                f'fail-{name}-delay{args.delay}.png')
+            try:
+                g.shot(path)
+            except Exception:
+                path = 'no picture'
+            print(f'level {level} {name} delay {args.delay}: FAILED {g.frame - first} frames in, '
+                  f'room {g.room}, {xy(g)}: {type(error).__name__}: {error} (picture: {path})')
+            sys.exit(1)
+        print(f'level {level} {name} delay {args.delay}: passed, certificate {result}, '
+              f'{g.frame - first} frames, health {health(g)}, retries left {retries(g)}, '
+              f'{time.time() - began:.0f} s')
