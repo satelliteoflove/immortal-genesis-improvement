@@ -842,7 +842,35 @@ def use(g, thing):
 
 # --- fights ---
 
-def fight(g, limit=20000, counter=False):
+# How long the fight's moves last, by how tired the fighter is (0 to 15), in the fight's own
+# time (about 4 to a pass of its loop, 6 frames): the wizard's jab before its last 6, and the
+# enemy's recovery after a swing. Copied out of the tables at 011C12 and 011C62.
+JAB_TIME = [8, 8, 8, 8, 9, 9, 10, 10, 10, 11, 11, 12, 13, 14, 15, 16]
+RECOVERY_TIME = [4, 5, 6, 7, 8, 9, 10, 10, 12, 14, 16, 18, 20, 22, 24, 26]
+ENEMY_TIRED, WIZARD_TIRED = 0x10A9, 0x10AA      # 0 to 15, up 1 for each swing finished
+ENEMY_SLOW, WIZARD_SLOW = 0x10AB, 0x10AC        # what the fighter starts with, added to tired
+ENEMY_TIMER = 0x10B1                            # what is left of the enemy's move
+
+
+def _jab_is_safe(g):
+    """True when a jab begun now will land before the enemy can begin its next swing.
+
+    The enemy has just swung (move 6 or 10) or is recovering from it (7 or 11). Its recovery
+    is as long as it is tired, and it swings again the pass after. A jab takes the wizard's
+    JAB_TIME and 6 more to land, each rounded up to whole passes, and a pass to be seen."""
+    enemy = g.byte(ENEMY_MOVE)
+    tired = min(15, g.byte(ENEMY_TIRED) + g.byte(ENEMY_SLOW))
+    if enemy in (6, 10):
+        left = 4 + RECOVERY_TIME[tired]
+    elif enemy in (7, 11):
+        left = g.byte(ENEMY_TIMER)
+    else:
+        return False
+    mine = min(15, g.byte(WIZARD_TIRED) + g.byte(WIZARD_SLOW))
+    return g.byte(WIZARD_MOVE) == 0 and left >= JAB_TIME[mine] + 11
+
+
+def fight(g, limit=20000, counter=False, patient=False):
     """Win the fight that has begun. Returns the health left; raises Died if the wizard loses.
 
     Reads both fighters' moves every frame. The enemy's two swings are each dodged with C
@@ -851,7 +879,13 @@ def fight(g, limit=20000, counter=False):
 
     counter=True is for an enemy that swings faster than the wizard slashes (the trolls of
     level 5): the wizard stands still while the enemy is free, dodges its swing, and slashes
-    only while it is recovering from a swing or reeling from a hit."""
+    only while it is recovering from a swing or reeling from a hit.
+
+    patient=True is for an enemy that beats both of those (level 3's goblin guard and
+    trolls, 12 and 15 health): the wizard only dodges until the enemy has tired itself out
+    with swings, then answers each dodged swing with one jab (A), and only when the game's
+    own timers say the jab will land first. Slow, about 150 frames a point of the enemy's
+    health, but the enemy never lands a blow."""
     start = g.frame
     while not fighting(g):
         if g.frame - start > 600:
@@ -870,6 +904,8 @@ def fight(g, limit=20000, counter=False):
             buttons = 'C+LEFT'                  # dodge the swing from one side
         elif enemy in (8, 9):
             buttons = 'C+RIGHT'                 # and from the other
+        elif patient:
+            buttons = 'A' if _jab_is_safe(g) else ''
         elif counter and enemy not in (1, 6, 7, 10, 11):
             buttons = ''                        # wait for its swing; a slash now would lose
         else:
@@ -914,16 +950,39 @@ def meet(g, creature, limit=300):
                      f'wizard at {xy(g)}, it at {creature_xy(g, creature)}, room {g.room}')
 
 
-def attack(g, creature, limit=300):
+def attack(g, creature, limit=300, **how):
     """Walk at creature n until it fights, reading anything said on the way, and win the
-    fight. Returns the health left."""
+    fight. Returns the health left. `how` goes to fight(): attack(g, 1, patient=True)."""
     for _ in range(6):
         if meet(g, creature, limit) == 'fight':
-            return fight(g)
+            return fight(g, **how)
         read(g, quiet=0)
         if fighting(g):
-            return fight(g)
+            return fight(g, **how)
     raise RouteError(f'attack({creature}): it kept talking and never fought (frame {g.frame})')
+
+
+def rest(g, limit=900):
+    """Sleep on a straw bed the wizard is standing on. He only has to stand still: after
+    about 60 updates the dream comes up as text, and by the time he is up again he has 4
+    more health, 15 at most. Once a level; a second wait on the bed brings nothing. Returns
+    the health gained, once he is back on his feet: he lies there and gets up for about 18
+    updates after the text, deaf to the pad (his pose at FF0920 goes 1C, 7, then 4 down to
+    0), and the last of the health comes in that time. Walk onto the bed's thing first with walk_to(g, x, y, near=1)."""
+    before = health(g)
+    try:
+        wait_busy(g, limit=limit)
+    except TimeoutError:
+        raise RouteError(f'rest: no dream came at {xy(g)} in room {g.room}, frame {g.frame}')
+    read(g, quiet=0)
+    lying = False
+    for _ in range(80):
+        pose = g.byte(HEALTH + 0x14)            # the wizard's pose, FF0920
+        lying = lying or pose == 0x1C
+        if lying and pose == 0:
+            return health(g) - before
+        tick(g)
+    raise RouteError(f'rest: the wizard did not get up (frame {g.frame})')
 
 
 # --- deaths and the end of the level ---

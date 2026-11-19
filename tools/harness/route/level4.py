@@ -17,7 +17,7 @@ from common import *
 CERTIFICATE = 'b5fff31001eb0'
 LEVEL = 4
 
-MAN, CARPET = 5, 6
+MAN, CARPET, BED = 5, 6, 7
 TROLL = 1                               # the creature beside the wizard as the level starts
 CREATURE_HEALTH = 0x090C                # 20 bytes, the wizard first; health in the high bits
 CREATURE_POSE = 0x0920                  # 20 bytes; the low seven bits are the pose
@@ -69,7 +69,48 @@ def first_flame_room(g, log):
     log(f'through the first flame room; carpet life {fly_time(g)}, steps left {worm_steps(g)}')
 
 
-STAGES = [first_troll, get_carpet, first_flame_room]
+def second_flame_room(g, log):
+    """Room 0 is the same again, with the door out (to room 1) in the far wall at the top
+    right. The lane here is y 147, then up through the gap between two nozzles at x 142."""
+    mount(g, CARPET)
+    fly(g, (76, 176), (76, 147), (142, 147), (142, 108), (166, 80), (196, 78))
+    mount(g, CARPET, on=False)
+    through_door(g, 'RIGHT', 1)
+    log(f'through the second flame room; carpet life {fly_time(g)}')
+
+
+def bed_and_ladder(g, log):
+    """Room 1 has the straw bed (thing 7) and a ladder down to room 5. The hole is at x 57 to
+    78, y 60 to 80: walking DOWN onto it with x 66 to 70 is the ladder, with x 62 or less a
+    drop that kills, and from the left is the drop too."""
+    walk_to(g, *thing_xy(g, BED), near=1)
+    log(f'slept on the straw, {rest(g)} health better')
+    go(g, (68, 50))
+    ladder(g, 'DOWN', 5)
+    log('down the first ladder')
+
+
+def two_trolls(g, log):
+    """Room 5: two trolls (creatures 2 and 3, 8 health each) wait at the foot of the ladder
+    and come one after the other. They swing faster than the wizard slashes, so each is
+    fought by dodging and then striking (fight's counter=True)."""
+    for _ in range(2):
+        try:
+            g.until(fighting, limit=1500)
+        except TimeoutError:
+            fail(g, LEVEL, 'a troll did not come to fight')
+        log('beat a troll, health', fight(g, counter=True))
+    if creature_health(g, 2) or creature_health(g, 3):
+        fail(g, LEVEL, 'a troll is still alive')
+    read(g)
+    # The hole at x 36 to 52, y 80 to 100: DOWN onto it with x 45 to 49 is the ladder.
+    go(g, (47, 70))
+    ladder(g, 'DOWN', 2)
+    log('down the second ladder')
+
+
+STAGES = [first_troll, get_carpet, first_flame_room, second_flame_room, bed_and_ladder,
+          two_trolls]
 
 
 def play(g, log=print, stages=None):
@@ -80,7 +121,7 @@ def play(g, log=print, stages=None):
         stage(g, log)
     if stages is not None:
         return None
-    fail(g, LEVEL, 'the route is not written past the first flame room')
+    fail(g, LEVEL, 'the route is not written past the second ladder')
     return end_of_level(g)
 
 
