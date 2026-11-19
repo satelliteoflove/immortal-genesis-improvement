@@ -23,6 +23,7 @@ LEVEL = 1
 THING_FLAGS = 0x0B18                    # 42 bytes: a thing's state bits
 ARROW_TRAP = 17                         # the thing that runs room 1's plates and arrows
 AMULET = 19
+STRAW_BED = 3
 WIZARD_STATE, ON_HIS_FEET = 0x0934, 0x22
 
 
@@ -136,7 +137,12 @@ def play(g, log=print):
     while walking_in(g):
         tick(g)
     log('in the dark room')
+    dark_room(g, log)
+    last_room(g, log)
+    return end_of_level(g)
 
+
+def dark_room(g, log):
     # Room 0. Five more pits, and shades that can't be seen. A scroll (thing 20) lies by the
     # upper left wall and the amulet (thing 19) by the lower left; each asks before it's taken.
     for thing, way in ((20, [(140, 30), (100, 70), (50, 70)]), (19, [(20, 100), (22, 122)])):
@@ -147,7 +153,7 @@ def play(g, log=print):
     # The door in the lower right wall is locked, and the third goblin's key opens it.
     shades(g, [(50, 122), (94, 124), (106, 124), (106, 125)], log)
     bump(g, 'DOWN')
-    log('at the locked door: busy', busy(g), 'fighting', fighting(g))
+    log('at the locked door')
     read(g)
     if g.room == 0:
         through_door(g, 'DOWN', 4)
@@ -157,10 +163,17 @@ def play(g, log=print):
         fail(g, LEVEL, f'expected room 4 behind the locked door, in room {g.room}')
     log('in the last room')
 
+
+def last_room(g, log):
     # Room 4: the crater, the beam of light and the straw bed. The amulet can be held up
     # anywhere, but the ladder only shows if the wizard is within 16 of (151, 104) on both
     # axes; the game then puts him on that spot, plays the reflection, and the ladder is
     # in the floor beside the crater. Hold it up, yes; read the runes, no (that kills).
+    # First a sleep on the straw bed (thing 3): back to full health, and with it the game
+    # makes the walkthrough's certificate for level 2.
+    if walk_to(g, *thing_xy(g, STRAW_BED), near=1) != 'there':
+        fail(g, LEVEL, 'did not reach the straw bed')
+    log('rested on the straw bed: health up', rest(g))
     go(g, (130, 92), (150, 102))
     use(g, AMULET)
     read(g, 'yn', quiet=0)
@@ -180,7 +193,6 @@ def play(g, log=print):
         tick(g, 'DOWN')
     else:
         fail(g, LEVEL, 'the ladder did not take the wizard down')
-    return end_of_level(g)
 
 
 if __name__ == '__main__':
