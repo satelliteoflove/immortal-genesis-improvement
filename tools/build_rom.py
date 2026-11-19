@@ -2,16 +2,19 @@
 """Build the patched ROM from your own copy of the game.
 
     tools/build_rom.py           writes build/immortal-patched.md
-    tools/build_rom.py --check   also proves every unpacked tile against the game's decoder
+    tools/build_rom.py --check   also tests each changed routine in the emulator
+
+The patched ROM is 1 MB, the size of the original, and uses the game's own packed graphics.
 
 Everything the patch needs from the game is read from the ROM when this runs, so
 nothing of the game is stored here. What it changes:
 
   * Object graphics. The game unpacks each object tile from a bit-by-bit compressed
-    form every time it's needed. The tiles are unpacked here instead, into a new
-    second megabyte, and the routine at 02E3E4 just copies them.
+    form every time it's needed. The new routine keeps the last 512 tiles it unpacked
+    in RAM the game leaves alone, so most requests are a plain copy. The game's own
+    decoder still does the unpacking.
   * The wall torch. A slip in the game's tile search decodes one tile wrongly, which
-    takes the top off the flame. The unpacked table holds the right tile.
+    takes the top off the flame. One branch in the search is corrected.
   * Background tiles. Each time the camera crosses an 8-pixel step, the game sent every
     tile on screen to video memory again. Now only tiles new to the screen are sent, and
     the scan of the 2,048-entry tile table skips the parts that are empty.
@@ -26,10 +29,12 @@ nothing of the game is stored here. What it changes:
     miscolored pixels where a sprite passes behind scenery. The tables line it up.
   * The boot check at 0FFFB0, which halts the game if the first megabyte has changed.
 
---check builds test ROMs that boot straight into a small test. One runs the game's own,
-unmodified decoder on every tile number and compares the result with this script's
-unpacking. One calls the new object routine and checks its output, and that it leaves
-every register as it found it. One feeds random screens to the background routines, old
+--check builds test ROMs that boot straight into a small test. They get a second megabyte
+to hold the test and its data. One runs the game's own, unmodified decoder on every tile
+number and compares the result with this script's unpacking. One asks the new object
+routine for every tile, so that each is unpacked, found again, pushed out and unpacked
+again, and compares them all with this script's unpacking, corrected for the torch. One
+checks that the routine leaves every register as it found it. One feeds random screens to the background routines, old
 and new, and requires the same RAM and the same video memory from both. One does the same
 for sprite masking, with random sprites and scenery, one for the screen cells, with
 random maps, and one for the sound link, playing six songs. They need the BlastEm fork
@@ -48,6 +53,7 @@ ROOT = romcheck.ROOT
 BUILD = os.path.join(ROOT, 'build')
 OUTPUT = os.path.join(BUILD, 'immortal-patched.md')
 CHECK_ROM = os.path.join(BUILD, 'tile-check.md')
+MEMORY_CHECK_ROM = os.path.join(BUILD, 'memory-check.md')
 ROUTINE_CHECK_ROM = os.path.join(BUILD, 'routine-check.md')
 BACKGROUND_CHECK_ROM = os.path.join(BUILD, 'background-check.md')
 MASK_CHECK_ROM = os.path.join(BUILD, 'mask-check.md')
@@ -55,8 +61,11 @@ CELL_CHECK_ROM = os.path.join(BUILD, 'cell-check.md')
 SOUND_CHECK_ROM = os.path.join(BUILD, 'sound-check.md')
 BLASTEM = os.path.join(BUILD, 'blastem-fork', 'blastem')
 
-ROM_SIZE = 0x200000             # 2 MB, which leaves 200000 free for save RAM later
-TILES = 0x100000                # where the unpacked tiles go
+TEST_SIZE = 0x200000            # test ROMs get a second megabyte for the test and its data
+TILES = 0x100000                # where a test ROM keeps this script's unpacking of every tile
+FREE = 0xFD65C                  # unused in the original, all FF, up to the boot check:
+FREE_END = 0xFFFB0              #   everything the patch adds goes here
+PATCH_RAM = 0x9760              # FF9760 to FFF7FF: RAM the game only touches while starting up
 
 # In the original game
 INDEX = 0x2DCEC                 # runs of tiles: bits per tile, first tile, bit offset
@@ -65,23 +74,33 @@ PACKED = 0x6EED0                # the packed tile data
 TREE = 0x2E6D6                  # the decoder, a tree of bit tests written as code
 TREE_DONE = 0x2F4D0             # where each decoded byte branches to
 ROUTINE = 0x2E3E4               # the object graphics routine
-ROUTINE_RTS = 0x2F4E0           # its final rts
+ROUTINE_ONE = 0x2E452           # inside its loop: here it starts on the tile whose number is in d4
+SEARCH_BRANCH = 0x2E48C         # the search's test against the next run's first tile
+SPREAD = 0x2D4EC                # a table the decoder wants in a3
+TILE_MEMORY = 0xFFBD0           # the new routine
+MEMORY_SETS = 128               # it remembers tiles in sets, chosen by the low 7 bits of the tile number,
+MEMORY_WAYS = 5                 #   of this many tiles each
+MEMORY_TAGS = 0x9800            # which tile each place holds, as the game stores the number; 0 for none.
+                                #   16 bytes for each set, of which the first MEMORY_WAYS words are used
+MEMORY_TURNS = 0xA000           # a byte for each set: which of its places is replaced next
+MEMORY_TILES = 0xA080           # the tiles: 4,096 bytes holding every set's first place, then the
+                                #   same for its second, and so on
 BOOT_CHECK_BRANCH = 0xFFFD0     # the branch taken when the boot check fails
 OUTPUT_TILES = 0xFF2000         # where the routine puts its tiles
 TABLE_RESET = 0x13AE2           # empties the background tile table
 MAP_TILES = 0x13B16             # gives each cell on screen a slot in video memory
-MAP_TILES_NEW = 0x2E540         # the new MAP_TILES, also in that space
+MAP_TILES_NEW = 0xFF8D0         # the new MAP_TILES
 TABLE_RESET_TAIL = 0x13B10      # TABLE_RESET's last two instructions
-TABLE_RESET_NEW = 0x2E5C0       # their replacement
-TILE_COUNTS = 0x9660            # 64 bytes: how many of each 32 table entries are in use
+TABLE_RESET_NEW = 0xFF940       # their replacement
+TILE_COUNTS = 0x9760            # 64 bytes: how many of each 32 table entries are in use
 TILE_SYNC = 0x13B78             # frees unused slots and sends tiles to video memory
 BACKGROUND_TILES = 0x3D9B2      # the background tile graphics
 TILE_TABLE = 0xFFFF7612         # one word per background tile: its slot, plus two flags
-TILE_SYNC_NEW = 0x2E480         # the new TILE_SYNC, in space the old object code left free
+TILE_SYNC_NEW = 0xFF820         # the new TILE_SYNC
 CELLS = 0x13D34                 # works out the 612 cells on screen from the level's block maps
 CELLS_END = 0x13F5E
 CELL_DATA = 0x13C80             # five 8 by 4 blocks of mask shapes, then a table choosing between them
-CELL_DATA_COPY = 0x1EA000       # those bytes as they were, for the new routine to read
+CELL_DATA_COPY = 0xFF660        # those bytes as they were, for the new routine to read
 CELL_DATA_SIZE = 0x1C0
 BLOCKS = 0x3ABF2                # 64 bytes of cells for each kind of block
 CELL_PASSES = 300               # for --check: passes of random maps and cameras
@@ -90,30 +109,30 @@ CELL_MAPS = 0x110000
 CELL_MAP_SETS = 8
 SOUND_LINK = 0x1624E            # once a frame: fetches 48 bytes from the Z80, runs the music, sends them back
 SOUND_LINK_END = 0x16304
-SOUND_LINK_NEW = 0x2E600
+SOUND_LINK_NEW = 0xFF960
 SOUND_PASSES = 1792             # for --check: 256 frames of each of six songs, then 256 of silence
 SOUND_RECORDS = 0x100000
 FIGHT_PASS_DRAW = 0x11694       # a fight's main loop: its drawing call and the one after
 FIGHT_STEP_DRAW = 0x11772       # a fight's animation loop: its drawing call and the wait after
 FIGHT_PASS_FRAMES = 6           # frames from one picture to the next in the original, as measured
 FIGHT_STEP_FRAMES = 8
-FIGHT_PACE = 0x2E770            # the routines that hold fights to that pace
-FIGHT_SHOWN = 0x96A0            # the frame count when a fight's last picture went up
+FIGHT_PACE = 0xFFAD0            # the routines that hold fights to that pace
+FIGHT_SHOWN = 0x97A0            # the frame count when a fight's last picture went up
 SONG_REQUEST = 0x15D44          # asks the sound driver to start a song at the next frame
 SONG_END = 0x15E10              # a song that has run out asks the driver to go quiet
-MUSIC_KEEP = 0x2EB00            # the new versions of both
-SOUNDING = 0x96A4               # the song playing when the waiting request was made (a long)
-SILENT = 0x96A8                 # set once a song has run out and nothing has been started since
+MUSIC_KEEP = 0xFFB20            # the new versions of both
+SOUNDING = 0x97A4               # the song playing when the waiting request was made (a long)
+SILENT = 0x97A8                 # set once a song has run out and nothing has been started since
 TEXT_WAIT = 0x13452             # message text: called once for each unit of waiting
 TEXT_NO_WAIT = 0xCEC0           # the branch that skips all waiting while two buttons are held
-TEXT_WAIT_NEW = 0x2EB80         # the new TEXT_WAIT
+TEXT_WAIT_NEW = 0xFFB80         # the new TEXT_WAIT
 TEXT_LETTER_UNITS = 5           # the wait after a letter, in units
 TEXT_TYPING_UNITS = 0x0D        # waits of up to this many units are typing; longer ones are pauses
-TEXT_TURN = 0x96A9              # flips each time a held button meets a letter's wait
+TEXT_TURN = 0x97A9              # flips each time a held button meets a letter's wait
 MASK = 0x1428C                  # hides the parts of sprites that are behind scenery
 MASK_END = 0x14508              # the first byte after its rts
 MASK_SHAPES = 0x141CC           # 16 shapes of 32 bytes; only the first 6 are data
-MASK_TABLES = 0x1E8000          # the shapes shifted ahead of time: left parts, right parts at +$1000
+MASK_TABLES = 0xFD660           # the shapes shifted ahead of time: left parts, right parts at +$1000
 MASK_PASSES = 400               # for --check: passes of random sprites and scenery
 MASK_RECORDS = 0x100000         # and where a test ROM keeps them
 MASK_EXTRA = 0x180000
@@ -220,36 +239,75 @@ class Code:
         return bytes(self.data)
 
 
-def object_graphics():
-    """Copy each listed tile to the output buffer. Takes and leaves what the original did."""
-    c = Code(ROUTINE)
-    c.words(0x48E7, 0xC164)                         # movem.l d0-d1/d7/a1-a2/a5,-(sp)
-    c.words(0x4BF8, 0x92FA)                         # lea     $92FA.w,a5        list of tiles
-    c.words(0x43F9, OUTPUT_TILES >> 16 | 0xFF00, OUTPUT_TILES & 0xFFFF)  # lea $FFFF2000,a1
-    c.words(0x3038, 0x92F6)                         # move.w  $92F6.w,d0        next free slot
-    c.words(0xEB48)                                 # lsl.w   #5,d0
-    c.words(0xD2C0)                                 # adda.w  d0,a1
-    c.words(0x3E38, 0x931A)                         # move.w  $931A.w,d7        how many
-    c.words(0x5347)                                 # subq.w  #1,d7
-    c.words(0x223C, TILES >> 16, TILES & 0xFFFF)    # move.l  #TILES,d1
+def tile_memory():
+    """Put each listed tile in the output buffer, as the original did, but remember them.
+
+    A tile is looked for among those kept for its set. If it's there it is copied. If not,
+    the game's own decoder unpacks it into the place whose turn it is, and it is copied
+    from there. A place's tag is zero while it's being filled, so a reset in the middle
+    can't leave half a tile that looks whole. Returns the code and where its rts is.
+    """
+    assert MEMORY_SETS == 128 and 2 <= MEMORY_WAYS <= 8
+    assert MEMORY_TILES + 32 * MEMORY_SETS * MEMORY_WAYS <= 0xF800
+    c = Code(TILE_MEMORY)
+    w, s, l = c.words, c.short, c.long
+    w(0x48E7, 0xCDE4)                               # movem.l d0-d1/d4-d5/d7/a0-a2/a5,-(sp)
+    w(0x4BF8, 0x92FA)                               # lea     $92FA.w,a5        list of tiles
+    w(0x43F9, OUTPUT_TILES >> 16 | 0xFF00, OUTPUT_TILES & 0xFFFF)  # lea $FFFF2000,a1
+    w(0x3038, 0x92F6, 0xEB48, 0xD2C0)               # a1 += 32 times the next free slot
+    w(0x3E38, 0x931A, 0x5347)                       # d7 = how many, less one
+    w(0x41F8, MEMORY_TAGS)                          # lea     tags,a0
     c.label('loop')
-    c.words(0x7000)                                 # moveq   #0,d0
-    c.words(0x301D)                                 # move.w  (a5)+,d0
-    c.words(0xE058)                                 # ror.w   #8,d0
-    c.short(0x6700, 'blank')                        # beq.s   blank
-    c.words(0xEB88)                                 # lsl.l   #5,d0
-    c.words(0xD081)                                 # add.l   d1,d0
-    c.words(0x2440)                                 # movea.l d0,a2
-    c.words(*[0x22DA] * 8)                          # move.l  (a2)+,(a1)+ eight times
+    w(0x7000, 0x1015)                               # moveq #0,d0 / move.b (a5),d0   the number's low byte
+    w(0x381D)                                       # move.w  (a5)+,d4          the number as it's stored
+    s(0x6700, 'blank')                              # beq.s   blank
+    w(0xD000, 0xE748)                               # add.b d0,d0 / lsl.w #3,d0      16 times its set
+    w(0x45F0, 0x0000)                               # lea     (a0,d0.w),a2      the set's tags
+    w(0xD040)                                       # add.w   d0,d0             32 times its set
+    for way in range(MEMORY_WAYS - 1):
+        w(0xB85A)                                   # cmp.w   (a2)+,d4
+        s(0x6700, f'found{way}')                    # beq.s
+    w(0xB85A)                                       # cmp.w   (a2)+,d4
+    s(0x6600, 'miss')                               # bne.s   miss
+    for way in reversed(range(MEMORY_WAYS)):
+        if way < MEMORY_WAYS - 1:
+            c.label(f'found{way}')
+        w(0x45F8, MEMORY_TILES + 0x1000 * way)      # lea     this place in every set,a2
+        if way:
+            s(0x6000, 'found')                      # bra.s   found
+    c.label('found')
+    w(0xD4C0)                                       # adda.w  d0,a2             in this set
+    w(*[0x22DA] * 8)                                # move.l  (a2)+,(a1)+ eight times
+    w(0x5278, 0x92F6)                               # addq.w  #1,$92F6.w
     c.label('next')
-    c.words(0x5278, 0x92F6)                         # addq.w  #1,$92F6.w
-    c.long(0x51CF, 'loop')                          # dbra    d7,loop
-    c.words(0x4CDF, 0x2683)                         # movem.l (sp)+,d0-d1/d7/a1-a2/a5
-    c.long(0x6000, ROUTINE_RTS)                     # bra.w   the original rts
+    l(0x51CF, 'loop')                               # dbra    d7,loop
+    w(0x4CDF, 0x27B3)                               # movem.l (sp)+,d0-d1/d4-d5/d7/a0-a2/a5
+    c.label('rts')
+    w(0x4E75)                                       # rts
     c.label('blank')
-    c.words(*[0x22C0] * 8)                          # move.l  d0,(a1)+ eight times
-    c.short(0x6000, 'next')                         # bra.s   next
-    return c.finish()
+    w(*[0x22C0] * 8)                                # move.l  d0,(a1)+ eight times: all of d0 is zero
+    w(0x5278, 0x92F6)                               # addq.w  #1,$92F6.w
+    s(0x6000, 'next')                               # bra.s   next
+    c.label('miss')
+    w(0x45F8, MEMORY_TURNS, 0x3A00, 0xEA4D, 0xD4C5)  # a2 = the set's turn
+    w(0x7200, 0x1212)                               # moveq #0,d1 / move.b (a2),d1   whose turn it is
+    w(0x5212, 0x0C12, MEMORY_WAYS, 0x6602, 0x4212)  # and the next one's after, going round
+    w(0x3A00, 0xE24D, 0xDA41, 0xDA41)               # d5 = 16 times the set + 2 times the place: its tag
+    w(0x4270, 0x5000)                               # clr.w   (a0,d5.w)         nothing there while it fills
+    w(0xE859, 0x45F8, MEMORY_TILES, 0xD4C1, 0xD4C0)  # a2 = the place: tiles + 4096 * place + 32 * set
+    w(0xE05C)                                       # ror.w   #8,d4             the tile number itself
+    s(0x6100, 'unpack')                             # bsr.s   unpack            which also counts the slot
+    w(0xE05C)                                       # ror.w   #8,d4
+    w(0x3184, 0x5000)                               # move.w  d4,(a0,d5.w)      now it holds this tile
+    w(*[0x22DA] * 8)                                # move.l  (a2)+,(a1)+ eight times
+    s(0x6000, 'next')                               # bra.s   next
+    c.label('unpack')                               # one pass of the game's routine, with a1 = the place
+    w(0x48E7, 0xFFFE, 0x224A)                       # movem.l d0-d7/a0-a6,-(sp) / movea.l a2,a1
+    w(0x47F9, SPREAD >> 16, SPREAD & 0xFFFF)        # lea     SPREAD,a3
+    w(0x4DF9, PACKED >> 16, PACKED & 0xFFFF)        # lea     PACKED,a6
+    w(0x7E00)                                       # moveq   #0,d7             one tile
+    w(0x4EF9, ROUTINE_ONE >> 16, ROUTINE_ONE & 0xFFFF)  # jmp into its loop; its own rts comes back here
+    return c.finish(), c.labels['rts']
 
 
 def map_tiles():
@@ -330,7 +388,6 @@ def tile_sync():
     c.label('done')
     c.words(0x21CC, 0x8ADA, 0x46DF, 0x4CDF, 0x3F0F, 0x4E75)  # save a4, restore all, rts
     code = c.finish()
-    assert TILE_SYNC_NEW + len(code) <= MAP_TILES_NEW
     return code
 
 
@@ -548,7 +605,7 @@ def check_cells(rom, patched):
     records, maps = cell_test_data()
     code = cell_test(pattern_at)
     results = []
-    for source in (with_tiles(rom, b''), patched):
+    for source in (test_rom(rom), test_rom(patched)):
         test = bytearray(source)
         for at, data in ((CELL_RECORDS, records), (CELL_MAPS, maps),
                          (pattern_at, b''.join(r.to_bytes(4, 'big') for r in registers))):
@@ -565,7 +622,7 @@ def check_cells(rom, patched):
         sys.exit('screen cell check FAILED')
 
 
-def sound_link(rom, origin=SOUND_LINK_NEW, count_in=48, count_out=48):
+def sound_link(rom, count_in=48, count_out=48):
     """The sound link with its two 48-byte copies written out in full, in place of loops.
 
     Everything else is the original's own instructions, in the original order. The copies
@@ -583,7 +640,7 @@ def sound_link(rom, origin=SOUND_LINK_NEW, count_in=48, count_out=48):
     code += old(0x16270, 0x16280) + bytes.fromhex('4EB900015E4A')   # jsr in place of the bsr
     code += old(0x16284, 0x162A4) + bytes([0x67, 16 + 2 * count_out]) + old(0x162A6, 0x162B6)
     code += bytes.fromhex('10D9') * count_out + old(0x162BC, SOUND_LINK_END)
-    assert code[-2:] == bytes.fromhex('4E75') and origin + len(code) <= ROUTINE_RTS
+    assert code[-2:] == bytes.fromhex('4E75')
     return code
 
 
@@ -667,7 +724,7 @@ def check_sound(rom, patched):
     registers = b''.join((0xA1B2C300 + i).to_bytes(4, 'big') for i in range(15))
     code = sound_test(pattern_at)
     results = []
-    for source in (with_tiles(rom, b''), patched):
+    for source in (test_rom(rom), test_rom(patched)):
         test = bytearray(source)
         test[SOUND_RECORDS:SOUND_RECORDS + len(records)] = records
         test[pattern_at:pattern_at + len(registers)] = registers
@@ -702,7 +759,6 @@ def fight_pace():
         c.words(0x21F8, 0x9624, FIGHT_SHOWN)
         c.words(0x4EF9, after >> 16, after & 0xFFFF)
     code = c.finish()
-    assert FIGHT_PACE + len(code) <= MUSIC_KEEP
     return code, starts
 
 
@@ -733,7 +789,6 @@ def music_keep():
     end = MUSIC_KEEP + len(c.data)
     w(0x13FC, 0x0001, 0xFFFF, 0x022F, 0x50F8, SILENT, 0x4E75)   # a song ran out: remember it's quiet
     code = c.finish()
-    assert MUSIC_KEEP + len(code) <= ROUTINE_RTS
     return code, (MUSIC_KEEP, end)
 
 
@@ -967,9 +1022,9 @@ def check_mask(rom, patched):
     records, extra, tiles = mask_test_data()
     code = mask_test(pattern_at)
     results = []
-    exact = bytearray(patched)                      # the new routine with the game's own shift
+    exact = test_rom(patched)                       # the new routine with the game's own shift
     exact[MASK_TABLES:MASK_TABLES + 0x2000] = mask_tables(rom, as_game=True)
-    for source in (with_tiles(rom, b''), exact):
+    for source in (test_rom(rom), exact):
         test = bytearray(source)
         for at, data in ((MASK_RECORDS, records), (MASK_EXTRA, extra), (MASK_TILES, tiles),
                          (pattern_at, b''.join(r.to_bytes(4, 'big') for r in registers))):
@@ -1017,18 +1072,104 @@ def tile_check(count):
     return c.origin, c.finish()
 
 
+def memory_check(count):
+    """Ask the new routine for every tile, so that each is unpacked, found, pushed out and unpacked again.
+
+    For each tile n the list is n, n, as many other tiles of n's set as it has places, and n.
+    All must match the table at TILES. FF0000 counts longs that differ and calls that didn't
+    fill a slot for each, FF0004 holds the next tile number, and FF000C becomes 600DF00D at the end.
+
+    Before that, one test that tiles really are remembered: tile 1 is asked for, the copy
+    kept of it is turned inside out, and it is asked for again. FF0010 becomes 1 if the
+    second answer is the inside-out copy, and the set's turn has moved on.
+    """
+    step = MEMORY_SETS
+    c = Code(0x1F0000)
+    w, s, l = c.words, c.short, c.long
+    w(0x4239, 0xFFFF, 0x0010)                       # clr.b   $FFFF0010
+    s(0x6100, 'forget')                             # bsr.s   forget
+    w(0x4278, 0x92F6, 0x31FC, 0x0100, 0x92FA, 0x31FC, 1, 0x931A)   # a list of tile 1 alone
+    w(0x4EB9, ROUTINE >> 16, ROUTINE & 0xFFFF)      # jsr the routine
+    w(0x0C78, 0x0100, MEMORY_TAGS + 16)             # set 1's first place holds tile 1?
+    s(0x6600, 'not kept')
+    w(0x0C38, 1, MEMORY_TURNS + 1)                  # and its second place is next?
+    s(0x6600, 'not kept')
+    w(0x41F8, MEMORY_TILES + 32, 0x7007)            # lea the tile kept,a0 / moveq #7,d0
+    c.label('turn')
+    w(0x4698)                                       # not.l   (a0)+
+    l(0x51C8, 'turn')                               # dbra    d0,turn
+    w(0x4EB9, ROUTINE >> 16, ROUTINE & 0xFFFF)      # ask again; the answer goes in the second slot
+    w(0x43F9, 0xFFFF, 0x2020, 0x45F9, (TILES + 32) >> 16, (TILES + 32) & 0xFFFF, 0x7207)
+    c.label('same')
+    w(0x2019, 0x4680, 0xB09A)                       # move.l (a1)+,d0 / not.l d0 / cmp.l (a2)+,d0
+    s(0x6600, 'not kept')
+    l(0x51C9, 'same')                               # dbra    d1,same
+    w(0x13FC, 0x0001, 0xFFFF, 0x0010)               # move.b  #1,$FFFF0010
+    c.label('not kept')
+    s(0x6100, 'forget')                             # bsr.s   forget
+    s(0x6000, 'every tile')
+    c.label('forget')                               # start with nothing remembered
+    w(0x41F8, MEMORY_TAGS, 0x303C, (MEMORY_TILES - MEMORY_TAGS) // 2 - 1)
+    c.label('clear')
+    w(0x4258)                                       # clr.w   (a0)+
+    l(0x51C8, 'clear')                              # dbra    d0,clear
+    w(0x4E75)                                       # rts
+    c.label('every tile')
+    w(0x7C00, 0x383C, 0x0001)                       # moveq #0,d6 / move.w #1,d4
+    c.label('tile')
+    w(0x343C, step)                                 # move.w  #step,d2          the others lie above n,
+    w(0x3004, 0x0640, step * MEMORY_WAYS, 0x0C40, count)
+    s(0x6500, 'above')                              # bcs.s   above
+    w(0x4442)                                       # neg.w   d2                or below it near the top
+    c.label('above')
+    w(0x4278, 0x92F6, 0x41F8, 0x92FA)               # clr.w $92F6.w / lea $92FA.w,a0
+    w(0x3004, 0xE058, 0x30C0, 0x30C0)               # n twice, as the game stores it
+    w(0x3A04, 0x7600 + MEMORY_WAYS - 1)             # move.w d4,d5 / moveq #places-1,d3
+    c.label('others')
+    w(0xDA42, 0x3005, 0xE058, 0x30C0)               # add.w d2,d5, and store it
+    l(0x51CB, 'others')                             # dbra    d3,others
+    w(0x3004, 0xE058, 0x30C0)                       # n again
+    w(0x31FC, 3 + MEMORY_WAYS, 0x931A)              # how many are in the list
+    w(0x4EB9, ROUTINE >> 16, ROUTINE & 0xFFFF)      # jsr the routine
+    w(0x43F9, 0xFFFF, 0x2000)                       # lea     $FFFF2000,a1
+    for _ in range(2):
+        w(0x3004)                                   # move.w  d4,d0
+        s(0x6100, 'compare')                        # bsr.s   compare
+    w(0x3A04, 0x7600 + MEMORY_WAYS - 1)             # move.w d4,d5 / moveq #places-1,d3
+    c.label('compare others')
+    w(0xDA42, 0x3005)                               # add.w d2,d5 / move.w d5,d0
+    s(0x6100, 'compare')                            # bsr.s   compare
+    l(0x51CB, 'compare others')                     # dbra    d3
+    w(0x3004)                                       # move.w  d4,d0
+    s(0x6100, 'compare')                            # bsr.s   compare
+    w(0x0C78, 3 + MEMORY_WAYS, 0x92F6, 0x6702, 0x5286)  # that many slots filled, or count it
+    w(0x5244, 0x0C44, count)                        # addq.w #1,d4 / cmpi.w #count,d4
+    l(0x6600, 'tile')                               # bne.w   tile
+    w(0x23C6, 0xFFFF, 0x0000, 0x7000, 0x3004, 0x23C0, 0xFFFF, 0x0004)
+    w(0x23FC, 0x600D, 0xF00D, 0xFFFF, 0x000C)       # move.l  #$600DF00D,$FFFF000C
+    w(0x60FE)                                       # bra.s   *
+    c.label('compare')                              # the next tile out against tile d0 of the table
+    w(0x0280, 0x0000, 0xFFFF, 0xEB88, 0x0680, TILES >> 16, TILES & 0xFFFF, 0x2440, 0x7207)
+    c.label('long')
+    w(0xB38A, 0x6702, 0x5286)                       # cmpm.l (a2)+,(a1)+ / beq.s / addq.l #1,d6
+    l(0x51C9, 'long')                               # dbra    d1,long
+    w(0x4E75)
+    return c.origin, c.finish()
+
+
 def finish_rom(rom, path):
     rom = bytearray(rom)
-    rom[0x1A4:0x1A8] = (ROM_SIZE - 1).to_bytes(4, 'big')
+    rom[0x1A4:0x1A8] = (len(rom) - 1).to_bytes(4, 'big')
     total = sum(word(rom, i) for i in range(0x200, len(rom), 2)) & 0xFFFF
     rom[0x18E:0x190] = total.to_bytes(2, 'big')
     with open(path, 'wb') as f:
         f.write(rom)
 
 
-def with_tiles(rom, table):
+def test_rom(rom, table=b''):
+    """A ROM with a second megabyte for a test, holding this script's unpacked tiles if given."""
     out = bytearray(rom) + table
-    return out + b'\xff' * (ROM_SIZE - len(out))
+    return out + b'\xff' * (TEST_SIZE - len(out))
 
 
 def routine_check(tile_list):
@@ -1049,7 +1190,7 @@ def routine_check(tile_list):
     return c.origin, c.finish(), pattern_at, pattern
 
 
-def peek(path, addresses, frames=3000):
+def peek(path, addresses, frames=3000, timeout=120):
     """Run a test ROM in the BlastEm fork and read bytes of RAM near the end."""
     if not os.path.exists(BLASTEM):
         sys.exit('--check needs the fork: tools/harness/build_blastem_fork.sh')
@@ -1061,7 +1202,7 @@ def peek(path, addresses, frames=3000):
     home = os.path.join(BUILD, 'blastem-home')
     os.makedirs(home, exist_ok=True)
     out = subprocess.run([BLASTEM, '-b', str(frames), path], capture_output=True, text=True, errors='replace',
-                         timeout=120, env={**os.environ, 'HOME': home, 'SDL_VIDEODRIVER': 'dummy',
+                         timeout=timeout, env={**os.environ, 'HOME': home, 'SDL_VIDEODRIVER': 'dummy',
                                            'SDL_AUDIODRIVER': 'dummy', 'BLASTEM_NO_GUI': '1',
                                            'BLASTEM_KIT_INIT': init}).stdout
     values = [line.split()[-1] for line in out.splitlines() if ' peek ' in line]
@@ -1079,7 +1220,7 @@ def boot_into(rom, origin, code, path):
 
 def check_decoder(rom, count, table):
     origin, code = tile_check(count)
-    boot_into(with_tiles(rom, table), origin, code, CHECK_ROM)
+    boot_into(test_rom(rom, table), origin, code, CHECK_ROM)
     got = peek(CHECK_ROM, [0xFF0000 + i for i in (0, 1, 2, 3, 8, 9, 10, 11, 12, 13, 14, 15)])
     bad, checked, done = (int.from_bytes(got[a:a + 4], 'big') for a in (0, 4, 8))
     print(f'game decoder against this script: {checked} tiles checked, {bad} different')
@@ -1087,10 +1228,23 @@ def check_decoder(rom, count, table):
         sys.exit('tile check FAILED')
 
 
+def check_memory(patched, count, table, fixed):
+    origin, code = memory_check(count)
+    boot_into(test_rom(patched, table), origin, code, MEMORY_CHECK_ROM)
+    got = peek(MEMORY_CHECK_ROM, [0xFF0000 + i for i in (0, 1, 2, 3, 4, 5, 6, 7, 12, 13, 14, 15, 16)], 30000, 600)
+    bad, reached, done = (int.from_bytes(got[a:a + 4], 'big') for a in (0, 4, 8))
+    kept = got[12] == 1
+    print(f'new routine against this script, with the search corrected for {fixed}: {reached - 1} tiles each unpacked, '
+          f'found, pushed out and unpacked again, {bad} wrong; a remembered tile is copied, not unpacked: '
+          f'{"yes" if kept else "NO"}')
+    if bad or reached != count or done != 0x600DF00D or not kept:
+        sys.exit('tile memory check FAILED')
+
+
 def check_routine(patched, table):
-    tile_list = [0x1234, 0, 25793, 1]
+    tile_list = [0x1234, 0, 25793, 1, 0x1234, 25793, 0, 129, 257, 385, 513, 641, 1, 29671, 2, 0]
     origin, code, pattern_at, pattern = routine_check(tile_list)
-    test = bytearray(patched)
+    test = test_rom(patched)
     test[pattern_at:pattern_at + len(pattern)] = pattern
     boot_into(test, origin, code, ROUTINE_CHECK_ROM)
     size = 32 * len(tile_list)
@@ -1111,7 +1265,7 @@ def check_background(rom, patched):
     origin, code, pattern_at, pattern = background_check()
     addresses = [*range(0xFF0100, 0xFF0100 + 60), *range(0xFF0200, 0xFF0204), *range(0xFF000C, 0xFF0010)]
     results = []
-    for source, label in ((with_tiles(rom, b''), 'original'), (patched, 'patched')):
+    for source, label in ((test_rom(rom), 'original'), (test_rom(patched), 'patched')):
         test = bytearray(source)
         test[pattern_at:pattern_at + len(pattern)] = pattern
         boot_into(test, origin, code, BACKGROUND_CHECK_ROM)
@@ -1129,51 +1283,68 @@ def check_background(rom, patched):
 
 def main():
     rom = open(romcheck.find_rom(), 'rb').read()
-    tiles = Tiles(rom)
-    count = tiles.count + 1             # the game's search also accepts the end marker
-    as_game = [tiles.unpack(n, tiles.run_by_game(n)) for n in range(count)]
-    table = list(as_game)
-    fixed = []
-    for n in range(tiles.count):
-        right = tiles.unpack(n, tiles.run_correct(n))
-        if right != as_game[n]:
-            table[n] = right
-            fixed.append(n)
     check = '--check' in sys.argv[1:]
     if check:
+        tiles = Tiles(rom)
+        count = tiles.count + 1             # the game's search also accepts the end marker
+        as_game = [tiles.unpack(n, tiles.run_by_game(n)) for n in range(count)]
+        table = list(as_game)
+        fixed = []
+        for n in range(tiles.count):
+            right = tiles.unpack(n, tiles.run_correct(n))
+            if right != as_game[n]:
+                table[n] = right
+                fixed.append(n)
         check_decoder(rom, count, b''.join(as_game))
-    out = with_tiles(rom, b''.join(table))
-    code = object_graphics()
-    out[ROUTINE:ROUTINE + len(code)] = code
+    out = bytearray(rom)
+    added = []
+
+    def add(at, data):
+        """Put something new in the unused space, which must be unused and not already taken."""
+        assert FREE <= at and at + len(data) <= FREE_END and set(rom[at:at + len(data)]) == {0xFF}, hex(at)
+        assert all(at + len(data) <= a or b <= at for a, b in added), hex(at)
+        added.append((at, at + len(data)))
+        out[at:at + len(data)] = data
+
+    code, _ = tile_memory()
+    add(TILE_MEMORY, code)
+    assert rom[ROUTINE:ROUTINE + 4] == bytes.fromhex('48E7FFFE')
+    out[ROUTINE:ROUTINE + 6] = b'\x4e\xf9' + TILE_MEMORY.to_bytes(4, 'big')     # jmp
+    # The search took a tile equal to the next run's first tile as part of this run. Make
+    # it "greater or equal", and move the end marker up one so the last number still ends there.
+    assert rom[SEARCH_BRANCH - 4:SEARCH_BRANCH + 1] == bytes.fromhex('B870500A6E')
+    out[SEARCH_BRANCH] = 0x6C                                                   # bgt.s becomes bge.s
+    end = INDEX + 8 * (INDEX_LAST + 1) + 2
+    out[end:end + 2] = (word(rom, end) + 1).to_bytes(2, 'big')
     for old, new, code in ((MAP_TILES, MAP_TILES_NEW, map_tiles()), (TILE_SYNC, TILE_SYNC_NEW, tile_sync()),
                            (TABLE_RESET_TAIL, TABLE_RESET_NEW, table_reset_tail())):
-        out[new:new + len(code)] = code
+        add(new, code)
         out[old:old + 6] = b'\x4e\xf9' + new.to_bytes(4, 'big')    # jmp
     assert rom[TABLE_RESET_TAIL:TABLE_RESET_TAIL + 6] == bytes.fromhex('4CDF01034E75')
-    out[CELL_DATA_COPY:CELL_DATA_COPY + CELL_DATA_SIZE] = rom[CELL_DATA:CELL_DATA + CELL_DATA_SIZE]
+    add(CELL_DATA_COPY, rom[CELL_DATA:CELL_DATA + CELL_DATA_SIZE])
     code = cells()
     out[CELLS:CELLS + len(code)] = code
     tables = mask_tables(rom)
-    out[MASK_TABLES:MASK_TABLES + len(tables)] = tables
+    add(MASK_TABLES, tables)
     code = sound_link(rom)
-    out[SOUND_LINK_NEW:SOUND_LINK_NEW + len(code)] = code
+    add(SOUND_LINK_NEW, code)
     out[SOUND_LINK:SOUND_LINK + 6] = b'\x4e\xf9' + SOUND_LINK_NEW.to_bytes(4, 'big')   # jmp
     code = sprite_mask()
     out[MASK:MASK + len(code)] = code
     code, starts = music_keep()
-    out[MUSIC_KEEP:MUSIC_KEEP + len(code)] = code
+    add(MUSIC_KEEP, code)
     for at, was, start in ((SONG_REQUEST, '23C0FFFF01E813FC0001FFFF02304E75', starts[0]),
                            (SONG_END, '13FC0001FFFF022F4E75', starts[1])):
         assert rom[at:at + len(was) // 2] == bytes.fromhex(was)
         out[at:at + 6] = b'\x4e\xf9' + start.to_bytes(4, 'big')     # jmp
     code = text_wait()
-    out[TEXT_WAIT_NEW:TEXT_WAIT_NEW + len(code)] = code
+    add(TEXT_WAIT_NEW, code)
     assert rom[TEXT_WAIT:TEXT_WAIT + 22] == bytes.fromhex('066C00010FE4026C00030FE4660000064EBA1F764E75')
     out[TEXT_WAIT:TEXT_WAIT + 6] = b'\x4e\xf9' + TEXT_WAIT_NEW.to_bytes(4, 'big')        # jmp
     assert rom[TEXT_NO_WAIT - 4:TEXT_NO_WAIT + 4] == bytes.fromhex('B03C000367000016')
     out[TEXT_NO_WAIT:TEXT_NO_WAIT + 4] = b'\x4e\x71' * 2                                 # two buttons held: no shortcut
     code, starts = fight_pace()
-    out[FIGHT_PACE:FIGHT_PACE + len(code)] = code
+    add(FIGHT_PACE, code)
     for at, was, start in ((FIGHT_PASS_DRAW, '4EBA40A24EBA4252', starts[0]), (FIGHT_STEP_DRAW, '4EBA3FF44EBA36C2', starts[1])):
         assert rom[at:at + 8] == bytes.fromhex(was)
         out[at:at + 8] = b'\x4e\xb9' + start.to_bytes(4, 'big') + b'\x4e\x71'      # jsr, nop
@@ -1181,12 +1352,14 @@ def main():
     os.makedirs(BUILD, exist_ok=True)
     finish_rom(out, OUTPUT)
     if check:
+        check_memory(out, count, b''.join(table), fixed)
         check_routine(out, b''.join(table))
         check_background(rom, out)
         check_mask(rom, out)
         check_cells(rom, out)
         check_sound(rom, out)
-    print(f'{count} tiles unpacked, {len(fixed)} corrected {fixed}')
+    used = sum(b - a for a, b in added)
+    print(f'{used} bytes added in the unused space at {FREE:06X}, {FREE_END - FREE - used} left')
     print(f'wrote {os.path.relpath(OUTPUT, ROOT)}')
 
 

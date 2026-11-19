@@ -24,10 +24,25 @@ BLASTEM = os.environ.get('BLASTEM', os.path.join(ROOT, 'build', 'blastem-fork', 
 HOME = os.path.join(ROOT, 'build', 'blastem-home')
 ROM = os.environ.get('ROM', sorted(glob.glob(os.path.join(ROOT, 'rom', '*')))[0])
 TICK = '134a8'
-OBJECT_GRAPHICS = ('2e3e4', '2f4e0')
 PROF = re.compile(r'KIT PROF frame=(\d+) total=(\d+) tick=(\d+):(\d+) objgfx=(\d+):(\d+)')
 HASH = re.compile(r'KIT VHASH frame=(\d+) hash=(\w+)')
 PEEK = re.compile(r'peek ff1070 (\w+)')
+
+
+def object_graphics():
+    """Where the object graphics routine starts and ends in this ROM."""
+    with open(ROM, 'rb') as f:
+        f.seek(0x2E3E4)
+        start = f.read(6)
+    if start[:2] != b'\x4e\xf9':                    # the original, or the 2 MB patch
+        return '2e3e4', '2f4e0'
+    sys.path.insert(0, os.path.dirname(HERE))       # the patch: it jumps to the tile memory
+    import build_rom
+    assert int.from_bytes(start[2:], 'big') == build_rom.TILE_MEMORY
+    return '2e3e4', f'{build_rom.tile_memory()[1]:x}'
+
+
+OBJECT_GRAPHICS = object_graphics()
 
 
 def fork_script(level, walk):
