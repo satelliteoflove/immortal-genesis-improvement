@@ -3,12 +3,17 @@
 
     tools/harness/route/level3.py [--original] [--delay N] [--quiet]
 
-Not finished: see the fail() at the end of play().
-
 The rooms, in the order the route meets them: 4 the start, cut in two by a chasm, with two
 ladder holes; 6 below the right-hand hole, with the flamethrowers, a chest and a troll and
 goblin fighting; 7 through 6's door, with the goblin king and a ladder up; 0 the room of
-spikes with the gem; 8 below its far ladder, where the trolls begin.
+spikes with the gem; 8 below its far ladder, where two trolls guard two doors; 5 behind
+both doors, with two more trolls, flamethrowers and a potion; 1 through 5's left wall,
+with the last troll and the beam of light; and 4 again, on the far side of the chasm, where
+the beam sets the wizard down beside the ladder that ends the level.
+
+The route leaves out the left-hand hole of room 4 (rooms 2 and 3: two goblins, a ring, and
+a guarded chest of three bombs) and the potion in room 5. It beats the three trolls of
+rooms 5 and 1 by hand and keeps its second fireball.
 
 Thing numbers on this level: 0 to 3 what the wizard arrives with (gold, a ring, bait, an
 amulet), 16 the chest in room 6 holding 17 (the fireball scroll, two shots), 9 the knife the
@@ -29,6 +34,8 @@ LEVEL = 3
 
 GOLD, SCROLL, KNIFE, GEM = 0, 17, 9, 13
 GOBLIN, TROLL = 2, 3                    # the two fighting in room 6
+DOOR_TROLL = 9                          # the one in front of room 8's left door
+UPDATES = 0x1074                        # a count of the game's updates, a byte going round
 
 
 def start_room(g, log):
@@ -116,6 +123,104 @@ def spike_room(g, log):
     log('down the ladder to room 8')
 
 
+def troll_room(g, log):
+    """Room 8. A troll stands in front of the door in the top wall. Throwing the knife (use
+    it, and say yes) sends him off to fight the room's other troll, and the door is free.
+    Don't step right from where the ladder sets the wizard down: that is the ladder again."""
+    go(g, (32, 56))
+    use(g, KNIFE)
+    read(g, 'y', quiet=0)
+    if has(g, KNIFE):
+        fail(g, LEVEL, 'the knife was not thrown')
+    for _ in range(900):
+        if creature_xy(g, DOOR_TROLL)[0] >= 120:
+            break
+        g.step(1)
+    else:
+        fail(g, LEVEL, f'the troll did not leave the door; he is at '
+                       f'{creature_xy(g, DOOR_TROLL)}')
+    log('threw the knife; the trolls are at', creature_xy(g, 9), creature_xy(g, 10))
+    go(g, (32, 66), (78, 66))
+    through_door(g, 'UP', 5)
+    log('through the door to room 5')
+
+
+def two_trolls(g, log):
+    """Room 5. Both trolls come for the wizard as he steps in, one after the other, 15
+    health each. The door to room 1 is low in the left wall, at about (26, 72); the
+    flamethrowers, at (92, 36) and (72, 56), are well off the way to it."""
+    for n in (1, 2):
+        try:
+            g.until(fighting, limit=1500)
+        except TimeoutError:
+            left = [c for c in (7, 8) if creature_health(g, c)]
+            if not left:
+                fail(g, LEVEL, 'no troll came to fight')
+            meet(g, left[0])
+        which = g.byte(OPPONENT)
+        log(f'troll {which} beaten, health', fight(g, patient=True))
+        read(g)
+    if creature_health(g, 7) or creature_health(g, 8):
+        fail(g, LEVEL, 'a troll of room 5 is still alive')
+    go(g, (32, 148), (40, 120), (40, 68))
+    through_door(g, 'LEFT', 1)          # it opens to LEFT from y 60 to 74, not from 82
+    log('through the door to room 1')
+
+
+def beam_room(g, log):
+    """Room 1. The last troll runs at the wizard from the middle of the room. The beam of
+    light stands at (50, 81) and burns whoever steps into it, except for 16 updates in every
+    128 when it turns from red to purple: the game's count of updates at FF1074, with its
+    top bit dropped, is under 16 then. Inside the purple beam the gem carries the wizard to
+    the far side of room 4."""
+    try:
+        g.until(fighting, limit=1500)
+    except TimeoutError:
+        meet(g, 4)
+    log('the last troll beaten, health', fight(g, patient=True))
+    read(g)
+    go(g, (96, 120), (80, 100), (61, 84))
+    while g.byte(UPDATES) & 0x7F > 2:
+        if not tick(g):
+            fail(g, LEVEL, 'the game stopped while waiting for the beam')
+    go(g, (51, 84))
+    if g.byte(UPDATES) & 0x7F > 10:
+        fail(g, LEVEL, 'too late into the beam')
+    use(g, GEM)
+    for _ in range(900):
+        if g.room == 4:
+            break
+        if dead(g):
+            fail(g, LEVEL, 'the beam burned the wizard')
+        if busy(g):
+            read(g)
+        g.step(1)
+    else:
+        fail(g, LEVEL, 'the gem did not carry the wizard out of the beam')
+    if has(g, GEM):
+        fail(g, LEVEL, 'the gem is still carried')
+    for _ in range(600):
+        if not walking_in(g):
+            break
+        g.step(1)
+    log('carried across the chasm')
+
+
+def last_ladder(g, log):
+    """Room 4, the far side. The ladder that ends the level is up and to the left; walked
+    onto leftward it is the ladder with y between 16 and 24 and a drop at y 28."""
+    go(g, (149, 30), (146, 22))
+    for _ in range(600):
+        if busy(g):
+            break
+        if dead(g):
+            fail(g, LEVEL, 'the wizard fell down the last hole')
+        g.step(1, 'LEFT')
+    else:
+        fail(g, LEVEL, 'the last ladder did not end the level')
+    log('down the last ladder')
+
+
 def play(g, log=print):
     if g.level != LEVEL - 1 or g.room != 4:
         fail(g, LEVEL, f'expected the first room of level 3, found level {g.level + 1} '
@@ -124,7 +229,10 @@ def play(g, log=print):
     flame_room(g, log)
     king_room(g, log)
     spike_room(g, log)
-    fail(g, LEVEL, 'the route is not written past the ladder into room 8')
+    troll_room(g, log)
+    two_trolls(g, log)
+    beam_room(g, log)
+    last_ladder(g, log)
     return end_of_level(g)
 
 

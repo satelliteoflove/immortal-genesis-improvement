@@ -127,6 +127,9 @@ and `disasm/immortal.dis` is the whole disassembly (made by `tools/disasm.py`, n
 | `FF10A7`, `FF10A8` | In a fight, the enemy's health and the wizard's. A hit takes 1 | Seen |
 | `FF10B0`, `FF10B2` | In a fight, the wizard's move and the enemy's (see "Fights" below) | Read from code, used |
 | `FF10A6`, `FF10A5` | In a fight, the wizard's pose and the enemy's | Read from code, used |
+| `FF10AF`, `FF10B1` | In a fight, what is left of the wizard's move and of the enemy's, about 4 off every 6 frames | Read from code, used, level 3 |
+| `FF10AA`, `FF10A9` | In a fight, how tired the wizard and the enemy are, 0 to 15. `FF10AC` and `FF10AB` are what each starts with (1 and 3 on level 3) | Read from code, used, level 3 |
+| `FF1074` | A count of the main loop's updates, a byte going round | Seen, level 3 |
 | `FF0A1D`, `FF0A1C` | The wizard's size (3 while small from level 5's potion, 0 normal) and the updates of smallness left, about 126 falling by 1 an update (`FF` when unused) | Seen, level 5 |
 | `FF0970` | 20 bytes of flags, one for each creature, the wizard first. Bit 6: poisoned, a point of health goes every 16 updates of the main loop | Read from code (`0076FE`), seen on level 5 |
 | `FF09FC` + n | What creature n is having done to it, the wizard being n 0: 0 when free, else the number of a posted happening (a fall's landing, a spell on himself, a killing blow). `action(g)` | Read from code (`006452`, `0077C0`), seen on level 8 |
@@ -691,6 +694,54 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
   wait in the middle: `scratch/route/level7/t24.py` and `t25.py` wrap `fight` to stand idle
   for up to 200 frames mid-fight, and `t23.py` moves the water's waypoints and starts. The
   fights here don't use chance at all: the same presses give the same fight.
+- 2026-11-19, level 3, **how a fight works inside, and `fight(g, patient=True)`**. Read
+  from the fight's routine at `011CA2`. Each fighter has a move (`FF10B0`, `FF10B2`) and a
+  timer for it (`FF10AF`, `FF10B1`); the routine runs about every 6 frames and takes about
+  4 off each timer. A swing or slash lands at the moment its move changes (enemy 5 to 6 or
+  9 to 10; wizard 2 to 3, 6 to 7, or 9 to 10 for a jab), and landing knocks the other
+  fighter out of whatever he was doing. So a fight is a race, and the wizard's side of the
+  pass runs first. Dodging is not a move: it is a pose taken at once while the wizard's
+  move is 0 and C with a direction is held, and it only has to be held at the pass the
+  swing lands. Every finished swing makes its fighter more tired (`FF10A9` the enemy,
+  `FF10AA` the wizard, 0 to 15, falling by 1 about every 190 frames), and tiredness plus a
+  starting figure (`FF10AB`, `FF10AC`) picks each move's length from tables at `011C12` to
+  `011C62`. A fresh enemy recovers from a swing in 2 passes and swings again in 1 or 2,
+  which no attack begun after a dodge can beat (a jab needs 4 or 5 passes, a slash from a
+  dodge 5 or 6); a tired one takes up to 7 passes to recover. A jab also does nothing if
+  the enemy's move is 5 when it lands. `fight(g, patient=True)` therefore only dodges
+  until the enemy has tired itself, then answers each dodged swing with one jab, and only
+  when the timers say the jab lands before the enemy's recovery ends. Level 3's goblin
+  guard (12 health) and three trolls (15 each) took 15, 10 and 12 health off the wizard
+  under the other two policies and none under this one, on both ROMs; it takes about
+  2,000 to 2,500 frames a fight. Use it wherever a fight costs health. `attack(g, n,
+  patient=True)` passes it on.
+- 2026-11-19, level 3, **throwing a thing**: `use(g, KNIFE)` brings a question (throw it
+  here?), so `read(g, 'y', quiet=0)`; the knife leaves the carried list. The troll at the
+  door walked off to fight the room's other troll within about 100 frames, from wherever
+  in the room it was thrown. Wait on `creature_xy` for him to be clear, then walk.
+- 2026-11-19, level 3, **waiting for a color: the game's count of updates**. `FF1074` is a
+  byte that goes up by 1 every update of the main loop (not in text boxes, the inventory
+  or fights). Room 1's beam of light is purple, and safe, while that count with its top
+  bit dropped is under 16, and red for the other 112 of every 128 updates; walking into
+  the red beam holds the wizard and burns him. Nothing else in RAM showed the color. To
+  find such a cycle, sample a pixel of the thing in pictures against this counter. The
+  route waits beside the beam for the count to come round to 0, 1 or 2, steps in (3
+  updates) and uses the gem; the inventory stops the count. The gem goes, and about 100
+  frames later the wizard is in room 4. `walking_in(g)` is true for about 90 frames more
+  while he appears, so wait on it before steering.
+- 2026-11-19, level 3, **small things that cost time**. A ladder that ends the level
+  never changes the room: hold the direction until `busy(g)`, then `end_of_level(g)`.
+  `walk_to` beside a wall can step to and fro for 300 updates and raise `Stuck` ("not
+  there after 300 updates"): move the target a step off the wall. A doorway into a
+  diagonal wall can need the plain direction from one stretch and the diagonal from
+  another (room 5's left door: LEFT from y 60 to 74, UP+LEFT from y 82 to 98, and LEFT
+  from y 82 slides past it into the corner).
+- 2026-11-19, level 3, **what the route leaves out**, for whoever wants it: room 4's
+  left-hand hole (LEFT onto it at y 112 to 120) leads to room 2, where two goblins fight
+  and nothing troubles the wizard; its hole (LEFT at y 112 to 120 again) leads to room 3,
+  where a goblin stops him with a warning at a line across the corridor (y about 76),
+  then fights (thing 5, the chest behind him, has three bombs: `search(g, 'yyyy', 6, 7,
+  8)`). The potion in room 5 is thing 4 at (127, 41), taken with `read(g, 'y')`.
 
 ## Where each level stands
 
@@ -698,7 +749,7 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
 |---|---|---|
 | 1 | `level1.py` plays rooms 6, 3 and 7 (body, three goblins, key, chest) to the door of room 1 | Those parts pass all six; the last four rooms aren't written |
 | 2 | not started | |
-| 3 | `level3.py` takes the scroll, kills the troll for the knife, passes the king, takes the gem and climbs down to room 8 | Those parts pass all six |
+| 3 | `level3.py` plays the whole level: scroll, troll and knife, the king, the gem, the knife thrown, three trolls beaten by hand, the beam, the last ladder | Passes all six, at full health |
 | 4 | `level4.py` plays rooms 6, 4, 0, 1 and 5: the troll, the carpet over both flame rooms, the straw bed, two trolls, two ladders | Those parts pass on both ROMs |
 | 5 | `level5.py` plays rooms 8, 0, 1, 2, 4 and 5 (egg, potion, hole, trolls, chest, lizards, key, worm room) to the door of the last room | Those parts pass on both ROMs |
 | 6 | `level6.py` plays the whole level: the spider hole, the big spider, the alcohol on the chest, the levitation spell down the corridor, the ladders | All six pass, with the walkthrough's certificate for level 7 |
