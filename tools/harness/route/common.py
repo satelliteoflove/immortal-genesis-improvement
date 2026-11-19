@@ -324,6 +324,12 @@ def bump(g, buttons, limit=400):
                      f'room {g.room}, frame {g.frame}')
 
 
+def walking_in(g):
+    """True while the wizard is walking through a doorway by himself, deaf to the pad. The
+    game's own note of where he is (FF0A4C, FF0A4D) stands still until he has control again."""
+    return (g.byte(0x0A4C), g.byte(0x0A4D)) != xy(g)
+
+
 def through_door(g, buttons, room=None, limit=80):
     """Hold buttons until the room number changes, then let the wizard come to rest.
 
@@ -342,6 +348,10 @@ def through_door(g, buttons, room=None, limit=80):
     if room is not None and g.room != room:
         raise RouteError(f'through_door: in room {g.room}, expected {room}')
     tick(g)
+    for _ in range(12):                 # he walks in by himself for about 4 updates
+        if not walking_in(g):
+            break
+        tick(g)
     return g.room
 
 

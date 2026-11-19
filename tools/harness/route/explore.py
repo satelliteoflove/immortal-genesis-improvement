@@ -3,12 +3,13 @@
     from explore import room_map
     print(room_map(g))                  # g is left as it was found
 
-It tries each of the four directions from every spot it reaches, going back to a kept
-state each time, so it is for exploring only, never for play(). The map is a grid with a
+It tries each of the four directions from every spot it reaches (and the diagonals where
+none of the four leads anywhere new, as in a doorway), going back to a kept state each time, so it is for exploring only, never for play(). The map is a grid with a
 letter for each patch 3 wide and 4 high of the wizard's coordinates:
 
     .   he can stand here               @   where he started
     !   stepping here stopped the game: a text box, a trap, a fight
+    x   stepping here cost health or killed the wizard
     0-9, a-z   stepping here led into that room (a door)
 
 Enemies keep moving while it walks, so a '!' near one is probably the fight starting, and
@@ -20,7 +21,7 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from common import busy, tick, xy
+from common import busy, dead, tick, xy
 
 WIDE, HIGH = 3, 4                        # a step across is 3 and a step up or down is 4
 DIGITS = '0123456789abcdefghijklmnopqrstuvwxyz'
@@ -50,12 +51,18 @@ def room_map(g, limit=4000, moves=('UP', 'DOWN', 'LEFT', 'RIGHT')):
             g.load(path)
             os.remove(path)
             g.keep(62)
+            health = g.byte(0x090C) >> 4
             marks.setdefault(patch(spot), '.')
-            for move in moves:
+            found = len(queue)
+            for move in list(moves) + ['UP+LEFT', 'UP+RIGHT', 'DOWN+LEFT', 'DOWN+RIGHT']:
+                if '+' in move and len(queue) > found:
+                    break                       # diagonals only where the straight moves fail
                 g.back(62)
                 moved = tick(g, move)
                 cell = None
-                if not moved or busy(g):
+                if dead(g) or g.byte(0x090C) >> 4 < health:
+                    mark = 'x'
+                elif not moved or busy(g):
                     mark = '!'
                 elif g.room != room:
                     mark = DIGITS[g.room % 36]
@@ -66,8 +73,8 @@ def room_map(g, limit=4000, moves=('UP', 'DOWN', 'LEFT', 'RIGHT')):
                         seen.add(patch(there))
                         queue.append((there, remember(there)))
                 if mark:
-                    dx = {'LEFT': -3, 'RIGHT': 3}.get(move, 0)
-                    dy = {'UP': -4, 'DOWN': 4}.get(move, 0)
+                    dx = -3 if 'LEFT' in move else 3 if 'RIGHT' in move else 0
+                    dy = -4 if 'UP' in move else 4 if 'DOWN' in move else 0
                     cell = ((spot[0] + dx) // WIDE, (spot[1] + dy) // HIGH)
                     if marks.get(cell, '.') == '.':
                         marks[cell] = mark
@@ -82,6 +89,7 @@ def room_map(g, limit=4000, moves=('UP', 'DOWN', 'LEFT', 'RIGHT')):
         lines.append(f'{row * HIGH:3d} ' + ''.join(marks.get((col, row), ' ')
                                                    for col in range(min(xs), max(xs) + 1)))
     for mark, (spot, move) in sorted(notes.items()):
-        what = 'stopped the game' if mark == '!' else f'led to room {DIGITS.index(mark)}'
+        what = ('stopped the game' if mark == '!' else 'hurt the wizard' if mark == 'x'
+                else f'led to room {DIGITS.index(mark)}')
         lines.append(f'{mark}: {move} from {spot} {what}')
     return '\n'.join(lines)

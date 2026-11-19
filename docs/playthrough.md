@@ -108,6 +108,7 @@ and `disasm/immortal.dis` is the whole disassembly (made by `tools/disasm.py`, n
 | `FF1083` | The inventory's cursor: slot 0 to 5. `FF1086` is 1 if it was left with A | Seen |
 | `FF1087` | The inventory page's first index into the carried list: 0, 5, 10 | Seen |
 | `FF0A17` | The thing number of the fireball scroll once it has been used, `FF` before | Seen |
+| `FF0A4C`, `FF0A4D` | The game's own copy of the wizard's x and y. It stops following `FF08BC`/`FF08D0` while he walks through a doorway by himself | Seen, level 1 |
 | `FF10AE` | Not zero while a fight is on | Seen |
 | `FF10A7`, `FF10A8` | In a fight, the enemy's health and the wizard's. A hit takes 1 | Seen |
 | `FF10B0`, `FF10B2` | In a fight, the wizard's move and the enemy's (see "Fights" below) | Read from code, used |
@@ -252,6 +253,19 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
   at `FF08F8`. Lists are handed out as the level loads; a room has two (`FF0EC6` + room and
   `FF0ED6` + room, the second being the things on its floor) and a chest or body has one
   (`FF0B6C` + its thing number).
+- 2026-11-19, level 1, **shared helper changed: `through_door`** now waits until the wizard
+  can be steered again. After the room number changes he walks in by himself for about 4
+  updates and ignores the pad; `through_door` used to return after 1. `walking_in(g)` is the
+  test (`FF0A4C`/`FF0A4D`, the game's own note of his x and y, stand still meanwhile).
+  Callers get the same positions as before, since their first presses were being ignored.
+  `room_map` now tries diagonals where the straight moves find nothing, and marks `x` where
+  a step costs health or kills. A door can need one particular direction: level 1's room 7
+  to room 1 opens to LEFT (sliding down the wall) but not to UP+LEFT from below it.
+- 2026-11-19, level 1, **loose things and the dead**: a thing lying on a room's floor (gold
+  in level 1's room 7) is picked up by walking to its x and y: a box says what it was,
+  `read(g)`, and its kind goes to `FF`. A beaten enemy that carried things asks its questions
+  the moment the fight ends, so follow `fight(g)` with `search(g, 'yyy', 15, 16)` and the
+  like, not `read(g)`, which will time out on the question.
 
 ## Where each level stands
 
