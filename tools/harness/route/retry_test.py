@@ -37,11 +37,12 @@ import common
 import play
 
 OUT = os.path.join(common.ROOT, 'scratch', 'route', 'retry')
+PREPARE = 0x42F9                        # the text of "Prepare to continue..."
 
 
 def state(g):
     return {'frame': g.frame, 'room': g.room, 'xy': list(common.xy(g)), 'health': common.health(g),
-            'retries': common.retries(g), 'carried': sorted(common.carried(g))}
+            'retries': common.retries(g), 'carried': sorted(common.carried(g)), 'armed': common.armed(g)}
 
 
 def steerable(g):
@@ -56,9 +57,9 @@ class WalkBack(Exception):
 def path(track):
     """The route's path as [(room, [(x, y) at each turn], buttons that took it out of the room)].
 
-    track is (room, x, y, buttons) after each step. The last room's buttons are None."""
+    track is (room, x, y, buttons, ...) after each update. The last room's buttons are None."""
     rooms = []
-    for room, x, y, buttons in track:
+    for room, x, y, buttons, *_ in track:
         if not rooms or rooms[-1][0] != room:
             if rooms:
                 rooms[-1][2] = last_buttons
@@ -127,7 +128,8 @@ def walk_back(g, track, to):
     """Retrace the route's path from wherever the retry left the wizard to `to` (room, x, y).
 
     It starts from the route's last time in the room he came back in, at the turn nearest
-    to him: a retry puts him where he last went through a door, or at the level's start."""
+    to him: a retry puts him at a spot set for the room he died in, most often where he came
+    into the room before it."""
     rooms = path(track)
     starts = [i for i, (room, _, _) in enumerate(rooms) if room == g.room]
     if not starts:
@@ -167,21 +169,26 @@ class DyingGame(play.Game):
         super().__init__(rom)
         self.entry, self.seen, self.armed, self.inside, self.pending = entry, [], False, False, False
         self.entered = None             # where he could first be steered in the room
-        self.before = self.after = self.back = None
+        self.not_before = 0             # a kill that ran into a text box is tried again later
+        self.before = self.after = self.walked = None
         self.track = []
 
     def step(self, frames=1, buttons=''):
+        if self.inside or self.after is not None:
+            return super().step(frames, buttons)
+        steer, deadline = bool(buttons) and steerable(self), self.long(common.DEADLINE)
         super().step(frames, buttons)
-        if not self.armed or self.inside or self.after is not None:
-            return self
-        self.track.append((self.room, *common.xy(self), buttons))
+        if self.long(common.DEADLINE) != deadline:          # an update of the game
+            self.track.append((self.room, *common.xy(self), buttons, steer))
+        if not self.armed or buttons:   # not while the route holds a button: C would open
+            return self                 #   the inventory once he is back
         if self.room not in self.seen:
             self.seen.append(self.room)
             if len(self.seen) - 1 == self.entry:
                 self.pending, self.entered = self.frame, None
         if self.pending is not False and self.entered is None and steerable(self):
             self.entered = common.xy(self)
-        if self.pending is not False and self.entered and steerable(self) and (
+        if self.pending is not False and self.entered and self.frame >= self.not_before and (
                 abs(common.xy(self)[0] - self.entered[0]) + abs(common.xy(self)[1] - self.entered[1]) >= 16
                 or self.frame - self.pending > 900):
             self.inside = True
@@ -192,22 +199,35 @@ class DyingGame(play.Game):
         return self
 
     def die(self):
-        self.before = state(self)
+        """Set his health to 0. If a text box comes up first (he has walked onto a thing,
+        and a question is coming), go back and try again 30 frames later."""
+        self.keep(9)
+        before = state(self)
         self.poke(common.HEALTH, self.byte(common.HEALTH) & 0x0F)
-        for _ in range(120):
-            if common.dead(self):
+        for _ in range(600):            # he falls for about 370 frames before the message
+            if common.busy(self):
                 break
             self.step(1)
+        if common.text_address(self) != PREPARE:
+            self.back(9)
+            self.not_before = self.frame + 30
+            return
+        self.before = before
         common.revive(self)
         self.after = state(self)
         self.after['steerable'] = steerable(self)
         start = self.frame
         walk_back(self, self.track, (self.before['room'], *self.before['xy']))
-        self.back = {'frames': self.frame - start, 'health': common.health(self),
+        self.walked = {'frames': self.frame - start, 'health': common.health(self),
                      'retries': common.retries(self)}
         # The retry refills his health, and routes check it (a straw bed does nothing at
         # full health, a trap room is crossed without losing any), so give back what he had.
-        self.poke(common.HEALTH, self.byte(common.HEALTH) & 0x0F | min(self.before['health'], self.back['health']) << 4)
+        self.poke(common.HEALTH, self.byte(common.HEALTH) & 0x0F | self.before['health'] << 4)
+        # A retry leaves nothing armed (docs/playthrough.md); arm again what was.
+        if self.before['armed'] is not None and common.armed(self) is None:
+            common.use(self, self.before['armed'])
+            common.read(self)
+            self.walked['armed again'] = self.before['armed']
 
 
 def one(level, entry, original):
@@ -223,6 +243,11 @@ def one(level, entry, original):
         try:
             result['certificate'] = route.play(g, lambda *words: None)
             result['outcome'] = 'finished' if g.after else 'no such room'
+        except common.Died as error:
+            if level == 8 and 'retries ran out' in str(error):
+                result['outcome'] = 'game over'     # level 8 gives no retries
+            else:
+                result['outcome'], result['error'] = 'failed', f'Died: {error}'
         except Exception as error:
             result['outcome'] = 'failed'
             result['error'] = f'{type(error).__name__}: {error}'
@@ -233,7 +258,7 @@ def one(level, entry, original):
             except Exception:
                 pass
         result['rooms'] = g.seen
-        result['before'], result['after'], result['back'] = g.before, g.after, g.back
+        result['before'], result['after'], result['back'] = g.before, g.after, g.walked
         result['frames'] = g.frame
     return result
 
@@ -267,6 +292,7 @@ def line(r):
              + ('' if a.get('carried') == b.get('carried') else
                 f", carried {a.get('carried')} became {b.get('carried')}")) if b else 'never died'
     tail = f"finished, certificate {r.get('certificate')}" if r['outcome'] == 'finished' else \
+        'game over, as level 8 has no retries' if r['outcome'] == 'game over' else \
         f"FAILED: {r.get('error', '')[:160]}"
     return f"level {r['level']} entry {r['entry']:2d}: {where}; {tail}"
 
@@ -290,7 +316,7 @@ def main():
     with open(os.path.join(OUT, f'results-{name}.json'), 'w') as f:
         json.dump(everything, f, indent=1)
     tried = [r for r in everything if r['outcome'] != 'no such room']
-    failed = [r for r in tried if r['outcome'] != 'finished']
+    failed = [r for r in tried if r['outcome'] not in ('finished', 'game over')]
     print(f'\n{name}: {len(tried)} deaths tried, {len(tried) - len(failed)} levels finished afterward, '
           f'{len(failed)} not, {time.time() - began:.0f} s')
     for r in failed:
