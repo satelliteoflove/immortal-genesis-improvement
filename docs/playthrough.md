@@ -757,7 +757,7 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
 |---|---|---|
 | 1 | `level1.py` plays rooms 6, 3 and 7 (body, three goblins, key, chest) to the door of room 1 | Those parts pass all six; the last four rooms aren't written |
 | 2 | not started | |
-| 3 | `level3.py` plays the whole level: scroll, troll and knife, the king, the gem, the knife thrown, three trolls beaten by hand, the beam, the last ladder | Passes all six, at full health |
+| 3 | `level3.py` plays the whole level: scroll, troll and knife, the king, the gem, the knife thrown, three trolls beaten by hand, the beam, the last ladder. Certificate `573ff31000e60`, no life lost | Passes all six, at full health (rechecked by a second agent) |
 | 4 | `level4.py` plays rooms 6, 4, 0, 1 and 5: the troll, the carpet over both flame rooms, the straw bed, two trolls, two ladders | Those parts pass on both ROMs |
 | 5 | `level5.py` plays rooms 8, 0, 1, 2, 4 and 5 (egg, potion, hole, trolls, chest, lizards, key, worm room) to the door of the last room | Those parts pass on both ROMs |
 | 6 | `level6.py` plays the whole level: the spider hole, the big spider, the alcohol on the chest, the levitation spell down the corridor, the ladders | All six pass, with the walkthrough's certificate for level 7 |
