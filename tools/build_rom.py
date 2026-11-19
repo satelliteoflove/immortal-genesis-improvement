@@ -94,6 +94,12 @@ SOUND_LINK_END = 0x16304
 SOUND_LINK_NEW = 0x2E600
 SOUND_PASSES = 1792             # for --check: 256 frames of each of six songs, then 256 of silence
 SOUND_RECORDS = 0x100000
+FIGHT_PASS_DRAW = 0x11694       # a fight's main loop: its drawing call and the one after
+FIGHT_STEP_DRAW = 0x11772       # a fight's animation loop: its drawing call and the wait after
+FIGHT_PASS_FRAMES = 6           # frames from one picture to the next in the original, as measured
+FIGHT_STEP_FRAMES = 8
+FIGHT_PACE = 0x2E770            # the routines that hold fights to that pace
+FIGHT_SHOWN = 0x96A0            # the frame count when a fight's last picture went up
 DRAW_CALLS = 0x1348C            # the main loop's two calls that draw an update's picture
 IN_BETWEEN = 0x2E800            # the routine that draws two pictures for each update
 REACH = 16                      # how far, in pixels, a thing can move in one update and be the same thing
@@ -671,6 +677,29 @@ def check_sound(rom, patched):
         sys.exit('sound link check FAILED')
 
 
+def fight_pace():
+    """Hold a fight's two loops to the pace they ran at in the original.
+
+    A fight has no clock. Each loop draws and goes round again, so it ran as fast as the
+    drawing allowed, and the faster object graphics made fights nearly three times too fast.
+    Each drawing call now waits until the frame before its picture is due, counted from the
+    last picture, and then draws as before. Returns the code and where its two routines start.
+    """
+    c = Code(FIGHT_PACE)
+    starts = []
+    for frames, draw, after in ((FIGHT_PASS_FRAMES, 0x15738, 0x158EC), (FIGHT_STEP_FRAMES, 0x15768, 0x14E3A)):
+        starts.append(FIGHT_PACE + len(c.data))
+        c.words(0x2F00, 0x2038, FIGHT_SHOWN, 0x5080 | ((frames - 1) << 9))  # d0 = last picture + frames - 1
+        c.label(f'wait{frames}')
+        c.words(0xB0B8, 0x9624); c.short(0x6E00, f'wait{frames}')           # not there yet
+        c.words(0x201F, 0x4EB9, draw >> 16, draw & 0xFFFF)
+        c.words(0x21F8, 0x9624, FIGHT_SHOWN)
+        c.words(0x4EF9, after >> 16, after & 0xFFFF)
+    code = c.finish()
+    assert FIGHT_PACE + len(code) <= IN_BETWEEN
+    return code, starts
+
+
 def in_between():
     """Draw two pictures for each update: one part of the way from the last update, then the real one.
 
@@ -1175,6 +1204,11 @@ def main():
     out[SOUND_LINK:SOUND_LINK + 6] = b'\x4e\xf9' + SOUND_LINK_NEW.to_bytes(4, 'big')   # jmp
     code = sprite_mask()
     out[MASK:MASK + len(code)] = code
+    code, starts = fight_pace()
+    out[FIGHT_PACE:FIGHT_PACE + len(code)] = code
+    for at, was, start in ((FIGHT_PASS_DRAW, '4EBA40A24EBA4252', starts[0]), (FIGHT_STEP_DRAW, '4EBA3FF44EBA36C2', starts[1])):
+        assert rom[at:at + 8] == bytes.fromhex(was)
+        out[at:at + 8] = b'\x4e\xb9' + start.to_bytes(4, 'big') + b'\x4e\x71'      # jsr, nop
     out[BOOT_CHECK_BRANCH:BOOT_CHECK_BRANCH + 2] = b'\x4e\x71'      # nop
     os.makedirs(BUILD, exist_ok=True)
     finish_rom(out, OUTPUT)

@@ -250,6 +250,27 @@ title screen on, even a version of the new link padded to take the same number o
 old. The emulator models the 68000's memory refresh delays, so two different runs of instructions
 can't be made to take exactly the same time. The tool is kept for the logs it makes.
 
+## Fights, held to their old pace
+
+Making the drawing faster made fights faster, and that was a mistake. Ordinary play has a clock:
+an update can't start until 5 frames after the last one. A fight has none. It runs in its own two
+loops, each of which draws a picture and goes straight round again, so its speed was simply how
+long the drawing took.
+
+| | Original | Patched, before this | Patched, now |
+|---|---|---|---|
+| Main loop, frames from one picture to the next | 6.08 | 1.05 | 6.00 |
+| Animation loop | 8.49 | 3.17 | 8.00 |
+
+The fix puts a wait before each loop's drawing call (`011694` and `011772`), which holds off until
+the frame before the picture is due, counted from the last picture. The targets are the commonest
+gaps in the original: 6 and 8 frames. The original wandered, between 5 and 7 in the main loop and
+from 7 up to 14 in the animation, and the patched build doesn't, so the animation runs about 6%
+quicker than the original's average. `tools/harness/fight_pace.py` makes the table.
+
+Other things that run without the 5-frame clock: message text (3.17 frames a character in the
+original, 2.99 now), and the death sequence, which hasn't been measured yet.
+
 ## How the changes were checked
 
 A frame-by-frame comparison with the original doesn't work once the game runs faster, because the
@@ -408,6 +429,9 @@ way everything here has been, and it would only matter for a tick shorter than 3
 - **The profiler reports once a frame.** A part of a tick that finishes in the frame the tick
   starts in is counted with the tick before. Averages are right, but a breakdown of single ticks
   isn't, which gave a confusing picture of camera steps until it was counted inside the game.
+- **Faster isn't the same as better.** Fights, and anything else without a clock of its own, sped
+  up along with the drawing, and nobody noticed until the game was played by hand. Random walks
+  measure how long updates take. They don't say whether a fight looks right.
 - **A failed emulator run can look like a game result.** BlastEm sometimes failed at startup, which
   once showed up as "level 8 not reached". The tools now stop on any short run, and the emulator
   bug is fixed. See `docs/blastem-fork-fixes.md`.

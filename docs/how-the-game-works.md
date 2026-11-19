@@ -56,6 +56,21 @@ The retry handling is at `0081D6`. It skips the retry altogether on the last lev
 (`0081DE`), which hasn't been tested in play. It also has special cases for levels 2, 4, 5,
 7 and 8 that reset particular things on a retry, and those haven't been worked through.
 
+## Fights
+
+A fight is one routine, entered at `0113E6` when an opponent has been set in `$DAE(a4)`. It
+switches to the fight song (`0114B0`), runs a main loop from `011590` until one side's strength
+(`$DA7(a4)`, `$DA8(a4)`) reaches zero, plays an ending animation in a second loop from `01170E`,
+and puts the level's song back (`0117BC`), which starts it from the beginning.
+
+The two fighters are drawn at fixed places and only change pose. The loops draw with their own
+routines (`015738`, `015768`), not the main loop's, and they have no clock: each goes round as
+soon as its picture is up.
+
+The routine is also entered, and left within a single frame, at times when no fight follows. The
+music still gets switched and put back, so all that's heard is the level's song starting over.
+What those entries are hasn't been worked out.
+
 ## Certificates
 
 These are the game's passwords. The code at `012876` gathers the values and `012804` works

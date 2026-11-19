@@ -62,6 +62,14 @@ the optimized game really runs.
 - [ ] Controls said to feel less responsive than the NES version. Measure the delay from
       button to screen.
 
+- [x] Fights ran nearly three times too fast after the drawing got faster. They're held to the
+      original's pace now.
+- [ ] The death sequence and restart also run too fast. Find its loop, measure it against the
+      original and hold it to that pace.
+- [ ] The level's song starts over near trigger points, in the original too. The fight routine is
+      entered and left at once there. Work out what those entries are before changing anything.
+- [ ] Message text goes by quickly next to the NES version, and more so with a button held.
+      Decide whether to slow it.
 - [ ] Smoother movement at the same game speed. A trial build (`tools/build_rom.py --smooth`)
       draws an in-between picture each update; see `docs/smoother-movement.md`. Waiting on a
       verdict from watching and playing it. Fights can't be smoothed this way.
