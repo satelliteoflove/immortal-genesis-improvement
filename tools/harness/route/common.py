@@ -305,6 +305,21 @@ def go(g, *points, near=2):
                              f'frame {g.frame}')
 
 
+def bump(g, buttons, limit=400):
+    """Hold buttons until a text box (or anything else that stops the game) comes up.
+
+    For things that speak only after the wizard has pushed against them for a while, where
+    walk_to would raise Stuck first: the candle in level 1's first room takes 16 updates."""
+    for _ in range(limit):
+        if dead(g):
+            raise Died(f'bump: the wizard died at {xy(g)} in room {g.room}, frame {g.frame}')
+        g.step(1, buttons)
+        if busy(g):
+            return
+    raise RouteError(f'bump({buttons}): nothing happened in {limit} frames at {xy(g)} in '
+                     f'room {g.room}, frame {g.frame}')
+
+
 def through_door(g, buttons, room=None, limit=80):
     """Hold buttons until the room number changes, then let the wizard come to rest.
 

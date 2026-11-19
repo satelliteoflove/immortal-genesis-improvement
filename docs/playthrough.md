@@ -239,6 +239,11 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
 - 2026-11-19, level 1, **what `walk_to` can't see**: `tick` gives up after 40 frames with no
   update and `walk_to` then returns `'busy'`. That's a text box nearly always, but check
   with `busy(g)` and a picture when it comes somewhere unexpected.
+- 2026-11-19, level 1, **things that speak late**: the candle in the first room is solid and
+  only speaks after about 16 updates of pushing against it, by which time `walk_to` has
+  raised `Stuck`. `bump(g, buttons)` holds a direction until the game stops. Then `read(g)`:
+  it got through the candle's four pages in 686 frames on the patched ROM and 265 on the
+  original (a held button skips the original's page pauses), against 1,350 with no presses.
 
 ## Where each level stands
 
