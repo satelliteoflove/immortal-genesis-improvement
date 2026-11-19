@@ -100,6 +100,11 @@ FIGHT_PASS_FRAMES = 6           # frames from one picture to the next in the ori
 FIGHT_STEP_FRAMES = 8
 FIGHT_PACE = 0x2E770            # the routines that hold fights to that pace
 FIGHT_SHOWN = 0x96A0            # the frame count when a fight's last picture went up
+SONG_REQUEST = 0x15D44          # asks the sound driver to start a song at the next frame
+SONG_END = 0x15E10              # a song that has run out asks the driver to go quiet
+MUSIC_KEEP = 0x2EB00            # the new versions of both
+SOUNDING = 0x96A4               # the song playing when the waiting request was made (a long)
+SILENT = 0x96A8                 # set once a song has run out and nothing has been started since
 DRAW_CALLS = 0x1348C            # the main loop's two calls that draw an update's picture
 IN_BETWEEN = 0x2E800            # the routine that draws two pictures for each update
 REACH = 16                      # how far, in pixels, a thing can move in one update and be the same thing
@@ -700,6 +705,37 @@ def fight_pace():
     return code, starts
 
 
+def music_keep():
+    """Stop the level's song starting over when nothing has really interrupted it.
+
+    At about twenty places the game asks for another song, does something, and then asks for
+    the level's song back. A request only takes effect at the next frame. When the something
+    turns out to be nothing, both requests land in one frame, the other song is never heard,
+    and the level's song starts again from the top. The original does this constantly.
+
+    The new request routine notices a request made while another is still waiting. If it
+    asks for the song that's playing anyway, both are dropped and the music carries on.
+    Everything else goes through as before. Returns the code and where the two routines start.
+    """
+    c = Code(MUSIC_KEEP)
+    w, s = c.words, c.short
+    w(0x0C39, 0x0001, 0xFFFF, 0x0230); s(0x6600, 'fresh')       # is a request waiting?
+    w(0xB0B8, SOUNDING); s(0x6600, 'request')                   # for the song that's playing anyway?
+    w(0x23C0, 0xFFFF, 0x01E8, 0x4239, 0xFFFF, 0x0230, 0x4E75)   # then forget both
+    c.label('fresh')
+    w(0x4A38, SILENT); s(0x6600, 'quiet')
+    w(0x21F9, 0xFFFF, 0x01E8, SOUNDING); s(0x6000, 'request')   # note what's playing now
+    c.label('quiet')
+    w(0x21FC, 0xFFFF, 0xFFFF, SOUNDING)                         # nothing is
+    c.label('request')
+    w(0x51F8, SILENT, 0x23C0, 0xFFFF, 0x01E8, 0x13FC, 0x0001, 0xFFFF, 0x0230, 0x4E75)
+    end = MUSIC_KEEP + len(c.data)
+    w(0x13FC, 0x0001, 0xFFFF, 0x022F, 0x50F8, SILENT, 0x4E75)   # a song ran out: remember it's quiet
+    code = c.finish()
+    assert MUSIC_KEEP + len(code) <= ROUTINE_RTS
+    return code, (MUSIC_KEEP, end)
+
+
 def in_between():
     """Draw two pictures for each update: one part of the way from the last update, then the real one.
 
@@ -813,7 +849,7 @@ def in_between():
     w(0x2038, 0x9624, 0xB0B8, target); s(0x6D00, 'wait')
     w(0x4EF9, 0x0001, 0x565A)
     code = c.finish()
-    assert IN_BETWEEN + len(code) <= ROUTINE_RTS
+    assert IN_BETWEEN + len(code) <= MUSIC_KEEP
     return code
 
 
@@ -1204,6 +1240,12 @@ def main():
     out[SOUND_LINK:SOUND_LINK + 6] = b'\x4e\xf9' + SOUND_LINK_NEW.to_bytes(4, 'big')   # jmp
     code = sprite_mask()
     out[MASK:MASK + len(code)] = code
+    code, starts = music_keep()
+    out[MUSIC_KEEP:MUSIC_KEEP + len(code)] = code
+    for at, was, start in ((SONG_REQUEST, '23C0FFFF01E813FC0001FFFF02304E75', starts[0]),
+                           (SONG_END, '13FC0001FFFF022F4E75', starts[1])):
+        assert rom[at:at + len(was) // 2] == bytes.fromhex(was)
+        out[at:at + 6] = b'\x4e\xf9' + start.to_bytes(4, 'big')     # jmp
     code, starts = fight_pace()
     out[FIGHT_PACE:FIGHT_PACE + len(code)] = code
     for at, was, start in ((FIGHT_PASS_DRAW, '4EBA40A24EBA4252', starts[0]), (FIGHT_STEP_DRAW, '4EBA3FF44EBA36C2', starts[1])):

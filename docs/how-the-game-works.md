@@ -67,9 +67,30 @@ The two fighters are drawn at fixed places and only change pose. The loops draw 
 routines (`015738`, `015768`), not the main loop's, and they have no clock: each goes round as
 soon as its picture is up.
 
-The routine is also entered, and left within a single frame, at times when no fight follows. The
-music still gets switched and put back, so all that's heard is the level's song starting over.
-What those entries are hasn't been worked out.
+## Song changes
+
+Three routines choose the song, and the game logic reaches them through its jump table as well
+as directly:
+
+- `015CAA` sets the level's song, from a table of song by level and room at `010F44`, and
+  remembers it in `$964E`.
+- `015CC6` plays some other song for the time being: the fight song, a speech, an alert.
+- `015CDE` puts the level's song back.
+
+All three end in a request at `015D44`, which only leaves a note for the sound driver. The driver
+acts on it at the next frame, and a song always starts from its beginning.
+
+About twenty places in the game logic do the same thing: play another song, do something, put the
+level's song back. `008D66` is the commonest on level 1. When the something is over at once, both
+requests land in the same frame, the other song is never heard, and the level's song starts over.
+That's the restart heard again and again while walking about, and the original does it too.
+
+**The fix.** The request routine now notices a request made while another is still waiting to be
+picked up. If the new one asks for the song that's playing anyway, both are dropped and the music
+carries on. A change that lasts even one frame goes through as before, so a real fight still
+switches to the fight song and starts the level's song over afterwards. A song that has run out
+is noted (`015E10`), so that asking for it again still starts it. On four scripted walks round
+level 1, the original started a song 18 times and the patched build 8.
 
 ## Certificates
 

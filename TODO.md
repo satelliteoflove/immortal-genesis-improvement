@@ -67,8 +67,6 @@ the optimized game really runs.
 - [ ] The death sequence and restart were reported as too fast. A death in a fight is the fight's
       ending animation, which is now at the old pace, and the retry after it measures the same as
       the original (about 90 frames). Waiting to hear whether it still looks wrong.
-- [ ] The level's song starts over near trigger points, in the original too. The fight routine is
-      entered and left at once there. Work out what those entries are before changing anything.
 - [ ] Message text goes by quickly next to the NES version, and more so with a button held.
       Decide whether to slow it.
 - [ ] Smoother movement at the same game speed. A trial build (`tools/build_rom.py --smooth`)
@@ -80,6 +78,10 @@ the optimized game really runs.
 - [x] The wall torch's flame loses its top, from a slip in the game's tile search.
 - [x] Stray miscoloured pixels where a sprite passes behind scenery, from a mask shifted one bit
       too little.
+
+- [x] The level's song kept starting over while walking about. The game asked for an alert song
+      and for the level's song back within one frame, at about twenty places, whenever nothing
+      came of the alert. Those pairs of requests are now dropped. Not yet listened to.
 
 ## Things to keep
 
