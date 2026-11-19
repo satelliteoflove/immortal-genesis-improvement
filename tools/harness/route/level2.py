@@ -124,7 +124,41 @@ def goblins(g, log):
     log("in the king's room")
 
 
-STEPS = [first_room, merchant, to_the_goblins, goblins]
+GUARDS = (13, 12)
+
+
+def king(g, log):
+    """Room 5. Two goblin guards with 15 health each stand still until walked up to;
+    fight(patient=True) beats both without a blow taken (counter=True lost 2). A box with
+    no question follows each. Then the spores go down on the patch of dirt left of the
+    door, which the inventory does with no box (they become a thing on the floor). Their
+    cloud kills a wizard who stays about 29 updates, so out by the door at once, a few
+    updates in room 0, and back: the king is lying down then, and walking up to him he
+    asks for water; yes, and he gives the key."""
+    go(g, (66, 86))
+    for n in GUARDS:
+        health_left = attack(g, n, patient=True)
+        log(f'beat guard {n}, health {health_left}')
+        read(g)
+    go(g, (44, 52))
+    use(g, SPORES)
+    g.until(lambda g: not busy(g) and not has(g, SPORES), limit=300)
+    log('planted the spores')
+    go(g, (66, 86), (66, 104))
+    through_door(g, 'LEFT', 0)
+    ticks(g, 10)
+    through_door(g, 'RIGHT', 5)
+    go(g, (66, 86), (72, 40))
+    if walk_to(g, 76, 18) != 'busy':
+        fail(g, LEVEL, 'the king did not speak')
+    wait_busy(g)
+    read(g, 'y')
+    if not has(g, KEY) or has(g, WATER):
+        fail(g, LEVEL, f'the king did not take the water and give the key: {carried(g)}')
+    log('gave the king water and took the key')
+
+
+STEPS = [first_room, merchant, to_the_goblins, goblins, king]
 
 
 def play(g, log=print):
