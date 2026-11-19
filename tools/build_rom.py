@@ -778,7 +778,7 @@ def text_wait():
     return c.finish()
 
 
-def in_between():
+def in_between(old_poses=False):
     """Draw two pictures for each update: one part of the way from the last update, then the real one.
 
     The game logic leaves a list of things to draw: up to 32 entries of position, pose, depth
@@ -790,6 +790,10 @@ def in_between():
     The list has no names for things, and entries come and go, so each entry is paired with
     the nearest entry of last update's list that has the same sprite set and is within 16
     pixels of it in the room. An entry with no pair is drawn where it really is.
+
+    With old_poses, the in-between picture shows each paired entry in last update's pose
+    where it otherwise shows this update's. Nothing ships that way. Two builds that differ
+    only in this give two pictures to average, which is how a video of blended poses is made.
 
     There's no in-between picture when message text is on screen (text is drawn outside the
     list), when the camera has jumped, when the last update was too long ago, or when the
@@ -817,6 +821,11 @@ def in_between():
     w(0x43EC, 0x0E62, 0x4DF8, save, 0x702F)         # keep the real x, y and depth: 192 bytes
     c.label('save')
     w(0x2CD9); l(0x51C8, 'save')
+    if old_poses:
+        w(0x43EC, 0x0DE2, 0x4DF8, ram + 0x480, 0x701F)                  # keep the real poses too
+        c.label('save poses')
+        w(0x2CD9); l(0x51C8, 'save poses')
+        w(0x4DEC, 0x0DE2)                                               # a6 = this update's poses
     # a0 and a5 point into the middle of their lists, because an indexed address reaches 128 bytes:
     # x is at -$40(a0), y at (a0), depth at $40(a0); last update's are at -$80, -$40, 0 and $40(a5)
     w(0x41EC, 0x0EA2, 0x47EC, 0x0F22, 0x4BF8, prev + 0x80)
@@ -839,6 +848,8 @@ def in_between():
     c.label('chosen')
     w(0x3438, best); s(0x6B00, 'new')
     w(0x3442)                                       # a2 = the one it was
+    if old_poses:
+        w(0x43F8, ram + 0x400, 0x3DB1, 0xA000, 0x6000, 0x3DB1, 0xA040, 0x6040)  # its two pose numbers
     for mine, last in ((0xC0, 0x80), (0x00, 0xC0), (0x40, 0x00)):   # x, y and depth, part of the way back
         w(0x3030, 0x6000 | mine, 0x9075, 0xA000 | last); l(0x6100, 'part')
         w(0x9170, 0x6000 | mine)
@@ -858,6 +869,10 @@ def in_between():
     w(0x4DF8, save, 0x43EC, 0x0E62, 0x702F)         # the real values back
     c.label('back')
     w(0x22DE); l(0x51C8, 'back')
+    if old_poses:
+        w(0x4DF8, ram + 0x480, 0x43EC, 0x0DE2, 0x701F)
+        c.label('poses back')
+        w(0x22DE); l(0x51C8, 'poses back')
     w(0x3978, cam_x, 0x1160, 0x3978, cam_y, 0x1162)
     w(0x4EB9, 0x0001, 0x4624)                       # forget the in-between picture's sprites
     w(0x5278, drawn)
@@ -876,6 +891,10 @@ def in_between():
     w(0x41EC, 0x0E62, 0x4BF8, prev, 0x704F)         # remember this update: 320 bytes of list,
     c.label('keep')
     w(0x2AD8); l(0x51C8, 'keep')
+    if old_poses:
+        w(0x41EC, 0x0DE2, 0x4BF8, ram + 0x400, 0x701F)
+        c.label('keep poses')
+        w(0x2AD8); l(0x51C8, 'keep poses')
     w(0x31EC, 0x0FE2, prev_count, 0x31EC, 0x1160, prev_cam_x, 0x31EC, 0x1162, prev_cam_y)
     w(0x21F8, 0x9624, stamp)
     w(0x4CDF, 0x7FFF, 0x4E75)

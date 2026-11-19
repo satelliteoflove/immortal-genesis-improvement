@@ -68,5 +68,14 @@
   "files": [
    "local/20261118_223641_averaged_poses.png"
   ]
+ },
+ {
+  "time": "2026-11-18 23:09",
+  "title": "Blended poses in play: a mock-up video",
+  "note": "The stills weren't much use, so this is the same idea in motion, on level 5 where the wizard walks in the open.\n\nFour panels, same input. Top left is the patched build as it is, 12 pictures a second. Top right is the trial, which moves things in between but keeps one pose. Bottom left adds blended poses: in each in-between picture the wizard is half the last pose and half the next. Bottom right is the same with every blended pixel moved to the nearest colour already on screen, which is closer to what the console could show. The second clip is the same thing at quarter speed.\n\nIt's a mock-up. The game isn't blending anything. Two copies of the trial were run that differ only in which pose the in-between picture uses, and their pictures were averaged on the PC. The two runs stayed in step on all 425 frames, and 170 of those are blended pictures. Doing it for real would mean making the blended tiles when the ROM is built, one set for every pair of poses that follow each other.",
+  "files": [
+   "local/20261118_230914_blended_poses_level5.mp4",
+   "local/20261118_230914_blended_poses_level5_quarter_speed.mp4"
+  ]
  }
 ]
