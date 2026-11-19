@@ -529,6 +529,13 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
   `end_of_level()`: it waits for the story, lets it play, and returns None when the flag
   goes up. Which of the story's two tellings comes depends on bit 1 of `FF1071`, which the
   certificate carries.
+- 2026-11-19, level 8, **the ladder hole again, and a pit**. Room 0's hole is like level 3's
+  and 7's: DOWN onto it from x 104 to 110 is the ladder, from x 102 leftward it's a fatal
+  fall, and so is coming at it from the left or from below. `ladder(g, 'DOWN', 1)` from
+  (107, 80). A wide miss does no harm, so test a row of x values from a kept state and
+  aim at the middle of the good ones. Room 1's pit can't be seen and isn't in the things
+  table; it pulls the wizard in like a ladder does, deaf to the pad for about 45 updates,
+  and `through_door(g, 'LEFT', 2)` covers it. He lands with `action(g)` at 1 for 10 updates.
 - 2026-11-19, level 8, **random choices**. The game's random numbers are a table of 55
   bytes at `FF0C02`. To see every branch of something random while exploring (the teacher
   throws either of two bolts of different lengths), go back to a kept state, poke random

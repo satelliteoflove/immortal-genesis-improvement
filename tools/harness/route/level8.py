@@ -3,14 +3,17 @@
 
     tools/harness/route/level8.py [--original] [--delay N] [--quiet]
 
-There is no "End of level!" screen and no certificate here, so play() returns None once the
-ending's message is up. A death on this level is a Game Over at once: the game skips the
-retry on its last level, whatever the count at FF109A says.
+There is no "End of level!" screen and no certificate here: play() returns None once the
+game's closing story has played (see end_of_game() in common.py). A death on this level is a
+Game Over at once: the game skips the retry on its last level, whatever the count at FF109A
+says. No fights and no walking after the first two rooms: the wizard stands on a rock, and
+everything is using the right thing at the right moment, timed by the position of the
+dragon's and the teacher's animations.
 
 Thing numbers on this level (indexes into the tables at FF0AEE): 0 the gold, 1 the amulet,
 2 the statue book, 3 the magnetic hands scroll, 4 the sonic scroll, all carried in from the
-certificate; 7 the chest in room 0, holding 9 (the fire protection scroll) and 8 (the blink book)
-and some gold.
+certificate; 7 the chest in room 0, holding 9 (the fire protection scroll), 8 (the blink
+book) and some gold; 10 the teacher, 11 the dragon and 12 the reaper, all in room 2.
 """
 import os
 import sys
@@ -21,30 +24,30 @@ from common import *
 CERTIFICATE = 'e011f730178c1'
 LEVEL = 8
 
-GOLD, AMULET, STATUE, MAGNETIC, SONIC = 0, 1, 2, 3, 4
-CHEST, BLINK, FIRE = 7, 8, 9
-MORDAMIR, DRAGON, REAPER = 10, 11, 12           # they are things, in room 2
+AMULET, STATUE, MAGNETIC, SONIC = 1, 2, 3, 4
+BLINK, FIRE = 8, 9
+REAPER = 12
 
 # The dragon's routine (00BE7A) and the wizard's teacher's (00BC1E) each work through a
 # list of animations, one after another.
 DRAGON_STEP, DRAGON_SLOT = 0x0BC2, 0x0BC3       # how many begun; the slot of the one running
-MORDAMIR_STEP, MORDAMIR_MOVE, MORDAMIR_SLOT = 0x0BBD, 0x0BBE, 0x0BBC
+TEACHER_STEP, TEACHER_MOVE, TEACHER_SLOT = 0x0BBD, 0x0BBE, 0x0BBC
 STAGE = 0x0BC4                  # 0 the dragon attacks, 1 the amulet is up, 2 the teacher has come
 REAPER_COMING = 0x0BA8          # not zero once the reaper has been sent
 BLINKS, STATUES = 0x103E, 0x103F                # casts left of each
 
 BREATH, LONG_BREATH = 0x08, 0x0A                # the dragon's animations that end in fire
 BOLTS = {0x14: 20, 0x16: 26}                    # the teacher's two bolts, and how long each is
-STOOP, GLOAT, BURNING = 0x1A, 0x20, 0x22        # his other moves that matter
+STOOP, GLOAT = 0x1A, 0x20                       # his other moves that matter
 
-# What the wizard's action byte holds while each thing is happening to him.
-BLINKING, PROTECTED, STATUE_NOW = 0x14, 0x15, 0x16
+PROTECTED = 0x15                # the wizard's action byte while the fire scroll is working
+
 
 def cast(g, level, counter, what):
     """Press A to cast the armed spell and check that one of its casts was spent."""
     before = g.byte(counter)
     press_a(g)
-    for _ in range(12):
+    for _ in range(30):
         if g.byte(counter) != before:
             return
         g.step(1)
@@ -63,15 +66,16 @@ def play(g, log=print):
     search(g, 'yyy', BLINK, FIRE)
     log('opened the chest, carrying', carried(g))
 
-    # The ladder is in the hole below the chest. Stepping into the hole from above or from
-    # the right climbs down it; from the left or from below the wizard falls and dies.
-    go(g, (110, 80))
-    through_door(g, 'DOWN', 1)
+    # The ladder is in the hole below the chest. Walking DOWN onto the hole climbs down it
+    # from x 104 to 110 and is a fatal fall from x 102 leftward; so is walking onto it from
+    # the left or from below.
+    go(g, (107, 80))
+    ladder(g, 'DOWN', 1)
     log('down the ladder')
 
-    # Room 1 is empty. The pit in the middle can't be seen; walking onto it drops the wizard
-    # onto the rock in front of the dragon.
-    go(g, (112, 70))
+    # Room 1 is empty. The pit in the middle can't be seen; walking LEFT onto it anywhere
+    # from y 66 to 78 drops the wizard onto the rock in front of the dragon.
+    go(g, (120, 70))
     through_door(g, 'LEFT', 2)
     log('fell down the pit')
 
@@ -96,7 +100,7 @@ def dragon(g, log):
     breath, 22 to 33 of the long one. A blink lasts 11 updates and has to be under way
     before the fire comes and not be over until it has gone, so A is pressed at position 9
     (7 to 11 work). The seventh breath is too long for a blink; the fire protection scroll
-    lasts 16 updates and is used at position 16 (15 to 19 work)."""
+    lasts 16 updates and is used at position 17 (15 to 19 work)."""
     blinked = None
     while True:
         if not tick(g):
@@ -113,7 +117,7 @@ def dragon(g, log):
             cast(g, LEVEL, BLINKS, 'blink')
             blinked = step
             log(f'blinked at breath position {now[1]}, {g.byte(BLINKS)} left')
-        if now[0] == LONG_BREATH and now[1] >= 16:
+        if now[0] == LONG_BREATH and now[1] >= 17:
             break
     if g.byte(BLINKS) != 0:
         fail(g, LEVEL, f'the long breath came with {g.byte(BLINKS)} blinks unused')
@@ -139,11 +143,16 @@ def dragon(g, log):
 
 
 def teacher(g, log):
-    """From the teacher's arrival to the game's last message."""
-    # He appears and speaks, and takes the amulet.
-    while tick(g):
+    """From the teacher's arrival to the start of the closing story."""
+    # He appears, which takes about 70 updates, speaks, and takes the amulet.
+    for _ in range(300):
+        if not tick(g):
+            break
         if dead(g):
             fail(g, LEVEL, 'died waiting for the teacher')
+    else:
+        fail(g, LEVEL, 'the teacher did not come')
+    wait_busy(g, limit=60)
     read(g)
     if g.byte(STAGE) != 2 or AMULET in carried(g):      # its place byte doesn't change
         fail(g, LEVEL, 'the teacher has not taken the amulet')
@@ -156,39 +165,49 @@ def teacher(g, log):
 
 
 def duel(g, log):
-    """Outlast the teacher's spells, then take the amulet from him."""
-    # A bolt lands when its animation ends, and strikes for the 6 updates after. A statue
-    # lasts 11, so A is pressed 4 positions before the end (6 to 1 before work).
+    """Outlast the teacher's spells, then take the amulet from him.
+
+    His moves come in a fixed order, except that each bolt is one of two at random, of
+    different lengths. A bolt lands when its animation ends and strikes for the 6 updates
+    after. A statue lasts 11, so A is pressed 4 positions before the end (6 to 1 before
+    work). Three bolts, the stoop, two more bolts, the reaper, then he gloats."""
     done = None
     used_sonic = used_magnetic = dodged_reaper = False
     while True:
         if not tick(g):
             g.until(busy, limit=60)
             if ending(g):
+                if not used_magnetic:
+                    fail(g, LEVEL, 'the closing story came before the amulet was taken')
                 return
             read(g)
             continue
         if dead(g):
-            fail(g, LEVEL, f'killed at the teacher\'s step {g.byte(MORDAMIR_STEP)}, '
-                           f'move {g.byte(MORDAMIR_MOVE):02x}')
-        step, move = g.byte(MORDAMIR_STEP), g.byte(MORDAMIR_MOVE)
-        now = animation(g, g.byte(MORDAMIR_SLOT))
+            fail(g, LEVEL, f'killed at the teacher\'s step {g.byte(TEACHER_STEP)}, '
+                           f'move {g.byte(TEACHER_MOVE):02x}')
+        step, move = g.byte(TEACHER_STEP), g.byte(TEACHER_MOVE)
+        now = animation(g, g.byte(TEACHER_SLOT))
         if now and move in BOLTS and step != done and now[1] >= BOLTS[move] - 2:
             cast(g, LEVEL, STATUES, 'statue')
             done = step
             log(f'statue for bolt {move:02x} at step {step}, position {now[1]}; '
                 f'{g.byte(STATUES)} left')
-        elif now and move == STOOP and not used_sonic:
-            # He stoops to cast something that kills when the animation ends (12 updates)
-            # unless the sonic scroll is used while it runs. Used sooner, it's wasted.
+        elif now and move == STOOP and not used_sonic and now[1] >= 7:
+            # He stoops to cast something that kills when the animation ends, at position
+            # 15, unless the sonic scroll is used while it runs (4 to 13 work). Used before
+            # he stoops, it's wasted.
             use(g, SONIC)
             used_sonic = True
-            log('used the sonic scroll')
-        elif g.byte(REAPER_COMING) and not dodged_reaper and thing_frame(g, REAPER) >= 0x0B:
-            # The reaper strikes when its picture reaches 10h. The last statue covers it.
+            if SONIC in carried(g):
+                fail(g, LEVEL, 'the sonic scroll was not used')
+            log(f'used the sonic scroll at stoop position {now[1]}')
+        elif g.byte(REAPER_COMING) and not dodged_reaper and thing_frame(g, REAPER) >= 8:
+            # The reaper strikes when its picture reaches 16. The last statue covers that
+            # if A is pressed at picture 8 (3 to 13 work).
             cast(g, LEVEL, STATUES, 'statue')
             dodged_reaper = True
-            log(f'statue for the reaper, {g.byte(STATUES)} left')
+            log(f'statue for the reaper at its picture {thing_frame(g, REAPER)}, '
+                f'{g.byte(STATUES)} left')
         elif now and move == GLOAT and not used_magnetic:
             # He speaks as this move begins (the box is up before busy() can show it), then
             # holds the amulet up for 40 updates. The scroll works for 60 from its use, and
@@ -197,7 +216,11 @@ def duel(g, log):
             read(g)
             use(g, MAGNETIC)
             used_magnetic = True
+            if MAGNETIC in carried(g):
+                fail(g, LEVEL, 'magnetic hands was not used')
             log('used magnetic hands')
+        elif used_magnetic and move in BOLTS:
+            fail(g, LEVEL, 'magnetic hands did not take the amulet: he is casting again')
 
 
 if __name__ == '__main__':
