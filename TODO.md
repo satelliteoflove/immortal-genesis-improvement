@@ -64,8 +64,9 @@ the optimized game really runs.
 
 - [x] Fights ran nearly three times too fast after the drawing got faster. They're held to the
       original's pace now.
-- [ ] The death sequence and restart also run too fast. Find its loop, measure it against the
-      original and hold it to that pace.
+- [ ] The death sequence and restart were reported as too fast. A death in a fight is the fight's
+      ending animation, which is now at the old pace, and the retry after it measures the same as
+      the original (about 90 frames). Waiting to hear whether it still looks wrong.
 - [ ] The level's song starts over near trigger points, in the original too. The fight routine is
       entered and left at once there. Work out what those entries are before changing anything.
 - [ ] Message text goes by quickly next to the NES version, and more so with a button held.

@@ -60,6 +60,11 @@ A write to `A14000` crashes the headless build with a segfault in `machine_freez
 from `unused_write`. A test ROM of ours did this by accident. We haven't worked out why, or
 whether it also happens with a window open.
 
+Binding a controller in the menus (Settings, Controllers, Bindings) is close to unusable. As
+reported from use: a press is taken at once, the menu moves to the next input, and the same press
+is taken for that one too unless the button is already up again. It probably wants to wait for
+the button to be let go before listening for the next. Not looked into yet.
+
 ## Additions only this project needs
 
 `tools/harness/blastem-fork/harness/0001-control-file-poke-peek.patch` (branch
