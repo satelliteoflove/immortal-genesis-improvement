@@ -97,6 +97,13 @@ the optimized game really runs.
       picture each update; see `docs/smoother-movement.md`. Chris chose the original drawing
       speed.
 
+## Dead code
+
+- [x] Look for code that's never run. About 540 bytes in some twenty small pieces can't be
+      reached; 13 kind handlers and 2 creature actions are reachable but never ran in our
+      play. See `docs/dead-code.md`.
+- [ ] Find out whether the 13 kind handlers belong to things placed on some level.
+
 ## Bugs fixed
 
 - [x] The wall torch's flame loses its top, from a slip in the game's tile search.

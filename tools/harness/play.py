@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.join(ROOT, 'tools'))
 import romcheck
 
 RUNNER = os.path.join(ROOT, 'build', 'runner')
-CORE = os.path.join(ROOT, 'build', 'cores', 'blastem', 'blastem_libretro.so')
+CORE = os.environ.get('PLAY_CORE') or os.path.join(ROOT, 'build', 'cores', 'blastem', 'blastem_libretro.so')
 PATCHED = os.path.join(ROOT, 'build', 'immortal-patched.md')
 A4 = 0x300                              # the game's variables are addressed from FF0300
 

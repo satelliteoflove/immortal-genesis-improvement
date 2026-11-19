@@ -34,6 +34,9 @@
  *                         back to it; answers "ok" or "no"
  *        save FILE / load FILE   the same, to and from a file
  *        shot FILE        write the picture as a PNG; answers "ok"
+ *        prof FILE        with a core that counts executions of each 68000
+ *                         instruction, write the counts so far as -P does;
+ *                         answers "no" with any other core
  *        quit
  *      tools/harness/play.py wraps this for Python.
  * -B   file  the cartridge's battery RAM: read from the file before the first
@@ -507,6 +510,15 @@ int main(int argc, char **argv)
             } else if (sscanf(line, "shot %3999[^\n]", arg) == 1) {
                 if (frame) save_png(arg, scale);
                 fputs(frame ? "ok\n" : "no\n", proto);
+            } else if (sscanf(line, "prof %3999[^\n]", arg) == 1) {
+                /* with a core that counts instructions (retro_trace_hits), write the
+                   counts so far as -P does; "no" with any other core */
+                if (!trace_hits) {
+                    trace_hits = dlsym(core.h, "retro_trace_hits");
+                    trace_cycles = dlsym(core.h, "retro_trace_cycles");
+                }
+                if (trace_hits && trace_cycles) write_profile(arg);
+                fputs(trace_hits && trace_cycles ? "ok\n" : "no\n", proto);
             } else if (!strcmp(line, "quit")) {
                 break;
             } else {

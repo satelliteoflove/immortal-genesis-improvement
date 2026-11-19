@@ -1,0 +1,48 @@
+--- a/m68k.cpu	2026-11-18 18:23:32.348087162 -0500
++++ b/m68k.cpu	2026-11-19 15:14:11.650144379 -0500
+@@ -232,6 +232,7 @@
+ 	end
+ 	
+ m68k_run_op
++	ccall m68k_cov context pc
+ 	dispatch prefetch
+ 
+ m68k_mem_src
+--- a/m68k_util.c	2026-11-18 18:23:32.348087162 -0500
++++ b/m68k_util.c	2026-11-19 15:14:11.650144379 -0500
+@@ -398,3 +398,11 @@
+ 	address &= context->opts->gen.address_mask;
+ 	tern_delete(&context->breakpoints, tern_int_key(address, buf), NULL);
+ }
++
++/* Coverage for the immortal-32x harness: executions of each instruction address. */
++unsigned retro_trace_hits[0x800000];
++unsigned retro_trace_cycles[0x800000];
++void m68k_cov(m68k_context *context, uint32_t pc)
++{
++	retro_trace_hits[((pc - 2) & 0xFFFFFF) >> 1]++;
++}
+--- a/Makefile	2026-11-18 18:23:32.328086857 -0500
++++ b/Makefile	2026-11-19 15:16:37.012472780 -0500
+@@ -328,7 +328,7 @@
+ 
+ MAINOBJS:=$(COREOBJS) blastem.o $(RENDEROBJS) zip.o  menu.o debug.o gdb_remote.o bindings.o ctrl_fifo.o oscilloscope.o
+ 
+-LIBOBJS:=$(COREOBJS) libblastem.o rom.db.o $(LIBZOBJS)
++LIBOBJS:=$(COREOBJS) libblastem.o rom.db.o $(LIBZOBJS) cov_stubs.o
+ 
+ ifdef NONUKLEAR
+ CFLAGS+= -DDISABLE_NUKLEAR
+--- /dev/null	2026-11-09 11:31:04.717211934 -0500
++++ b/cov_stubs.c	2026-11-19 15:16:37.012472780 -0500
+@@ -0,0 +1,10 @@
++/* Stubs for the libretro build of the coverage core: the standalone emulator's
++   oscilloscope, control file and debug windows aren't part of the library. */
++#include <stdint.h>
++#include <stddef.h>
++typedef struct oscilloscope oscilloscope;
++uint8_t scope_add_channel(oscilloscope *scope, const char *name, uint32_t sample_rate) { return 0; }
++void scope_add_sample(oscilloscope *scope, uint8_t channel, int16_t value, uint8_t trigger) {}
++void ctrl_fifo_run_file(const char *path) {}
++typedef void (*window_close_handler)(uint8_t which);
++uint8_t debug_create_window(uint8_t debug_type, char *caption, uint32_t width, uint32_t height, window_close_handler close_handler) { return 0xFF; }
