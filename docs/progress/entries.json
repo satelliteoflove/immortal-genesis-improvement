@@ -117,5 +117,13 @@
   "title": "The whole game, played by script",
   "note": "All eight levels now have a script that plays them from start to finish, written from two walkthroughs by one agent per level, and tools/harness/route/whole_game.py chains them from a new game to the closing story. It passes on the original and the patched ROM: about 24 minutes of play, under two minutes to run. Each level also passes on its own, from the walkthrough's certificates. Two parts go by chance: level 2's slimes eat into the oil, and level 5's last slime loses about one game in eight, so that route waits for a game it wins. Along the way the level 8 script found that winning the game ends through Game Over, which our second-try prompt was answering with Try this level again?; that's fixed.",
   "files": []
+ },
+ {
+  "time": "2026-11-19 14:50",
+  "title": "A longer pause before a retry",
+  "note": "After a death with a retry left, \"Prepare to continue...\" was up for about a second, so the black screen came and went in about 1.5 seconds. It now stays up for 3 seconds, and a fresh press of A, B, C or Start ends it sooner. A button already held when it appears doesn't count until it's let go, and the game waits for a press to be let go before carrying on, so a C press doesn't open the inventory. The new routine sits in the body of an old routine the patch no longer runs, so the free space is unchanged.",
+  "files": [
+   "local/20261119_145018_new150.png"
+  ]
  }
 ]

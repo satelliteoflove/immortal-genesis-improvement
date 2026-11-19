@@ -164,6 +164,12 @@ SAVE_MESSAGES = {'over': 'Game Over&&Try this level again?%',
                  'continue': 'Continue a saved game?%',
                  'pick': 'Up or Down selects a level.&Press Start or A when done.&&         Level $=',
                  'saved': '&Game saved.@'}
+RETRY_MESSAGE = 0x81F4          # after a death with a retry left: "Prepare to continue..."
+PREPARE_TEXT = 0x42F9           # its text, which ended in three short pauses
+DEATH_PAUSE = TILE_SYNC + 6     # the new routine, in the old tile sync's body, never run now
+DEATH_PAUSE_END = 0x13BF6
+DEATH_PAUSE_FRAMES = 180        # how long the message stays up unless a button is pressed
+FRAME_WAIT = 0x14E3A            # waits for the next frame
 MASK = 0x1428C                  # hides the parts of sprites that are behind scenery
 MASK_END = 0x14508              # the first byte after its rts
 MASK_SHAPES = 0x141CC           # 16 shapes of 32 bytes; only the first 6 are data
@@ -1050,8 +1056,9 @@ def text_wait():
     Now a held button shortens the waits while typing and makes no difference to a pause.
     After a letter the wait is one frame, every other time it comes around. After punctuation
     it's one frame every time. With the frame it takes to draw each letter, that comes to
-    twice the usual typing speed. Every letter is drawn. A fresh press still ends any wait,
-    as it always did: that's handled by the caller, and isn't changed.
+    twice the usual typing speed. Every letter is drawn. A fresh press of A or C still ends a
+    pause, as it always did: that's handled by the caller, and isn't changed. B and Start no
+    longer do, since in the original they did it only by making every wait instant.
     """
     c = Code(TEXT_WAIT_NEW)
     w, s = c.words, c.short
@@ -1071,6 +1078,41 @@ def text_wait():
     w(0x4CDF, 0x0003)
     c.label('out')
     w(0x4E75)
+    return c.finish()
+
+
+def death_pause():
+    """Show "Prepare to continue..." for 3 seconds, or until a button is pressed.
+
+    The message used to end in three short pauses, about a second in all, which made the
+    retry after a death feel abrupt. A press of A or C ended whichever pause it fell in, and
+    B or Start did nothing. Now the message has no pauses of its own. This routine shows it,
+    then waits up to DEATH_PAUSE_FRAMES frames for a fresh press of A, B, C or Start. A
+    button already down when the message appears doesn't count until it has been let go.
+    After a press it waits for the buttons to be let go, so a C still down as the game
+    carries on doesn't open the inventory.
+    """
+    c = Code(DEATH_PAUSE)
+    w = c.words
+    w(0x123C, 0x009E)                                       # move.b  #$9E,d1      the message
+    w(0x4EB9, SAY >> 16, SAY & 0xFFFF)                      # jsr     SAY          as the game did
+    w(0x48E7, 0xE000)                                       # movem.l d0-d2,-(a7)
+    w(0x1238, PAD)                                          # move.b  PAD.w,d1     buttons down now
+    w(0x343C, DEATH_PAUSE_FRAMES - 1)                       # move.w  #frames-1,d2
+    c.label('frame')
+    w(0x4EB9, FRAME_WAIT >> 16, FRAME_WAIT & 0xFFFF)        # jsr     FRAME_WAIT
+    w(0x1038, PAD, 0x0200, 0x00F0)                          # move.b PAD.w,d0 / andi.b #$F0,d0
+    w(0x4601, 0xC200)                                       # not.b d1 / and.b d0,d1: pressed since
+    c.short(0x6600, 'done')                                 # bne     done
+    w(0x1200)                                               # move.b  d0,d1
+    c.long(0x51CA, 'frame')                                 # dbra    d2,frame
+    c.short(0x6000, 'out')                                  # bra     out
+    c.label('done')                                         # a press: wait for it to be let go,
+    w(0x4EB9, FRAME_WAIT >> 16, FRAME_WAIT & 0xFFFF)        #   or the game takes C as opening
+    w(0x1038, PAD, 0x0200, 0x00F0)                          #   the inventory
+    c.short(0x6600, 'done')
+    c.label('out')
+    w(0x4CDF, 0x0007, 0x4E75)                               # movem.l (a7)+,d0-d2 / rts
     return c.finish()
 
 
@@ -1606,6 +1648,13 @@ def main():
         assert rom[at:at + len(was) // 2] == bytes.fromhex(was)
         out[at:at + 6] = fill + start.to_bytes(4, 'big')        # jsr or jmp
     out[LEVEL_END + 6:LEVEL_END + 8] = b'\x4e\x71'               # nop
+    code = death_pause()                            # in the old tile sync's body, after its jmp
+    assert DEATH_PAUSE + len(code) <= DEATH_PAUSE_END and out[DEATH_PAUSE:DEATH_PAUSE_END] == rom[DEATH_PAUSE:DEATH_PAUSE_END]
+    out[DEATH_PAUSE:DEATH_PAUSE + len(code)] = code
+    assert rom[RETRY_MESSAGE:RETRY_MESSAGE + 8] == bytes.fromhex('123C009E4EBA4B5C')
+    out[RETRY_MESSAGE:RETRY_MESSAGE + 8] = b'\x4e\xb9' + DEATH_PAUSE.to_bytes(4, 'big') + b'\x4e\x71'   # jsr, nop
+    assert rom[PREPARE_TEXT:PREPARE_TEXT + 26] == b'Prepare to continue...]]]='
+    out[PREPARE_TEXT + 22:PREPARE_TEXT + 26] = b'===='              # no pauses: the routine waits
     assert rom[SAVE_HEADER:SAVE_HEADER + 12] == b' ' * 12
     out[SAVE_HEADER:SAVE_HEADER + 12] = b'RA\xf8\x20' + (SAVE_RAM).to_bytes(4, 'big') + SAVE_RAM_END.to_bytes(4, 'big')
     os.makedirs(BUILD, exist_ok=True)

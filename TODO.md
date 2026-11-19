@@ -80,10 +80,13 @@ the optimized game really runs.
 
 - [x] Fights ran nearly three times too fast after the drawing got faster. They're held to the
       original's pace now.
-- [ ] The death sequence and restart were reported as too fast. A death in a fight is the fight's
+- [x] The death sequence and restart were reported as too fast. A death in a fight is the fight's
       ending animation, which is now at the old pace, and the retry after it measures the same as
-      the original (about 90 frames). Chris agrees it's too quick and wants it longer than
-      1.5 seconds.
+      the original (about 90 frames). Chris agreed it was too quick. "Prepare to continue..."
+      now stays up for 3 seconds, and a press of A, B, C or Start ends it sooner.
+- [ ] Pauses in other messages can only be cut short with A or C now. In the original any
+      button did it, because a held button made every wait instant. Decide whether B and
+      Start should end a pause too.
 - [x] Message text flew by with a button held. It now types at twice the usual speed with a
       button held, and the pause at the end of a page stays. Normal typing is unchanged.
 - [x] Smoother movement at the same game speed: tried and dropped. A trial drew an in-between

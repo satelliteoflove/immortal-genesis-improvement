@@ -52,14 +52,26 @@ Seen in the running game:
 
 - Each level starts with 2 retries, so the wizard has three lives per level. The count is
   set when a level starts (`012DFA`).
-- After a fatal fall, the game holds on the scene for at least 3 seconds, unless a button
-  is pressed, which skips the wait at once.
-- With a retry left, it shows "Prepare to continue..." and puts the wizard back in the same
-  room, at what looks like the room's entrance.
+- After a fatal fall, the game holds on the empty scene for about 4 seconds (246 frames on
+  both ROMs, measured on level 3), and after a lost fight for 6 to 8 seconds. A button
+  doesn't shorten either.
+- With a retry left, it shows "Prepare to continue..." on a black screen and puts the
+  wizard back in the same room, at what looks like the room's entrance. The message ended
+  in three short pauses, about a second in all, so the black screen lasted about 1.5
+  seconds. A fresh press of A or C ended whichever pause it fell in; in the original, any
+  button held made the pauses' waits instant.
 - With none left, it shows "Game Over", then "Play again?", then the "New game?" prompt.
   YES goes back to the very first room of the game. NO asks for a certificate.
 
-**The change.** Game Over now asks "Try this level again?". YES starts the level over with
+**The changes.** "Prepare to continue..." now stays up for 3 seconds, or until a fresh
+press of A, B, C or Start; a button already down when it appears doesn't count until it's
+let go. The message's own pauses are gone, and the waiting is done by a routine at `013B7E`,
+in the body of the old tile sync routine, which never runs now. It's called from `0081F4`,
+and after a press it waits for the buttons to be let go, since a C still down when play
+carries on would open the inventory. From the black screen to walking again takes about 3.5
+seconds without a press.
+
+Game Over now asks "Try this level again?". YES starts the level over with
 three lives and what the wizard carried into it. NO goes on to the prompts a game starts
 with. See "Saving" below.
 
