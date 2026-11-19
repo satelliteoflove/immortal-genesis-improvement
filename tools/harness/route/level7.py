@@ -3,7 +3,7 @@
 
     tools/harness/route/level7.py [--original] [--delay N] [--quiet]
 
-Not finished: it gets as far as the room below the first ladder.
+Not finished: it gets as far as the barrel in the water of room 4.
 
 The level has five rooms, 0 to 4, and starts in room 1.
 
@@ -25,7 +25,8 @@ RING, STATUE, MAGNETIC, SONIC = 1, 5, 6, 7
 
 
 def play(g, log=print, until=None):
-    """until names a place to stop early, for exploring: 'troll', 'ring', 'room2'."""
+    """until names a place to stop early, for exploring: 'troll', 'ring', 'room2', 'man',
+    'room4'."""
     if g.level != 6 or g.room != 1:
         fail(g, LEVEL, f'expected the first room of level 7, found level {g.level} room {g.room}')
     if not has(g, RING):
@@ -59,7 +60,24 @@ def play(g, log=print, until=None):
     if until == 'room2':
         return
 
-    fail(g, LEVEL, 'the route is not written past the first ladder')
+    # Room 2. A man is waiting at the foot of the ladder. He talks and then fights, and has
+    # 9 health to the troll's 3.
+    wait_busy(g)
+    read(g)
+    log('the man at the foot of the ladder: won with health', fight(g))
+    read(g)
+    if until == 'man':
+        return
+
+    # The straw (thing 3) isn't needed. The next ladder is a hole on the left, safe from its
+    # right and top like the first one, and it goes straight to room 4.
+    go(g, (90, 80), (67, 102))
+    through_door(g, 'LEFT', 4)
+    log('down the second ladder')
+    if until == 'room4':
+        return
+
+    fail(g, LEVEL, 'the route is not written past the second ladder')
     return end_of_level(g)
 
 
