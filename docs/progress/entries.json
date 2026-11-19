@@ -111,5 +111,11 @@
   "files": [
    "local/20261119_101949_battery_saves.png"
   ]
+ },
+ {
+  "time": "2026-11-19 13:11",
+  "title": "The whole game, played by script",
+  "note": "All eight levels now have a script that plays them from start to finish, written from two walkthroughs by one agent per level, and tools/harness/route/whole_game.py chains them from a new game to the closing story. It passes on the original and the patched ROM: about 24 minutes of play, under two minutes to run. Each level also passes on its own, from the walkthrough's certificates. Two parts go by chance: level 2's slimes eat into the oil, and level 5's last slime loses about one game in eight, so that route waits for a game it wins. Along the way the level 8 script found that winning the game ends through Game Over, which our second-try prompt was answering with Try this level again?; that's fixed.",
+  "files": []
  }
 ]
