@@ -158,7 +158,73 @@ def king(g, log):
     log('gave the king water and took the key')
 
 
-STEPS = [first_room, merchant, to_the_goblins, goblins, king]
+OIL_LEFT = 0x0A1C                       # the oil's budget; see oil_left()
+
+
+def oil_left(g):
+    """What is left of the slime oil: 80 when it is rubbed on, 1 less for each update a
+    slime touches the wizard. FF before."""
+    return g.byte(OIL_LEFT)
+
+
+def back_to_the_first_room(g, log):
+    """Rooms 5, 0 and 1 back to room 4, rubbing the oil on the wizard's boots by the door."""
+    go(g, (72, 40), (66, 86), (66, 104))
+    through_door(g, 'LEFT', 0)
+    go(g, (170, 180), (160, 200))
+    through_door(g, 'LEFT', 1)
+    go(g, (110, 50), (60, 110), (60, 150), (100, 165), (160, 175))
+    use(g, OIL)
+    read(g)
+    g.until(lambda g: not busy(g) and oil_left(g) == 80, limit=300)
+    log('oiled the boots')
+    go(g, (166, 218))
+    through_door(g, 'DOWN', 4)
+    log('back in the first room')
+
+
+GEM_KIND = 0x39
+
+
+def gems_and_sword(g, log):
+    """Room 4 again, oiled: the slimes still come and sit on the wizard, but each update
+    they do only takes 1 off the oil. The stone is dropped from the inventory (no
+    question) a little in from the door, and the first slime to cross it turns it into a
+    gem, there on the floor: its kind goes from 3A to 39, about 35 updates later. Then the
+    gem that was always here, the one the stone became, and the bones (search them? the
+    sword, take it? search further? no: further down is a slime). The sword isn't
+    carried; FF0A1A goes to 1. Out by the bottom door to room 3."""
+    go(g, (80, 50))
+    use(g, STONE)
+    g.until(lambda g: not busy(g) and place(g, STONE) == 0x84, limit=300)
+    for _ in range(200):
+        if g.byte(THING_KIND + STONE) == GEM_KIND:
+            break
+        if not tick(g):
+            fail(g, LEVEL, 'the game stopped while waiting for a slime to take the stone')
+    else:
+        fail(g, LEVEL, 'no slime turned the stone into a gem')
+    log(f'a slime turned the stone into a gem; oil left {oil_left(g)}')
+    walk_to(g, *thing_xy(g, GEM), near=1)
+    search(g, 'y', GEM)
+    walk_to(g, *thing_xy(g, STONE), near=1)
+    search(g, 'y', STONE)
+    log(f'took both gems; oil left {oil_left(g)}')
+    try:
+        walk_to(g, *thing_xy(g, BONES), near=1)
+    except Stuck:
+        pass                            # the bones are solid; the box comes all the same
+    search(g, 'yyn')
+    if g.byte(SWORD) != 1:
+        fail(g, LEVEL, 'the bones did not give the sword')
+    log(f'took the sword; oil left {oil_left(g)}')
+    go(g, (66, 110), (68, 126))
+    through_door(g, 'DOWN', 3)
+    log(f'in the dwarf\'s passage; oil left {oil_left(g)}')
+
+
+STEPS = [first_room, merchant, to_the_goblins, goblins, king, back_to_the_first_room,
+         gems_and_sword]
 
 
 def play(g, log=print):
