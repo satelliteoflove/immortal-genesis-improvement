@@ -15,8 +15,12 @@ figcaption { color: #8b93a1; font-size: .8rem; margin-top: .2rem; }
 img, video { image-rendering: pixelated; max-width: 100%; border: 1px solid #2a2e36; background: #000; display: block; }
 </style></head>
 <body><h1>The Immortal (Genesis patch): progress</h1>
-<div class="sub">Newest first. Last entry 2026-11-18 23:09. Reload to see new entries.</div>
-<article><time>2026-11-18 23:09</time><h2>Blended poses in play: a mock-up video</h2><p>The stills weren&#x27;t much use, so this is the same idea in motion, on level 5 where the wizard walks in the open.
+<div class="sub">Newest first. Last entry 2026-11-18 23:22. Reload to see new entries.</div>
+<article><time>2026-11-18 23:22</time><h2>Blended poses the console could show: a checkerboard</h2><p>Chris liked the true half-and-half blend best. The console can&#x27;t show it: a sprite has 15 colors and no way to be half see-through. The flicker on the staff in the last video&#x27;s fourth panel was that limit showing.
+
+The old trick is a checkerboard. In each in-between picture, the odd pixels come from one pose and the even pixels from the other. It uses only colors the sprite already has, it needs no new artwork, and the game could build it as it goes. The bottom right panel now shows that in place of the nearest-color version. The other three panels are as before.
+
+On a TV fed by composite video the checkerboard smears into something close to the true blend. On an emulator with sharp pixels it shows as a fine mesh for the two frames it&#x27;s up. Still a mock-up made on the PC from two runs of the trial.</p><div class="media"><figure><video src="local/20261118_232215_checkerboard_poses_level5.mp4" onerror="this.closest('figure').remove()" controls loop muted autoplay playsinline width="640"></video><figcaption>checkerboard_poses_level5.mp4</figcaption></figure><figure><video src="local/20261118_232215_checkerboard_poses_level5_quarter_speed.mp4" onerror="this.closest('figure').remove()" controls loop muted autoplay playsinline width="640"></video><figcaption>checkerboard_poses_level5_quarter_speed.mp4</figcaption></figure></div></article><article><time>2026-11-18 23:09</time><h2>Blended poses in play: a mock-up video</h2><p>The stills weren&#x27;t much use, so this is the same idea in motion, on level 5 where the wizard walks in the open.
 
 Four panels, same input. Top left is the patched build as it is, 12 pictures a second. Top right is the trial, which moves things in between but keeps one pose. Bottom left adds blended poses: in each in-between picture the wizard is half the last pose and half the next. Bottom right is the same with every blended pixel moved to the nearest color already on screen, which is closer to what the console could show. The second clip is the same thing at quarter speed.
 

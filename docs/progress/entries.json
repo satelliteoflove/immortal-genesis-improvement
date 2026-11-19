@@ -77,5 +77,14 @@
    "local/20261118_230914_blended_poses_level5.mp4",
    "local/20261118_230914_blended_poses_level5_quarter_speed.mp4"
   ]
+ },
+ {
+  "time": "2026-11-18 23:22",
+  "title": "Blended poses the console could show: a checkerboard",
+  "note": "Chris liked the true half-and-half blend best. The console can't show it: a sprite has 15 colors and no way to be half see-through. The flicker on the staff in the last video's fourth panel was that limit showing.\n\nThe old trick is a checkerboard. In each in-between picture, the odd pixels come from one pose and the even pixels from the other. It uses only colors the sprite already has, it needs no new artwork, and the game could build it as it goes. The bottom right panel now shows that in place of the nearest-color version. The other three panels are as before.\n\nOn a TV fed by composite video the checkerboard smears into something close to the true blend. On an emulator with sharp pixels it shows as a fine mesh for the two frames it's up. Still a mock-up made on the PC from two runs of the trial.",
+  "files": [
+   "local/20261118_232215_checkerboard_poses_level5.mp4",
+   "local/20261118_232215_checkerboard_poses_level5_quarter_speed.mp4"
+  ]
  }
 ]
