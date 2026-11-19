@@ -282,6 +282,21 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
   in the things table, on the floor of his room, and what he gives is a thing inside him
   (place 5). Walk to within about 7 of his thing's x and y and he talks; `read(g)`, then
   `has(g, 6)`. The creature tables' x and y for him are something else; use the thing's.
+- 2026-11-19, level 7, **giving a thing to a person**. No inventory press is needed. Walk
+  into the person (the chained man on level 7 is thing 4, a thing on the floor like level
+  4's man), his words come up, and the last box is a question: give him the ring? So
+  `walk_to` returns `'busy'`, then `wait_busy(g); read(g, 'y')`. The thing given goes from
+  the table (its kind at `FF0AEE` becomes `FF`, so `has` is false) and what he held (place
+  = his thing number) is now carried. Check both.
+- 2026-11-19, level 7, **a ladder down is a hole with a safe side**. Stepping onto the hole
+  from the side the ladder leans on, the wizard snaps to the middle, climbs for about 38
+  updates deaf to the pad, and the room changes: `through_door(g, 'LEFT', room)` covers it.
+  Stepping onto the same hole from the other side drops him in and kills him (health 0 six
+  updates later). On level 7's room 1 the safe side is the right and top right of the hole;
+  the left, bottom and top left kill. Try each side from a kept state before choosing.
+- 2026-11-19, level 7, **stale table entries**. The things tables aren't cleared between
+  levels: after `start_level` the entries past the level's own things still hold level 1's
+  x, y and place (their kind is `FF`). Count a level's things by the kinds at `FF0AEE`.
 
 ## Where each level stands
 
@@ -293,5 +308,5 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
 | 4 | `level4.py` gets past the troll at the start and takes the carpet | Those parts pass all six |
 | 5 | not started | |
 | 6 | not started | |
-| 7 | not started | |
+| 7 | `level7.py` beats the troll, gives the ring and climbs down the first ladder | Those parts pass on both ROMs |
 | 8 | not started | |
