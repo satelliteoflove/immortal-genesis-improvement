@@ -85,9 +85,9 @@ and `disasm/immortal.dis` is the whole disassembly (made by `tools/disasm.py`, n
 |---|---|---|
 | `FF1070` | Level, 0 to 7 | Seen |
 | `FF1051` | Room | Seen |
-| `FF08BC` | The wizard's x. LEFT lowers it, RIGHT raises it | Seen once |
-| `FF08D0` | The wizard's y. DOWN raises it | Seen once |
-| `FF090C` | The wizard's health in the high four bits, 15 at most | Read from code |
+| `FF08BC` | The wizard's x in the room. LEFT lowers it by 3 an update, RIGHT raises it | Seen, level 1 |
+| `FF08D0` | The wizard's y in the room. UP lowers it by 4 an update, DOWN raises it | Seen, level 1 |
+| `FF090C` | The wizard's health in the high four bits, 15 at most | Seen through a fight, level 1 |
 | `FF109A` | Retries left on this level, 2 at its start | Seen |
 | `FF0AEE` | 42 bytes, one for each thing on the level or carried, `FF` for none | Seen |
 | `FF106F` | Set when the level is over | Seen |
@@ -95,7 +95,19 @@ and `disasm/immortal.dis` is the whole disassembly (made by `tools/disasm.py`, n
 | `FF108C` | A certificate's 13 digits, a byte each | Seen |
 | `FF9624` | Count of vertical blanks (long) | Seen |
 | `FF12E6` | The count at which the next update may begin (long). An update is 5 frames | Seen |
-| `FF962A` | Pad 1 as the game last read it | Read from code |
+| `FF962A` | Pad 1 as the game last read it: UP 01, DOWN 02, LEFT 04, RIGHT 08, B 10, C 20, A 40, START 80 | Seen |
+| `FF0C4E` | Bit 1 set while the game has seen C down, bit 2 for A. It acts on a press only when the bit was clear | Seen |
+| `FF0C52` | The last letter a text box drew. `40` or `00` when the text has ended and waits for a button, `3D` when it ended without waiting | Seen |
+| `FF0C4C` | The length of the text box's wait in progress: 5 after a letter, `8C` or `28` for the pause at the end of a page | Seen |
+| `FF0C4D` | A question's lit answer: 0 none, 1 NO, 2 YES. Only a question on screen changes it, and it's left as it was afterward | Seen |
+| `FF0A70`, `FF0A9A` | Each thing's x and y, 42 bytes each, in step with the things table at `FF0AEE` | Seen |
+| `FF0B42` | Each thing's place: `40` carried by the wizard, `40`+n by creature n, `80`+n on the floor of room n, lower numbers inside the thing of that number | Seen |
+| `FF0DD4`+16, `FF0D54`+16, `FF0C54` | How many things the wizard carries, where his list starts, and the lists themselves (thing numbers, in inventory order) | Seen |
+| `FF1083` | The inventory's cursor: slot 0 to 5. `FF1086` is 1 if it was left with A | Seen |
+| `FF10AE` | Not zero while a fight is on | Seen |
+| `FF10A7`, `FF10A8` | In a fight, the enemy's health and the wizard's. A hit takes 1 | Seen |
+| `FF10B0`, `FF10B2` | In a fight, the wizard's move and the enemy's (see "Fights" below) | Read from code, used |
+| `FF10A6`, `FF10A5` | In a fight, the wizard's pose and the enemy's | Read from code, used |
 
 The x and y look like bytes in tables of 20, one entry for each moving thing, with the wizard
 first: `FF08BC` + n and `FF08D0` + n. That's a guess from one look.
@@ -113,6 +125,72 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
 - 2026-11-19, groundwork: with a battery save present the patched game asks "Continue a saved
   game?" before "New game?". `Game()` is started without a battery file unless one is asked
   for, so routes never meet that prompt.
+
+- 2026-11-19, level 1, **the buttons**. Walking: C opens the inventory, A fires the fireball
+  once its scroll has been used, B and START do nothing. In a text box: a fresh press of C or
+  A ends the wait in progress, and any button held hurries the typing. In a fight: LEFT or
+  RIGHT alone slashes, A alone jabs, C or B with LEFT or RIGHT dodges.
+- 2026-11-19, level 1, **presses**. The game looks at the pad once an update while walking
+  (5 frames, up to 11 on the original) and every 4 or 5 frames in a text box or the inventory.
+  A 4-frame press can be missed altogether. Hold a button until RAM shows it was seen
+  (`FF0C4E`), which is what the helpers do. C and A only count when fresh, so a C still held
+  when a text box closes does not open the inventory, but letting go and pressing again does.
+- 2026-11-19, level 1, **trap in play.py**: in a new `Game()`, `g.load(file)` before any
+  `g.step()` leaves the machine frozen (nothing errors, RAM just never changes). Do
+  `g.step(1)` first. `keep`/`back` after a step are fine.
+- 2026-11-19, level 1, **busy**. `busy(g)` is true when the main loop has stopped going
+  round (vertical blank count more than 12 past the deadline at `FF12E6`): a text box, the
+  inventory, a fight, a death. It shows about 12 frames after the thing begins, so after
+  walking onto something call `wait_busy(g)` before `read(g)`. `tick(g, buttons)` runs one
+  update and returns False if none came.
+- 2026-11-19, level 1, **text boxes**: `read(g, answers='', quiet=24)` gets through whatever
+  text is up and returns when the game is running again. `answers` has a letter for each
+  question on the way, `'y'` or `'n'`: searching the first body is `read(g, 'yyy')` (search?
+  take the first thing? take the second?). It raises if a question comes with no answer
+  given, or if answers are left over after 600 frames of the game running. Text boxes are
+  not part of the main loop; the routine at `00CF04` runs until the text is done. Pages in
+  the middle pause and go on by themselves; the last page waits for C or A unless the text
+  ends with its no-wait mark, as the candle's speech in the first room does. `read` holds B
+  through the typing because B hurries text and does nothing anywhere else.
+- 2026-11-19, level 1, **questions**: the lit answer follows the pad (RIGHT for YES, LEFT for
+  NO) and C or A takes it. `FF0C4D` keeps its value after the question has gone, so `read`
+  holds the other direction, then the wanted one, and presses C only after seeing the byte
+  follow. Don't press C at a question by frame count.
+- 2026-11-19, level 1, **walking**: the wizard's x and y are in the room's own coordinates,
+  screen-wise, not along the tiles: LEFT is x-3 an update, UP is y-4, a diagonal is 2 and 2.
+  The room's walls run diagonally, and walking into one slides the wizard along it, so he is
+  seldom stuck dead. `walk_to(g, x, y)` walks a straight line and says how it ended
+  (`'there'`, `'busy'`, `'room'`, `'stop'`), raising `Stuck` after 6 updates without moving.
+  `go(g, (x, y), ...)` walks through points and raises unless each is reached. Take a
+  position from RAM with `xy(g)` after stepping by hand, and look at `g.shot()` to see what
+  is in the way: floor traps don't show in RAM before they fire.
+- 2026-11-19, level 1, **doors**: nothing special in RAM. Walk into the doorway and the room
+  number changes while the wizard keeps walking; his x and y jump to the new room's numbers.
+  `through_door(g, buttons, room)` holds the buttons until the room changes and checks it.
+- 2026-11-19, level 1, **things**: a thing is one index in seven 42-byte tables. Its kind is
+  at `FF0AEE`, x and y at `FF0A70` and `FF0A9A`, its place at `FF0B42`. A body or chest is a
+  thing on the floor (`80`+room) and what's in it has the container's number as its place.
+  Walking to within about 9 across and 7 up or down of a container's x and y brings up its
+  question by itself; no button. Taking something sets its place to `40`. `has(g, n)`,
+  `place(g, n)`, `thing_xy(g, n)` and `carried(g)` read these. Print the tables at the start
+  of your level to see where everything is.
+- 2026-11-19, level 1, **inventory**: C opens it. It shows five things a page in slots 0 to
+  4, and slot 5 is "more" when there are over five. Slot 0 is top middle, 1 top left, 2 top
+  right, 3 bottom left, 4 bottom middle, 5 bottom right, and the things fill them in the
+  order of `carried(g)`. There is no moving cursor: the slot is chosen by the direction held
+  when A is pressed (none 0, LEFT 1, RIGHT 2, DOWN+LEFT 3, DOWN 4, DOWN+RIGHT 5). A uses the
+  thing and closes the screen; choosing a thing with no use just closes it. `use(g, n)` does
+  all of it for thing number n and checks the cursor at `FF1083` before pressing. Paging past
+  five things is written but not yet tried.
+- 2026-11-19, level 1, **fights**: an enemy that reaches the wizard starts one; `FF10AE`
+  goes non-zero and the fight's own loop (`011590`) runs until one side's health is 0. The
+  wizard's move is at `FF10B0` (0 free, 1 to 4 a slash begun with LEFT, 5 to 8 one begun with
+  RIGHT, 9, 10 and 12 a jab, 11 reeling from a hit) and the enemy's at `FF10B2` (4 and 5 a
+  swing that C+LEFT dodges, 8 and 9 one that C+RIGHT dodges, 2 and 3 its own dodges, 1
+  reeling). The wizard can only dodge while his move is 0. Every hit takes 1 health.
+  `fight(g)` dodges whenever the enemy is in a swing and slashes otherwise, changing sides so
+  the next slash skips its wind-up. It returns the health left and raises `Died`. On the
+  first goblin (3 health) it won 26 runs out of 26 without being hit, on both ROMs.
 
 ## Where each level stands
 
