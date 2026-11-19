@@ -29,7 +29,7 @@ and the Genesis ROM accepts all of them:
 |---|---|
 | 2 | `cddff10006f70` |
 | 3 | `f47ef21000e10` |
-| 4 | `b5fff31001eb0` |
+| 4 | `level4.py` gets past the troll, takes the carpet and flies the first flame room (room 4) to the door of the second | Those parts pass on both ROMs |
 | 5 | `d630f43000eb0` |
 | 6 | `563ff53010a41` |
 | 7 | `c250f63010ac1` |
@@ -113,6 +113,11 @@ and `disasm/immortal.dis` is the whole disassembly (made by `tools/disasm.py`, n
 | `FF090C` + n, low four bits | The room creature n is in | Seen, level 3 |
 | `FF0B6C` + a scroll's thing number | The fireballs left in it | Seen, level 3 |
 | `FF0F62`, `FF0F68`, `FF0BCC` | Level 3's spike room: the x and y of the spike that is up, and its step in a round of 15 | Seen, level 3 |
+| `FF0A1D` | 1 while the wizard is on the flying carpet | Seen, level 4 |
+| `FF0A3E`, `FF0A3F` | The carpet's speed across and down, signed, -5 to 5 | Seen, level 4 |
+| `FF1042` | The carpet's life left: 25 new, 1 less every 16 updates of flying | Seen, level 4 |
+| `FF1043` | Steps on foot left before a worm comes (level 4's flame rooms): 16 on entering | Seen, level 4 |
+| `FF0F80` + i, `FF0F88` + i, `FF0F90` + i | Fireball i of 8: x, y, and `FF` when the slot is empty | Seen, level 4 |
 | `FF10AE` | Not zero while a fight is on | Seen |
 | `FF10A7`, `FF10A8` | In a fight, the enemy's health and the wizard's. A hit takes 1 | Seen |
 | `FF10B0`, `FF10B2` | In a fight, the wizard's move and the enemy's (see "Fights" below) | Read from code, used |
@@ -398,6 +403,43 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
 - 2026-11-19, level 3, **someone who speaks before a ladder**: the goblin king is thing 23
   beside the ladder up in room 7. Pushing at the ladder first brings his words
   (`bump(g, 'RIGHT'); read(g)`), and the same push afterward climbs.
+- 2026-11-19, level 4, **flying** (the carpet, thing 6). `mount(g, 6)` gets on by using it
+  from the inventory and `mount(g, 6, on=False)` gets off; no text box either way.
+  `flying(g)` is `FF0A1D`. The carpet has a speed on each axis (`FF0A3E` across, `FF0A3F`
+  down, signed, 5 at most): a direction held changes that axis by 1 an update and letting
+  go does not slow it, so it has to be braked. `fly_to(g, x, y)` steers to a point and
+  stops dead on it; `fly(g, (x, y), ...)` does several. Walls turn the carpet aside. Getting
+  off stops it where it is. Its life is `FF1042` (`fly_time(g)`): 25 when first used, 1 less
+  every 16 updates in the air, not counting while he walks, and not topped up by getting
+  on again. At 0 he is set down where he is. Doors don't open to the carpet: get off beside
+  the door and walk in.
+- 2026-11-19, level 4, **worms under the floor**. In level 4's two flame rooms `FF1043`
+  (`worm_steps(g)`) is 16 on coming in and drops by 1 for every update the wizard walks.
+  At 0 a worm takes him, wherever he is. Standing still and flying don't count, so the
+  doorway is safe to stand in, and about 12 steps are left after the 3 or 4 that walking
+  in costs. It is not a matter of where he stands, so `room_map` shows such a room as a
+  small diamond round the door: that's the count running out, not walls.
+- 2026-11-19, level 4, **flamethrowers and fireballs**. A nozzle on the floor burns the
+  wizard at once if he is within its square, 12 by 12 in his coordinates, flying or not
+  (on foot it is simply solid). Nothing in the things table says where they are; thing 16
+  hops from nozzle to nozzle every 20 updates and seems only to be the one that is
+  spitting. Fireballs are another table: 8 slots, x at `FF0F80` + i, y at `FF0F88` + i,
+  `FF0F90` + i is `FF` when the slot is empty. They fly along the tiles' diagonals (2 or 4
+  on both axes an update), always down the same few lanes, and one that comes within about
+  4 of the wizard costs 1 or 2 health and is gone. Hovering in a lane gets him hit over
+  and over; crossing one is mostly luck.
+- 2026-11-19, level 4, **x is in half pixels**: one of the wizard's x is 2 pixels on the
+  320-wide screen and one y is 1, which is why a step is 3 across and 4 down. Remember it
+  when reading a position off a picture.
+- 2026-11-19, level 4, **mapping a room that kills** (exploring only, it pokes). Writing
+  the wizard's x and y to `FF08BC`/`FF08D0` and their copies at `FF0A3A`/`3C`/`4C` (x) and
+  `FF0A3B`/`3D`/`4D` (y) puts him there, on foot or on the carpet, and the game carries on
+  from it. Doing that for every 4th x and y from a kept state, then one or two ticks, shows
+  what each spot does (pose at `FF0920` leaves `18` when the carpet burns; a short push
+  each way finds walls) without flying there. The same on foot along the edges, holding
+  each direction for 7 updates, finds the doors a flyer can't use. A room's coordinates run
+  0 to 255 both ways and other rooms' floors show up in the corners; only the part joined
+  to the doorway matters.
 
 ## Where each level stands
 

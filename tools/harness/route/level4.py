@@ -52,7 +52,24 @@ def get_carpet(g, log):
     log('have the carpet, carrying', carried(g))
 
 
-STAGES = [first_troll, get_carpet]
+def first_flame_room(g, log):
+    """Out by the door at the top right of room 6 into room 4, the first of two rooms where
+    the floor is death: 16 steps on foot (the count at FF1043, see worm_steps) bring a worm.
+    So the carpet from the doorway, and off it only at the wooden door on the far side.
+
+    The way across is the lane along y 83. The flamethrowers' nozzles burn anything within
+    their 12 by 12 squares, flying or not; the lane runs between two rows of them, 8 high."""
+    go(g, (90, 110), (158, 32), (161, 8))
+    through_door(g, 'UP', 4)
+    mount(g, CARPET)
+    log('on the carpet, life', fly_time(g))
+    fly(g, (184, 150), (184, 83), (66, 83), (64, 78))
+    mount(g, CARPET, on=False)
+    through_door(g, 'LEFT', 0)
+    log(f'through the first flame room; carpet life {fly_time(g)}, steps left {worm_steps(g)}')
+
+
+STAGES = [first_troll, get_carpet, first_flame_room]
 
 
 def play(g, log=print, stages=None):
@@ -63,7 +80,7 @@ def play(g, log=print, stages=None):
         stage(g, log)
     if stages is not None:
         return None
-    fail(g, LEVEL, 'the route is not written past the carpet')
+    fail(g, LEVEL, 'the route is not written past the first flame room')
     return end_of_level(g)
 
 
