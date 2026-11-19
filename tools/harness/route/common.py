@@ -291,6 +291,91 @@ def fire(g, buttons):
                      f'frame {g.frame}')
 
 
+def ray(dx, dy, slack=5):
+    """The buttons for the one of the wizard's eight directions that passes within `slack`
+    of a spot dx across and dy down from him, or None if none does."""
+    across, down = abs(dx), abs(dy)
+    if down <= slack < across:
+        return 'LEFT' if dx < 0 else 'RIGHT'
+    if across <= slack < down:
+        return 'UP' if dy < 0 else 'DOWN'
+    if abs(across - down) <= slack < across:
+        return ('UP' if dy < 0 else 'DOWN') + '+' + ('LEFT' if dx < 0 else 'RIGHT')
+    return None
+
+
+def hunt(g, creatures, limit=900, log=None):
+    """Kill flying creatures with fireballs: level 5's lizards, which sit still for a while,
+    fly about, and at times swoop back and forth through the wizard, biting on each pass.
+    A scroll or book must be armed. Returns the number of shots; raises Died or RouteError.
+
+    Each update it looks at where each creature is from the wizard. One sitting still on
+    one of his eight lines is shot from up to 110 away. One in the air is shot when it is on
+    a line, 10 to 34 away, and either turning (slow) or coming at him: its swoops run along
+    his lines, so the ball meets it head on. With nothing to shoot he walks onto a line
+    of one that is sitting, and otherwise stands still, which keeps a swoop regular."""
+    creatures = list(creatures)
+    last, still = {}, dict.fromkeys(creatures, 0)
+    fired = 0
+    for _ in range(limit):
+        alive = [n for n in creatures if creature_health(g, n)]
+        if not alive:
+            return fired
+        if dead(g):
+            raise Died(f'hunt: the wizard died in room {g.room} after {fired} shots, '
+                       f'frame {g.frame}')
+        wx, wy = xy(g)
+        shot = walk = None
+        for n in alive:
+            cx, cy = creature_xy(g, n)
+            vx, vy = (cx - last[n][0], cy - last[n][1]) if n in last else (9, 9)
+            still[n] = still[n] + 1 if (vx, vy) == (0, 0) else 0
+            last[n] = cx, cy
+            dx, dy = cx - wx, cy - wy
+            far = max(abs(dx), abs(dy))
+            line = ray(dx, dy)
+            if still[n] >= 2:
+                if line and 10 <= far <= (70 if '+' in line else 110):
+                    shot = n, line, far
+                    break
+                if still[n] >= 3 and not walk:
+                    walk = _onto_a_line(dx, dy)
+            elif line and 10 <= far <= 34 and (
+                    max(abs(vx), abs(vy)) <= 2 or dx * vx + dy * vy < 0):
+                shot = n, line, far
+                break
+        if not shot:
+            tick(g, walk or '')
+            continue
+        n, line, far = shot
+        fire(g, line)
+        fired += 1
+        if log:
+            log(f'fired {line} at creature {n}, {far} away')
+        for _ in range(far // 4 + 6):           # the slowest ball covers 4 an update
+            tick(g)
+            for m in alive:
+                last[m] = creature_xy(g, m)
+            if not creature_health(g, n):
+                break
+    raise RouteError(f'hunt: creatures {creatures} not all dead after {limit} updates and '
+                     f'{fired} shots, room {g.room}, frame {g.frame}')
+
+
+def _onto_a_line(dx, dy, slack=3):
+    """The step that brings the wizard soonest onto a line through a spot dx, dy away, or
+    toward it when he is on one already but too far off."""
+    across, down = abs(dx), abs(dy)
+    left_right = 'LEFT' if dx < 0 else 'RIGHT'
+    up_down = 'UP' if dy < 0 else 'DOWN'
+    choices = [(down, up_down), (across, left_right),
+               (abs(across - down), left_right if across > down else up_down)]
+    need, step = min(choices)
+    if need <= slack:
+        return left_right if across > down else up_down
+    return step
+
+
 def read(g, answers='', limit=6000, quiet=24):
     """Get through the text on screen until the game is running again.
 
@@ -490,6 +575,16 @@ def fly_speed(g):
 def fly_time(g):
     """What is left of the carpet's life. It only runs down while he is on it."""
     return g.byte(FLY_TIME)
+
+
+WORM_STEPS = 0x1043                     # steps on foot left before the worm comes; see worm_steps
+
+
+def worm_steps(g):
+    """In a room with worms under the floor (level 4's two flame rooms), the updates of
+    walking left before one comes up and eats the wizard. 16 on coming into the room; only
+    walking counts, not standing or flying, and getting on the carpet doesn't set it back."""
+    return g.byte(WORM_STEPS)
 
 
 def _steer(d, v, near, top):
@@ -798,6 +893,38 @@ def end_of_level(g, limit=3000):
             raise Died(f'end_of_level: the wizard died (frame {g.frame})')
         g.step(1)
     return certificate(g)
+
+
+ENDING_TEXT = range(0x36D2, 0x3A34)     # the game's closing story: two tellings, five messages
+
+
+def ending(g):
+    """True while the story that ends the game is in the text box. It comes when level 8 is
+    won, and nowhere else."""
+    return text_address(g) in ENDING_TEXT
+
+
+def end_of_game(g, limit=6000):
+    """Level 8's end_of_level(): wait for the closing story, let it play through, and return
+    None, since the game makes no certificate. Nothing is pressed.
+
+    The Genesis game has no screen that says the game was won. The story's pages turn by
+    themselves, and after the last one the wizard's routine runs on into the code for a
+    death on the last level, which raises the Game Over flag (FF1072): the original then
+    shows "Game Over" and asks to play again, as after a death. So the flag going up after
+    the story has been seen is where a won game ends, and this returns there, before that
+    box is drawn. The level-over flag at FF106F is never set on level 8."""
+    start = g.frame
+    seen = False
+    while not (seen and game_over(g)):
+        if g.frame - start > limit:
+            raise RouteError(f'end_of_game: {"the story did not finish" if seen else "no closing story"} '
+                             f'after {limit} frames (frame {g.frame}, room {g.room})')
+        if not seen and (dead(g) or game_over(g)):
+            raise Died(f'end_of_game: the wizard died (frame {g.frame})')
+        seen = seen or ending(g)
+        g.step(1)
+    return None
 
 
 # --- running a level's file by itself ---
