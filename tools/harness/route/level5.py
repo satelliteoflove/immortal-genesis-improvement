@@ -3,13 +3,13 @@
 
     tools/harness/route/level5.py [--original] [--delay N] [--quiet]
 
-Not finished: see the fail() at the end of play().
-
 Thing numbers on this level (indexes into the tables at FF0AEE): 0 the wizard's gold, 1 a
 ring, 2 the bait, 3 an amulet, 4 the egg on the floor of room 8, 12 the merchant in room 1,
 who sells 13 (the shrinking potion), 7 the chest in room 2 holding 11 (a bottle of water),
 10 (the fireball book), 9 (a note) and 8 (the worm sensor), plus gold.
-Creatures 2 and 3 are the trolls in room 2.
+Creatures 2 and 3 are the trolls in room 2, 4 and 5 the lizards in room 4, 6 the
+hatchling and 7 the slime in room 7. Thing 16 is room 7's floor design and 17 room 10's
+straw bed.
 """
 import os
 import sys
@@ -24,6 +24,10 @@ BAIT, EGG, POTION, CHEST, SENSOR, NOTE, FIREBALLS, WATER = 2, 4, 13, 7, 8, 9, 10
 TROLLS = 2, 3
 LIZARDS = 4, 5
 KEY = 14
+SLIME, HATCHLING = 7, 6
+DESIGN, BED = 16, 17
+ON_DESIGN = 0x0A15          # 1 while the wizard stands on the middle of the floor design
+DESIGN_WEIGHT = 0x0B97      # how many things weigh on its middle: wizard, hatchling
 
 
 def play(g, log=print, until=None):
@@ -174,13 +178,103 @@ def play(g, log=print, until=None):
     # right, up, right, and down into the door.
     go(g, (24, 32), (24, 70), (81, 72), (81, 146), (57, 146), (57, 186), (105, 186),
        (105, 138), (137, 146))
+    # Room 7's slime moves by the game's random numbers from the moment the room is
+    # entered, and shoot_down() loses to it in about one game in eight. The route's
+    # arrival here is the same game whatever the delay, so the room is pinned to it and
+    # the wait before the door chooses the game: with 18 to 25 updates the slime died on
+    # both ROMs (the patched lost at 17 and 26, the original at 14, 15 and 26).
+    ticks(g, 22)
     through_door(g, 'DOWN', 7)
     log('across the worm room')
     if until == 'room7':
         return
 
-    fail(g, LEVEL, 'the route is not written past the door of room 7')
+    # Room 7. A slime (creature 7) comes after the wizard as fast as he walks and kills at
+    # a touch. Kill it in the top part of the room, above the line at y 60 where the egg
+    # hatches, so that no ball can hit the hatchling.
+    shots_fired = shoot_down(g, SLIME, inside=top_of_room7)
+    log('the slime dead after', shots_fired, 'shots')
+
+    # The egg hatches (a box) as the wizard steps over the line, and the hatchling
+    # (creature 6) follows him if it is near.
+    go(g, (67, 50))
+    bump(g, 'DOWN')
+    read(g)
+    if not creature_health(g, HATCHLING):
+        fail(g, LEVEL, 'the egg did not hatch')
+    go(g, (67, 100), (80, 128), (95, 150))
+    fetch_hatchling(g, log)
+
+    # The floor design (thing 16) holds the way down open while something weighs on its
+    # middle. Drop the bait there; the hatchling settles on it.
+    walk_to(g, *thing_xy(g, DESIGN), near=1, stop=lambda g: g.byte(ON_DESIGN))
+    if not g.byte(ON_DESIGN):
+        fail(g, LEVEL, 'not on the middle of the floor design')
+    use(g, BAIT)
+    read(g, 'y')
+    go(g, (91, 178))
+    try:
+        g.until(lambda g: g.byte(DESIGN_WEIGHT), limit=2000)
+    except TimeoutError:
+        fail(g, LEVEL, f'nothing settled on the bait; the hatchling is at '
+                       f'{creature_xy(g, HATCHLING)}')
+    log('the hatchling is on the bait at', creature_xy(g, HATCHLING))
+
+    # The ladder down opens at the bottom left: LEFT along y 190 runs onto it.
+    go(g, (79, 190), (60, 190))
+    ladder(g, 'LEFT', 10)
+
+    # Room 10: a straw bed (thing 17) beside the foot of the ladder, and the ladder down
+    # in the middle that ends the level.
+    walk_to(g, *thing_xy(g, BED), near=1)
+    log('slept on the straw bed, gaining', rest(g))
+    go(g, (130, 60), (120, 74))
+    for _ in range(100):
+        if not tick(g, 'LEFT'):
+            break
     return end_of_level(g)
+
+
+# Room 7's top part, above the line where the egg hatches: the left edge of the floor at
+# each y from 0 to 56 in fours. The right edge runs 93 + 3y/4, 123 at most. The doorway
+# is at the top left.
+ROOM7_LEFT = {0: 66, 4: 63, 8: 66, 12: 63, 16: 60, 20: 45, 24: 42, 28: 39, 32: 33, 36: 30,
+              40: 27, 44: 21, 48: 18, 52: 15, 56: 9}
+
+
+def top_of_room7(x, y, margin=6):
+    """Where shoot_down() may step in room 7: in from the walls, out of the doorway, and
+    above the line where the egg hatches."""
+    if not 8 <= y <= 54:
+        return False
+    row = min(56, y // 4 * 4)
+    if y < 20:
+        left = 67
+    else:
+        left = max(ROOM7_LEFT[row], ROOM7_LEFT[min(56, row + 4)]) + margin
+    return left <= x <= min(123, 93 + 0.75 * y) - margin
+
+
+def fetch_hatchling(g, log):
+    """Make sure the hatchling is with the wizard below room 7's narrow middle (y 96 to
+    124). It flies straight at what it wants and can't get round a wall, so one left
+    behind sits against the narrow part's side. Then go back up for it, wait until it is
+    close, and come down again."""
+    for _ in range(4):
+        for _ in range(60):
+            (wx, wy), (cx, cy) = xy(g), creature_xy(g, HATCHLING)
+            if max(abs(cx - wx), abs(cy - wy)) <= 24 and cy > 128:
+                return
+            tick(g)
+        log('going back for the hatchling, at', creature_xy(g, HATCHLING))
+        go(g, (80, 128), (70, 104))
+        for _ in range(100):
+            (wx, wy), (cx, cy) = xy(g), creature_xy(g, HATCHLING)
+            if max(abs(cx - wx), abs(cy - wy)) <= 24:
+                break
+            tick(g)
+        go(g, (80, 128), (95, 150))
+    fail(g, LEVEL, f'the hatchling would not follow; it is at {creature_xy(g, HATCHLING)}')
 
 
 if __name__ == '__main__':

@@ -391,6 +391,112 @@ def _onto_a_line(dx, dy, slack=3):
     return step
 
 
+EIGHT_WAYS = ['RIGHT', 'DOWN+RIGHT', 'DOWN', 'DOWN+LEFT', 'LEFT', 'UP+LEFT', 'UP', 'UP+RIGHT']
+WALK_STEP = {'LEFT': (-3, 0), 'RIGHT': (3, 0), 'UP': (0, -4), 'DOWN': (0, 4),
+             'UP+LEFT': (-2, -2), 'UP+RIGHT': (2, -2), 'DOWN+LEFT': (-2, 2),
+             'DOWN+RIGHT': (2, 2)}
+
+
+def _nearest_way(dx, dy):
+    """The one of the eight directions nearest the way to a spot dx across and dy down."""
+    import math
+    return EIGHT_WAYS[round(math.atan2(dy, dx) / (math.pi / 4)) % 8]
+
+
+def _away(g, cx, cy, inside, ahead=4):
+    """The step that takes the wizard farthest from (cx, cy), with a little weight on room
+    to keep going that way, so he runs along open floor and not into a corner."""
+    wx, wy = xy(g)
+    best = None
+    for buttons, (sx, sy) in WALK_STEP.items():
+        nx, ny = wx + sx, wy + sy
+        if inside and not inside(nx, ny):
+            continue
+        room = 0
+        for k in range(2, ahead + 2):
+            if inside and not inside(wx + sx * k, wy + sy * k):
+                break
+            room += 1
+        score = max(abs(cx - nx), abs(cy - ny)) + 0.1 * (abs(cx - nx) + abs(cy - ny)) + room
+        if best is None or score > best[0]:
+            best = score, buttons
+    return best[1] if best else ''
+
+
+def shoot_down(g, creature, inside=None, limit=900, near=16, close=14, spray=30, log=None):
+    """Kill with fireballs a creature that takes several of them and comes after the
+    wizard as fast as he walks (level 5's slime, 4 health, a point a ball). A book or
+    scroll must be armed. Returns the shots fired; raises Died if it catches him.
+
+    Each update: a creature on one of his lines, coming at him or standing still, and at
+    least `close` away, is shot if he already faces it. One nearer than `near` is run from
+    (the step that leaves it farthest, keeping room ahead). One standing still is walked
+    onto a line and shot. One on a line and coming at him is turned to and shot. One
+    farther than `spray` is shot the nearest of the eight ways (balls run along walls, so
+    these hit now and then). Otherwise he waits. A ball can be thrown every other update.
+    Turning to face a way takes a step that way, so fence him in with `inside(x, y)`.
+
+    It can lose: a creature as fast as he is corners him in a small room now and then (about
+    one game in eight in level 5's room 7). So pin the room's start, try it, and choose."""
+    facing = None
+    fired = 0
+    last = None
+    still = 0
+    for _ in range(limit):
+        if not creature_health(g, creature):
+            return fired
+        if dead(g) or action(g):
+            raise Died(f'shoot_down({creature}): caught after {fired} shots at {xy(g)} in '
+                       f'room {g.room}, frame {g.frame}')
+        (wx, wy), (cx, cy) = xy(g), creature_xy(g, creature)
+        vx, vy = (cx - last[0], cy - last[1]) if last else (9, 9)
+        still = still + 1 if (vx, vy) == (0, 0) else 0
+        last = cx, cy
+        dx, dy = cx - wx, cy - wy
+        far = max(abs(dx), abs(dy))
+        line = ray(dx, dy)
+        coming = dx * vx + dy * vy < 0
+        if line and line == facing and far >= close and (still or coming):
+            want = line
+        elif far < near:
+            step = _away(g, cx, cy, inside)
+            tick(g, step)
+            facing = step or facing
+            continue
+        elif still >= 2:
+            if not line:
+                step = _onto_a_line(dx, dy)
+                if _may_step(inside, wx, wy, step):
+                    tick(g, step)
+                    facing = step
+                else:
+                    tick(g)
+                continue
+            want = line
+        elif line and coming:
+            want = line
+        elif far >= spray:
+            want = _nearest_way(dx, dy)
+        else:
+            tick(g)
+            continue
+        if want != facing:
+            if _may_step(inside, wx, wy, want):
+                tick(g, want)
+                facing = want
+            else:
+                tick(g)
+            continue
+        press_a(g)
+        fired += 1
+        tick(g)
+        if log:
+            log(f'fired {want} at creature {creature}, {far} away, its health '
+                f'{creature_health(g, creature)}')
+    raise RouteError(f'shoot_down({creature}): not dead after {limit} updates and {fired} '
+                     f'shots, room {g.room}, frame {g.frame}')
+
+
 def read(g, answers='', limit=6000, quiet=24):
     """Get through the text on screen until the game is running again.
 
