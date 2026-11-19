@@ -92,6 +92,38 @@ switches to the fight song and starts the level's song over afterwards. A song t
 is noted (`015E10`), so that asking for it again still starts it. On four scripted walks round
 level 1, the original started a song 18 times and the patched build 8.
 
+## Message text
+
+Messages are run by a small interpreter at `00CF04`. Most bytes are letters. Others are
+commands: end the page, wait, clear, ask a question and so on.
+
+After each letter it waits a number of units (`00CE6E`): 5 after a letter, 13 more after a comma,
+26 after a full stop, 39 after a question mark or colon, and 40 or 140 at the end of a page. Only
+every fourth unit is a real wait (`013452`), of two frames. Drawing a letter takes about a frame
+more. That comes to about 15 letters a second.
+
+Buttons in the original:
+
+- A fresh press of either of two buttons ends the wait in progress. That's how a page is
+  dismissed early.
+- Any button held makes each real wait give up at once, and also stops letters being drawn one
+  at a time until the next space. Whole words appear as fast as they can be worked out, about 106
+  letters a second, and the pause at the end of a page is gone as well.
+- Two particular buttons held together skip the waits altogether (`00CEC0`).
+
+**The change.** A held button now shortens the waits while typing and leaves pauses alone. The
+wait after a letter is one frame, every other time; after punctuation, one frame every time. Every
+letter is drawn. The two-button shortcut is taken out. With nothing held, nothing is different.
+A fresh press still ends a wait.
+
+| Opening message, first page | Nothing held | A button held |
+|---|---|---|
+| Original | 16 letters a second, then a 93-frame pause | 106 a second, no pause |
+| Patched | 17 a second, then 93 frames | 34 a second, then 81 frames |
+
+The pause with a button held is a little shorter than without because the wait after the page's
+last full stop counts as typing. `tools/harness/text_pace.py` makes the table.
+
 ## Certificates
 
 These are the game's passwords. The code at `012876` gathers the values and `012804` works

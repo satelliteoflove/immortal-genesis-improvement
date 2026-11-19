@@ -105,6 +105,12 @@ SONG_END = 0x15E10              # a song that has run out asks the driver to go 
 MUSIC_KEEP = 0x2EB00            # the new versions of both
 SOUNDING = 0x96A4               # the song playing when the waiting request was made (a long)
 SILENT = 0x96A8                 # set once a song has run out and nothing has been started since
+TEXT_WAIT = 0x13452             # message text: called once for each unit of waiting
+TEXT_NO_WAIT = 0xCEC0           # the branch that skips all waiting while two buttons are held
+TEXT_WAIT_NEW = 0x2EB80         # the new TEXT_WAIT
+TEXT_LETTER_UNITS = 5           # the wait after a letter, in units
+TEXT_TYPING_UNITS = 0x0D        # waits of up to this many units are typing; longer ones are pauses
+TEXT_TURN = 0x96A9              # flips each time a held button meets a letter's wait
 DRAW_CALLS = 0x1348C            # the main loop's two calls that draw an update's picture
 IN_BETWEEN = 0x2E800            # the routine that draws two pictures for each update
 REACH = 16                      # how far, in pixels, a thing can move in one update and be the same thing
@@ -736,6 +742,42 @@ def music_keep():
     return code, (MUSIC_KEEP, end)
 
 
+def text_wait():
+    """Message text with a button held: twice the typing speed, and pauses at full length.
+
+    The game types a letter, then waits some units: 5 after a letter, more after punctuation,
+    40 or 140 at the end of a page. Every fourth unit is a real wait of two frames. In the
+    original that wait gave up at once if a button was down, and stopped letters being drawn
+    one at a time until the next space, so with a button held whole words appeared as fast as
+    they could be worked out and the pause at the end of a page was gone too.
+
+    Now a held button shortens the waits while typing and makes no difference to a pause.
+    After a letter the wait is one frame, every other time it comes round. After punctuation
+    it's one frame every time. With the frame it takes to draw each letter, that comes to
+    twice the usual typing speed. Every letter is drawn. A fresh press still ends any wait,
+    as it always did: that's handled by the caller, and isn't changed.
+    """
+    c = Code(TEXT_WAIT_NEW)
+    w, s = c.words, c.short
+    w(0x066C, 0x0001, 0x0FE4, 0x026C, 0x0003, 0x0FE4); s(0x6600, 'out')    # every fourth unit, as before
+    w(0x48E7, 0xC000)
+    w(0x1238, 0x962A, 0x0201, 0x00F0); s(0x6700, 'full')                   # no button held
+    w(0x0C2C, TEXT_TYPING_UNITS, 0x094C); s(0x6200, 'full')                # a pause, not typing
+    w(0x0C2C, TEXT_LETTER_UNITS, 0x094C); s(0x6200, 'frame')               # after punctuation
+    w(0x0878, 0x0000, TEXT_TURN); s(0x6700, 'done')                        # after a letter: every other time
+    c.label('frame')
+    w(0x4EB9, 0x0001, 0x4E3A); s(0x6000, 'done')                           # one frame
+    c.label('full')
+    w(0x4281, 0x3200, 0xD2B8, 0x9624)                                      # the wait the game always made
+    c.label('wait')
+    w(0xB2B8, 0x9624); s(0x6A00, 'wait')
+    c.label('done')
+    w(0x4CDF, 0x0003)
+    c.label('out')
+    w(0x4E75)
+    return c.finish()
+
+
 def in_between():
     """Draw two pictures for each update: one part of the way from the last update, then the real one.
 
@@ -1246,6 +1288,12 @@ def main():
                            (SONG_END, '13FC0001FFFF022F4E75', starts[1])):
         assert rom[at:at + len(was) // 2] == bytes.fromhex(was)
         out[at:at + 6] = b'\x4e\xf9' + start.to_bytes(4, 'big')     # jmp
+    code = text_wait()
+    out[TEXT_WAIT_NEW:TEXT_WAIT_NEW + len(code)] = code
+    assert rom[TEXT_WAIT:TEXT_WAIT + 22] == bytes.fromhex('066C00010FE4026C00030FE4660000064EBA1F764E75')
+    out[TEXT_WAIT:TEXT_WAIT + 6] = b'\x4e\xf9' + TEXT_WAIT_NEW.to_bytes(4, 'big')        # jmp
+    assert rom[TEXT_NO_WAIT - 4:TEXT_NO_WAIT + 4] == bytes.fromhex('B03C000367000016')
+    out[TEXT_NO_WAIT:TEXT_NO_WAIT + 4] = b'\x4e\x71' * 2                                 # two buttons held: no shortcut
     code, starts = fight_pace()
     out[FIGHT_PACE:FIGHT_PACE + len(code)] = code
     for at, was, start in ((FIGHT_PASS_DRAW, '4EBA40A24EBA4252', starts[0]), (FIGHT_STEP_DRAW, '4EBA3FF44EBA36C2', starts[1])):

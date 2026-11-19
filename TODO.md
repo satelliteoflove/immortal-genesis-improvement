@@ -67,8 +67,8 @@ the optimized game really runs.
 - [ ] The death sequence and restart were reported as too fast. A death in a fight is the fight's
       ending animation, which is now at the old pace, and the retry after it measures the same as
       the original (about 90 frames). Waiting to hear whether it still looks wrong.
-- [ ] Message text goes by quickly next to the NES version, and more so with a button held.
-      Decide whether to slow it.
+- [x] Message text flew by with a button held. It now types at twice the usual speed with a
+      button held, and the pause at the end of a page stays. Normal typing is unchanged.
 - [ ] Smoother movement at the same game speed. A trial build (`tools/build_rom.py --smooth`)
       draws an in-between picture each update; see `docs/smoother-movement.md`. Waiting on a
       verdict from watching and playing it. Fights can't be smoothed this way.

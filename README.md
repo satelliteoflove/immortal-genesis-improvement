@@ -58,6 +58,7 @@ It runs the game headless in PicoDrive, using the core and source that 32xKarts 
     tools/harness/tick_parts.py            # which part of a tick is taking the time
     tools/harness/hotspots.py              # the busiest routines on each level
     tools/harness/fight_pace.py            # the pace of fights, original against patched
+    tools/harness/text_pace.py             # typing speed of messages, with and without a button held
     tools/disasm.py                        # writes disasm/, which git ignores
 
 `tools/harness/runner.c` lists its options. What's been learned is in
