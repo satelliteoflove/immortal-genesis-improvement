@@ -69,9 +69,9 @@ the optimized game really runs.
       the original (about 90 frames). Waiting to hear whether it still looks wrong.
 - [x] Message text flew by with a button held. It now types at twice the usual speed with a
       button held, and the pause at the end of a page stays. Normal typing is unchanged.
-- [ ] Smoother movement at the same game speed. A trial build (`tools/build_rom.py --smooth`)
-      draws an in-between picture each update; see `docs/smoother-movement.md`. Waiting on a
-      verdict from watching and playing it. Fights can't be smoothed this way.
+- [x] Smoother movement at the same game speed: tried and dropped. A trial drew an in-between
+      picture each update; see `docs/smoother-movement.md`. Chris chose the original drawing
+      speed.
 
 ## Bugs fixed
 

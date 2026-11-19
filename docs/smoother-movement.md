@@ -1,5 +1,12 @@
 # Smoother movement without a faster game
 
+> **Dropped on 2026-11-19.** Chris played the trial and chose to go back to the original
+> drawing speed. Blending the poses in between couldn't be done on the console, and poses
+> made by RIFE and by Qwen Image Edit didn't look good enough and couldn't be rebuilt by
+> someone else making the patch. `tools/build_rom.py --smooth` is gone; the routine is in
+> the history at commit c66628f, with its last fix (depth isn't blended). What follows is
+> kept as a record.
+
 The game updates 12 times a second and draws one picture for each update. The idea here is to
 keep that rate and draw a second picture between updates, with everything part of the way from
 its old position to its new one. That gives 24 pictures a second of movement and scrolling at

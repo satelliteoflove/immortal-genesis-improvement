@@ -47,7 +47,6 @@ import romcheck
 ROOT = romcheck.ROOT
 BUILD = os.path.join(ROOT, 'build')
 OUTPUT = os.path.join(BUILD, 'immortal-patched.md')
-SMOOTH_OUTPUT = os.path.join(BUILD, 'immortal-smooth.md')
 CHECK_ROM = os.path.join(BUILD, 'tile-check.md')
 ROUTINE_CHECK_ROM = os.path.join(BUILD, 'routine-check.md')
 BACKGROUND_CHECK_ROM = os.path.join(BUILD, 'background-check.md')
@@ -111,11 +110,6 @@ TEXT_WAIT_NEW = 0x2EB80         # the new TEXT_WAIT
 TEXT_LETTER_UNITS = 5           # the wait after a letter, in units
 TEXT_TYPING_UNITS = 0x0D        # waits of up to this many units are typing; longer ones are pauses
 TEXT_TURN = 0x96A9              # flips each time a held button meets a letter's wait
-DRAW_CALLS = 0x1348C            # the main loop's two calls that draw an update's picture
-IN_BETWEEN = 0x2E800            # the routine that draws two pictures for each update
-REACH = 16                      # how far, in pixels, a thing can move in one update and be the same thing
-HIDDEN_Y = 300                      # a y that puts a thing below the screen: scenery-only recordings
-SMOOTH_RAM = 0xA000             # FFA000 on: the previous update's draw list, and working values
 MASK = 0x1428C                  # hides the parts of sprites that are behind scenery
 MASK_END = 0x14508              # the first byte after its rts
 MASK_SHAPES = 0x141CC           # 16 shapes of 32 bytes; only the first 6 are data
@@ -708,7 +702,7 @@ def fight_pace():
         c.words(0x21F8, 0x9624, FIGHT_SHOWN)
         c.words(0x4EF9, after >> 16, after & 0xFFFF)
     code = c.finish()
-    assert FIGHT_PACE + len(code) <= IN_BETWEEN
+    assert FIGHT_PACE + len(code) <= MUSIC_KEEP
     return code, starts
 
 
@@ -777,177 +771,6 @@ def text_wait():
     c.label('out')
     w(0x4E75)
     return c.finish()
-
-
-def in_between(old_poses=False, hidden=False, trace=False):
-    """Draw two pictures for each update: one part of the way from the last update, then the real one.
-
-    The game logic leaves a list of things to draw: up to 32 entries of position, pose, depth
-    and sprite set, in arrays from $E62(a4), with a count at $FE2(a4). The camera is at
-    $1160(a4) and $1162(a4). This keeps the previous update's list and camera. Each update it
-    moves every position and the camera 3/8 of the way back toward the previous ones, draws
-    that at frame 2, puts the real values back and draws again at frame 4.
-
-    Depth, which decides what's drawn in front, isn't blended. It was at first, and in-between
-    pictures then sometimes drew a thing on the floor in front of the wizard standing before
-    it. The depth kept from the last update isn't a sound thing to blend from; why hasn't been
-    traced. Each entry now keeps this update's depth, shifted with the camera like the rest.
-
-    The list has no names for things, and entries come and go, so each entry is paired with
-    the nearest entry of last update's list that has the same sprite set and is within 16
-    pixels of it in the room. An entry with no pair is drawn where it really is.
-
-    With old_poses, the in-between picture shows each paired entry in last update's pose
-    where it otherwise shows this update's. Nothing ships that way. Two builds that differ
-    only in this give two pictures to average, which is how a video of blended poses is made.
-
-    hidden and trace are for pulling the sprites out of a recording, and nothing ships with
-    them either. hidden draws every entry below the bottom of the screen, which leaves a
-    recording of the scenery alone. trace copies the list the in-between picture was drawn
-    from (poses, x and y, then the count) to RAM at $A500, and counts the copies at $A602.
-
-    There's no in-between picture when message text is on screen (text is drawn outside the
-    list), when the camera has jumped, when the last update was too long ago, or when the
-    game logic has already used two frames.
-    """
-    ram = SMOOTH_RAM
-    prev, save = ram, ram + 0x140               # prev: x, y, depth (64 bytes each), sprite sets (128)
-    prev_count, prev_cam_x, prev_cam_y, stamp = ram + 0x200, ram + 0x202, ram + 0x204, ram + 0x206
-    target, cam_x, cam_y, shown = ram + 0x20A, ram + 0x20E, ram + 0x210, ram + 0x212
-    back_x, back_y, drawn, skipped = ram + 0x216, ram + 0x218, ram + 0x21A, ram + 0x21C
-    moved_x, moved_y, best, best_score = ram + 0x21E, ram + 0x220, ram + 0x222, ram + 0x224
-    c = Code(IN_BETWEEN)
-    w, s, l = c.words, c.short, c.long
-    w(0x48E7, 0xFFFE)                               # movem.l d0-d7/a0-a6,-(sp)
-    w(0x4A78, 0x92F4); l(0x6600, 'single')          # sprites already there: message text
-    w(0x3E2C, 0x0FE2); l(0x6700, 'single')          # d7 = entries; none
-    w(0x2038, 0x9624, 0x222C, 0x0FE6, 0x5781, 0xB081); l(0x6C00, 'single')  # already at frame 2
-    w(0x90B8, stamp, 0x7208, 0xB081); l(0x6200, 'single')   # the last update drawn was long ago
-    for now, kept, old, moved, back in ((0x1160, cam_x, prev_cam_x, moved_x, back_x),
-                                        (0x1162, cam_y, prev_cam_y, moved_y, back_y)):
-        w(0x302C, now, 0x31C0, kept, 0x9078, old, 0x31C0, moved)    # d0 = how far the camera moved
-        l(0x6100, 'part')
-        w(0x0C41, 0x0010); l(0x6200, 'single')      # more than 16 pixels: a jump
-        w(0x31C0, back)
-    w(0x43EC, 0x0E62, 0x4DF8, save, 0x702F)         # keep the real x, y and depth: 192 bytes
-    c.label('save')
-    w(0x2CD9); l(0x51C8, 'save')
-    if old_poses:
-        w(0x43EC, 0x0DE2, 0x4DF8, ram + 0x480, 0x701F)                  # keep the real poses too
-        c.label('save poses')
-        w(0x2CD9); l(0x51C8, 'save poses')
-        w(0x4DEC, 0x0DE2)                                               # a6 = this update's poses
-    # a0 and a5 point into the middle of their lists, because an indexed address reaches 128 bytes:
-    # x is at -$40(a0), y at (a0), depth at $40(a0); last update's are at -$80, -$40, 0 and $40(a5)
-    w(0x41EC, 0x0EA2, 0x47EC, 0x0F22, 0x4BF8, prev + 0x80)
-    w(0x7C00, 0x3A38, prev_count, 0xDA45, 0xDE47)   # d6 = entry * 2, d5 and d7 = counts * 2
-    c.label('entry')
-    w(0x3630, 0x60C0, 0xD678, moved_x)              # d3, d4 = where it would have been drawn
-    w(0x3830, 0x6000, 0xD878, moved_y)              #   last update, if it hasn't moved in the room
-    w(0x3406, 0xD442, 0x2273, 0x2000)               # a1 = its sprite set
-    w(0x31FC, 0xFFFF, best, 0x31FC, 0x7FFF, best_score)
-    w(0x7400)                                       # look through last update's list for the nearest
-    c.label('candidate')                            #   entry with the same sprite set
-    w(0xB445); s(0x6400, 'chosen')
-    w(0x3002, 0xD040, 0xB3F5, 0x0040); s(0x6600, 'next')
-    w(0x3003, 0x9075, 0x2080, 0x6A02, 0x4440, 0x0C40, REACH); s(0x6200, 'next')
-    w(0x3204, 0x9275, 0x20C0, 0x6A02, 0x4441, 0x0C41, REACH); s(0x6200, 'next')
-    w(0xD041, 0xB078, best_score); s(0x6400, 'next')
-    w(0x31C0, best_score, 0x31C2, best)
-    c.label('next')
-    w(0x5442); s(0x6000, 'candidate')
-    c.label('chosen')
-    w(0x3438, best); s(0x6B00, 'new')
-    w(0x3442)                                       # a2 = the one it was
-    if old_poses:
-        w(0x43F8, ram + 0x400, 0x3DB1, 0xA000, 0x6000, 0x3DB1, 0xA040, 0x6040)  # its two pose numbers
-    for mine, last in ((0xC0, 0x80), (0x00, 0xC0)):         # x and y, part of the way back
-        w(0x3030, 0x6000 | mine, 0x9075, 0xA000 | last); l(0x6100, 'part')
-        w(0x9170, 0x6000 | mine)
-    w(0x3038, back_y, 0x9170, 0x6040)               # depth: this update's, moved with the camera only
-    s(0x6000, 'put')
-    c.label('new')                                  # not there last update: it stays put in the room
-    w(0x3038, back_x, 0xD170, 0x60C0, 0x3038, back_y, 0xD170, 0x6000, 0x9170, 0x6040)
-    c.label('put')
-    w(0x5446, 0xBC47); l(0x6600, 'entry')
-    w(0x3038, back_x, 0x916C, 0x1160, 0x3038, back_y, 0x916C, 0x1162)   # the camera, part of the way back
-    w(0x202C, 0x0FE6, 0x5780, 0x21C0, target)       # show it at frame 2
-    if trace:
-        w(0x41EC, 0x0DE2, 0x43F8, ram + 0x500, 0x703F)
-        c.label('trace')
-        w(0x22D8); l(0x51C8, 'trace')
-        w(0x32EC, 0x0FE2, 0x5278, ram + 0x602)
-    if hidden:
-        l(0x6100, 'hide')
-    w(0x4EB9, 0x0001, 0x5334, 0x4EB9, 0x0001, 0x3682); l(0x6100, 'draw')
-    if hidden:
-        l(0x6100, 'unhide')
-    w(0x21F8, 0x9624, shown)
-    w(0x0C38, 0x0064, 0x8D52); s(0x6600, 'colors')  # room $64's color cycle stepped: step it back
-    w(0x5378, 0x963E); s(0x6A00, 'colors')
-    w(0x31FC, 0x000B, 0x963E)
-    c.label('colors')
-    w(0x4DF8, save, 0x43EC, 0x0E62, 0x702F)         # the real values back
-    c.label('back')
-    w(0x22DE); l(0x51C8, 'back')
-    if old_poses:
-        w(0x4DF8, ram + 0x480, 0x43EC, 0x0DE2, 0x701F)
-        c.label('poses back')
-        w(0x22DE); l(0x51C8, 'poses back')
-    w(0x3978, cam_x, 0x1160, 0x3978, cam_y, 0x1162)
-    w(0x4EB9, 0x0001, 0x4624)                       # forget the in-between picture's sprites
-    w(0x5278, drawn)
-    w(0x202C, 0x0FE6, 0x2400, 0x5380)               # the real picture at frame 4,
-    w(0x2238, shown, 0x5481, 0xB280); s(0x6F00, 'late')   # or 2 frames after the in-between one,
-    w(0x2001)
-    c.label('late')
-    w(0xB082); s(0x6F00, 'timed')                   # but no later than the update's end
-    w(0x2002)
-    c.label('timed')
-    w(0x21C0, target); s(0x6000, 'real')
-    c.label('single')
-    w(0x5278, skipped, 0x202C, 0x0FE6, 0x5380, 0x21C0, target)
-    c.label('real')
-    if hidden:
-        l(0x6100, 'hide')
-    w(0x4EB9, 0x0001, 0x5334, 0x4EB9, 0x0001, 0x3682); l(0x6100, 'draw')
-    if hidden:
-        l(0x6100, 'unhide')
-    w(0x41EC, 0x0E62, 0x4BF8, prev, 0x704F)         # remember this update: 320 bytes of list,
-    c.label('keep')
-    w(0x2AD8); l(0x51C8, 'keep')
-    if old_poses:
-        w(0x41EC, 0x0DE2, 0x4BF8, ram + 0x400, 0x701F)
-        c.label('keep poses')
-        w(0x2AD8); l(0x51C8, 'keep poses')
-    w(0x31EC, 0x0FE2, prev_count, 0x31EC, 0x1160, prev_cam_x, 0x31EC, 0x1162, prev_cam_y)
-    w(0x21F8, 0x9624, stamp)
-    w(0x4CDF, 0x7FFF, 0x4E75)
-    c.label('part')                                 # d0 = 3/8 of d0, rounded to nearest; d1 = its size
-    w(0x3200); s(0x6A00, 'positive'); w(0x4441)
-    c.label('positive')
-    w(0x3401, 0xD442, 0xD441, 0x5842, 0xE642, 0x4A40); s(0x6A00, 'signed'); w(0x4442)
-    c.label('signed')
-    w(0x3002, 0x4E75)
-    c.label('draw')                                 # as 01564E, but not before the frame in target
-    w(0x48E7, 0xF080, 0x4EB9, 0x0001, 0x428C, 0x4EB9, 0x0001, 0x4A34)
-    c.label('wait')
-    w(0x2038, 0x9624, 0xB0B8, target); s(0x6D00, 'wait')
-    w(0x4EF9, 0x0001, 0x565A)
-    if hidden:
-        c.label('hide')                             # keep every y, then put them all off the screen
-        w(0x41EC, 0x0EA2, 0x43F8, ram + 0x610, 0x701F)
-        c.label('hiding')
-        w(0x32D0, 0x30FC, HIDDEN_Y); l(0x51C8, 'hiding')
-        w(0x4E75)
-        c.label('unhide')
-        w(0x41EC, 0x0EA2, 0x43F8, ram + 0x610, 0x701F)
-        c.label('unhiding')
-        w(0x30D9); l(0x51C8, 'unhiding')
-        w(0x4E75)
-    code = c.finish()
-    assert IN_BETWEEN + len(code) <= MUSIC_KEEP
-    return code
 
 
 def mask_tables(rom, as_game=False):
@@ -1357,14 +1180,6 @@ def main():
     out[BOOT_CHECK_BRANCH:BOOT_CHECK_BRANCH + 2] = b'\x4e\x71'      # nop
     os.makedirs(BUILD, exist_ok=True)
     finish_rom(out, OUTPUT)
-    if '--smooth' in sys.argv[1:]:
-        assert rom[DRAW_CALLS:DRAW_CALLS + 8] == bytes.fromhex('4EBA00264EBA21BC')
-        code = in_between()
-        smooth = bytearray(out)
-        smooth[IN_BETWEEN:IN_BETWEEN + len(code)] = code
-        smooth[DRAW_CALLS:DRAW_CALLS + 8] = b'\x4e\xb9' + IN_BETWEEN.to_bytes(4, 'big') + b'\x4e\x71'  # jsr, nop
-        finish_rom(smooth, SMOOTH_OUTPUT)
-        print(f'wrote {os.path.relpath(SMOOTH_OUTPUT, ROOT)}, the trial with in-between pictures')
     if check:
         check_routine(out, b''.join(table))
         check_background(rom, out)
