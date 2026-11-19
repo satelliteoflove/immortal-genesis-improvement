@@ -43,6 +43,9 @@ WIZARD_MOVE, ENEMY_MOVE = 0x10B0, 0x10B2
 LEVEL_OVER, GAME_OVER, RETRIES = 0x106F, 0x1072, 0x109A
 CERTIFICATE = 0x108C
 
+SHRINK_TIMER, SIZE = 0x0A1C, 0x0A1D      # see shrunk()
+CREATURE_FLAGS = 0x0970                 # a byte for each creature; bit 6 is poisoned()
+
 CARRIED = 0x40                          # a thing's place when the wizard has it
 
 
@@ -88,6 +91,24 @@ def fighting(g):
 def dead(g):
     """True from the moment the wizard's health reaches 0 until he is put back."""
     return health(g) == 0
+
+
+def shrunk(g):
+    """True while the wizard is small from the shrinking potion and can be steered (it takes
+    about 10 updates to shrink and as many to grow back, and he can't move in either)."""
+    return g.byte(SIZE) == 3
+
+
+def shrink_left(g):
+    """Updates left of being small: about 126 when the shrinking is done, less 1 an update."""
+    return g.byte(SHRINK_TIMER)
+
+
+def poisoned(g):
+    """True while something is taking a point of the wizard's health every 16 updates of
+    walking (not in text boxes or fights): level 5's potion does, from when he has grown
+    back until he drinks the water."""
+    return g.byte(CREATURE_FLAGS) & 0x40 != 0
 
 
 def tick(g, buttons='', limit=40):
@@ -416,12 +437,16 @@ def use(g, thing):
 
 # --- fights ---
 
-def fight(g, limit=20000):
+def fight(g, limit=20000, counter=False):
     """Win the fight that has begun. Returns the health left; raises Died if the wizard loses.
 
     Reads both fighters' moves every frame. The enemy's two swings are each dodged with C
     and the direction away from them; whenever the enemy isn't swinging, the wizard slashes.
-    Call it once fighting(g) is true (the opening words, if any, are read first)."""
+    Call it once fighting(g) is true (the opening words, if any, are read first).
+
+    counter=True is for an enemy that swings faster than the wizard slashes (the trolls of
+    level 5): the wizard stands still while the enemy is free, dodges its swing, and slashes
+    only while it is recovering from a swing or reeling from a hit."""
     start = g.frame
     while not fighting(g):
         if g.frame - start > 600:
@@ -440,6 +465,8 @@ def fight(g, limit=20000):
             buttons = 'C+LEFT'                  # dodge the swing from one side
         elif enemy in (8, 9):
             buttons = 'C+RIGHT'                 # and from the other
+        elif counter and enemy not in (1, 6, 7, 10, 11):
+            buttons = ''                        # wait for its swing; a slash now would lose
         else:
             pose = g.byte(WIZARD_POSE)
             if pose == 0:
@@ -456,6 +483,12 @@ def fight(g, limit=20000):
 def creature_xy(g, creature):
     """Where creature n is, in the room's coordinates (0 is the wizard)."""
     return g.byte(WIZARD_X + creature), g.byte(WIZARD_Y + creature)
+
+
+def creature_health(g, creature):
+    """Creature n's health, 0 when it is dead (0 is the wizard). Out of a fight only: the
+    fight keeps its own count at FF10A7 and FF10A8."""
+    return g.byte(HEALTH + creature) >> 4
 
 
 def meet(g, creature, limit=300):

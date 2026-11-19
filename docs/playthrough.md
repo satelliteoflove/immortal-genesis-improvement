@@ -114,6 +114,8 @@ and `disasm/immortal.dis` is the whole disassembly (made by `tools/disasm.py`, n
 | `FF10A7`, `FF10A8` | In a fight, the enemy's health and the wizard's. A hit takes 1 | Seen |
 | `FF10B0`, `FF10B2` | In a fight, the wizard's move and the enemy's (see "Fights" below) | Read from code, used |
 | `FF10A6`, `FF10A5` | In a fight, the wizard's pose and the enemy's | Read from code, used |
+| `FF0A1D`, `FF0A1C` | The wizard's size (3 while small from level 5's potion, 0 normal) and the updates of smallness left, about 126 falling by 1 an update (`FF` when unused) | Seen, level 5 |
+| `FF0970` | 20 bytes of flags, one for each creature, the wizard first. Bit 6: poisoned, a point of health goes every 16 updates of the main loop | Read from code (`0076FE`), seen on level 5 |
 
 The x and y look like bytes in tables of 20, one entry for each moving thing, with the wizard
 first: `FF08BC` + n and `FF08D0` + n. That's a guess from one look.
@@ -309,6 +311,45 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
   sticks in the corner beside it. Try the approach from a few spots with keep/back before
   trusting it, and run all three delays early: they end walks a step apart. `walk_to` with
   `near=1` can step back and forth over a spot for ever; leave `near` at 2.
+- 2026-11-19, level 5, **fights: `fight(g, counter=True)` for trolls**. Level 5's trolls
+  (7 health) hit the wizard eight times running under the plain `fight`: it slashes while
+  the enemy is free, a slash takes about 30 frames to land, the troll's first swing takes
+  30 and its later ones 12, and a wizard in mid-slash can't dodge. With `counter=True` the
+  wizard presses nothing while the enemy is free (move 0), dodges the swing when it comes,
+  and slashes only while the enemy's move is 6, 7, 10 or 11 (recovering from a swing) or 1
+  (reeling). Each dodge then gives one sure hit. Both trolls fell without landing a blow, on
+  both ROMs, about 1,000 frames each. Try it wherever the plain policy loses health.
+- 2026-11-19, level 5, **buying**. The merchant is a thing on the floor of his room (thing
+  12) and what he sells is a thing inside him. Walk up to his x and y: `walk_to` returns
+  `'busy'`, his words end in a question with the price, and `wait_busy(g); read(g, 'y')`
+  buys. Check `has(g, thing)`. The gold comes off the purse by itself (110 became 50); there
+  was no haggling on this level and no second question.
+- 2026-11-19, level 5, **a thing that asks before it works**. Using the potion or the bottle
+  brings a "Drink it?" question: `use(g, n); read(g, 'y')`. The thing leaves the carried
+  list a few updates after the box closes, not at once, so wait on RAM for what it does
+  (`g.until(lambda g: not has(g, n))`, or `shrunk`, or `not poisoned(g)`), don't test it
+  straight after `read`.
+- 2026-11-19, level 5, **a timed effect: the shrinking potion**. After the drink the wizard
+  can't move for about 10 updates, then `shrunk(g)` is true and `shrink_left(g)` counts
+  down from about 126 updates (`FF0A1D` and `FF0A1C`). Small, he steps 2 across, 2 up or
+  down, or 1 and 1 on a diagonal, so `room_map` (which thinks in steps of 3 and 4) finds
+  nothing: trace single `tick`s to explore. Growing back takes about 10 updates more. From
+  then he is `poisoned(g)` (bit 6 of `FF0970`): a point of health every 16 updates of
+  walking, none while a text box or a fight is up, until he drinks the bottle of water
+  from the chest. So read text and fight freely but don't stand about. Level 5's small
+  hole is not a door in the usual way: it takes a small wizard sliding up the wall under it
+  with UP held (`through_door(g, 'UP', 2)` from below it), and other directions slide past.
+- 2026-11-19, level 5, **creatures that stand by, then fight**. `creature_health(g, n)`
+  reads a creature's health outside a fight (0 when dead), which tells which of two enemies
+  is left. After the first troll fell the second walked a long loop before coming back
+  (about 80 updates on some runs, 20 on others); `meet(g, n)` cut that to 20 updates.
+- 2026-11-19, level 5, **`read` with too few answers** doesn't fail fast: with one answer
+  for a chest that asks five questions it sits on the second question for 6,000 frames and
+  then raises. Count the questions (a chest: one to open, one for each thing in it; gold in
+  a chest is not a thing and has no question) and give them all.
+- 2026-11-19, level 5, **a thing lying on the floor** (the egg) asks its question only when
+  the wizard is within about 2 of its x and y: walking past 4 away does nothing.
+  `walk_to(g, x, y, near=1)` got there; `room_map` shows the spot as `!`.
 
 ## Where each level stands
 
@@ -318,7 +359,7 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
 | 2 | not started | |
 | 3 | not started | |
 | 4 | `level4.py` gets past the troll at the start and takes the carpet | Those parts pass all six |
-| 5 | not started | |
+| 5 | `level5.py` takes the egg, buys the potion, goes through the hole, beats both trolls, empties the chest and drinks the water | Those parts pass on both ROMs |
 | 6 | not started | |
 | 7 | `level7.py` beats the troll, gives the ring and climbs down the first ladder | Those parts pass on both ROMs |
 | 8 | not started | |
