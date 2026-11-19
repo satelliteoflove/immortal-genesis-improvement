@@ -121,6 +121,7 @@ and `disasm/immortal.dis` is the whole disassembly (made by `tools/disasm.py`, n
 | `FF1042` | The carpet's life left: 25 new, 1 less every 16 updates of flying | Seen, level 4 |
 | `FF1043` | Steps on foot left before a worm comes (level 4's flame rooms): 16 on entering | Seen, level 4 |
 | `FF0F80` + i, `FF0F88` + i, `FF0F90` + i | Fireball i of 8: x, y, and `FF` when the slot is empty | Seen, level 4 |
+| `FF1071` | Story flags the certificate carries (its seventh digit). Bit 1 is set on level 4 when the girl has her ring back, and picks the telling of level 8's closing story | Seen, level 4 |
 | `FF0984` | The barrel's speed on level 7's water: across in the low four bits, down in the high four, each signed, -5 to 5, half a step an update | Seen, level 7 |
 | `FF1044`, `FF1045`, `FF1046` | Level 7's water monster: a count of updates 0 to 9, 1 once it is after the wizard, and the tens of updates since | Read from code, used |
 | `FF10AE` | Not zero while a fight is on | Seen |
@@ -763,6 +764,19 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
   wait in the middle of a run of good ones. A wizard on the carpet (`FF0A1D` = 1) isn't
   touched. Level 2's slime oil works as a budget: `FF0A1C` is 80 when it's put on and
   drops 1 for each update a slime is touching him.
+- 2026-11-19, level 4, **picking a thing up from the carpet, and a box in flight**. Flying
+  into a thing on the floor brings its box just as walking does (level 4's ring, thing 14,
+  "take it?": `read(g, 'y')`). The carpet keeps its speed while the box is up and after,
+  so come in at `top=1` (`fly_to(g, x, y, near=1, top=1)` returns `'busy'`) and steer
+  away with `read(g, 'y', quiet=0)` so it doesn't drift for 24 frames.
+- 2026-11-19, level 4, **a person who speaks twice, and story flags in the certificate**.
+  Level 4's girl (thing 18) asks if the ring is hers; after yes there's about 170 frames
+  of a hug, deaf to the pad and not busy, so `read()` returns, and then a second box.
+  `wait_busy(g, limit=900); read(g)` gets it. It's that second box that sets bit 1 of
+  `FF1071`, the flag that decides level 8's closing story; the ring she gives back is the
+  same thing number with a new kind (`1D` to `1E`). With it, level 4 at full health makes
+  exactly the walkthrough's level 5 certificate `d630f43000eb0`. Without it the seventh
+  digit is 1, not 3. Look for other levels' optional deeds that set bits there.
 
 ## Where each level stands
 
@@ -771,7 +785,7 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
 | 1 | `level1.py` plays rooms 6, 3 and 7 (body, three goblins, key, chest) to the door of room 1 | Those parts pass all six; the last four rooms aren't written |
 | 2 | `level2.py` plays room 4 (past the slimes) to the door of room 1 | That part passes all six |
 | 3 | `level3.py` plays the whole level: scroll, troll and knife, the king, the gem, the knife thrown, three trolls beaten by hand, the beam, the last ladder. Certificate `573ff31000e60`, no life lost | Passes all six, at full health (rechecked by a second agent) |
-| 4 | `level4.py` plays rooms 6, 4, 0, 1 and 5: the troll, the carpet over both flame rooms, the straw bed, two trolls, two ladders | Those parts pass on both ROMs |
+| 4 | `level4.py` plays the whole level: the troll, the carpet over both flame rooms with the ring picked up on the way, the straw bed, two trolls, the girl's trade, the triangle. Certificate `d630f43000eb0` (the walkthrough's) when no fireball hits; fireballs cost 0 to 6 health by chance | All six pass (the six runs make `6210e43000eb0` patched and `f4ffd43000eb0` original, health 14 and 13); 20 runs with random waits passed |
 | 5 | `level5.py` plays rooms 8, 0, 1, 2, 4 and 5 (egg, potion, hole, trolls, chest, lizards, key, worm room) to the door of the last room | Those parts pass on both ROMs |
 | 6 | `level6.py` plays the whole level: the spider hole, the big spider, the alcohol on the chest, the levitation spell down the corridor, the ladders | All six pass, with the walkthrough's certificate for level 7 |
 | 7 | `level7.py` plays the whole level: troll, ring, the fight below the ladder, the barrel, the water monster, the whirlpool. Certificate `e011f730178c1`, no life lost | Yes, all six |
