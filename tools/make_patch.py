@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
-"""Make patch files from the original ROM and the patched one.
+"""Make a BPS patch file from the original ROM and the patched one.
 
     tools/build_rom.py
-    tools/make_patch.py          writes build/immortal-patch.bps and build/immortal-patch.ips
+    tools/make_patch.py          writes build/immortal-patch.bps
 
-BPS is the one to prefer: it carries checksums of the ROM it's for and of the result, so a
-patcher refuses the wrong dump. IPS is for patchers that only know IPS, and checks nothing.
-
-Each patch is then applied to the original by a patcher written here, and the result must be
-the patched ROM byte for byte.
+A BPS file carries checksums of the ROM it's for and of the result, so a patcher refuses the
+wrong dump. The patch is then applied to the original by a patcher written here, and the
+result must be the patched ROM byte for byte.
 """
 import hashlib
 import os
@@ -20,7 +18,7 @@ import romcheck
 
 BUILD = os.path.join(romcheck.ROOT, 'build')
 PATCHED = os.path.join(BUILD, 'immortal-patched.md')
-NAME = os.path.join(BUILD, 'immortal-patch')
+PATCH = os.path.join(BUILD, 'immortal-patch.bps')
 JOIN = 8                        # changed stretches this close together go in one record
 
 
@@ -40,28 +38,6 @@ def stretches(old, new):
             found.append([at, end])
         at = end
     return found
-
-
-def ips(old, new):
-    out = bytearray(b'PATCH')
-    for start, end in stretches(old, new):
-        for at in range(start, end, 0xFFFF):
-            piece = new[at:min(end, at + 0xFFFF)]
-            assert at != 0x454F46                   # an offset that would read as "EOF"
-            out += at.to_bytes(3, 'big') + len(piece).to_bytes(2, 'big') + piece
-    return bytes(out + b'EOF')
-
-
-def apply_ips(old, patch):
-    assert patch[:5] == b'PATCH'
-    out, at = bytearray(old), 5
-    while patch[at:at + 3] != b'EOF':
-        offset, size = int.from_bytes(patch[at:at + 3], 'big'), int.from_bytes(patch[at + 3:at + 5], 'big')
-        assert size                                 # no run-length records are written
-        out[offset:offset + size] = patch[at + 5:at + 5 + size]
-        at += 5 + size
-    assert at + 3 == len(patch)
-    return bytes(out)
 
 
 def number(n):
@@ -135,14 +111,13 @@ def main():
         new = f.read()
     assert len(new) == len(old)
     changed = sum(end - start for start, end in stretches(old, new))
-    for extension, make, apply in (('.bps', bps, apply_bps), ('.ips', ips, apply_ips)):
-        patch = make(old, new)
-        if apply(old, patch) != new:
-            sys.exit(f'{extension} patch does not give back the patched ROM')
-        with open(NAME + extension, 'wb') as f:
-            f.write(patch)
-        print(f'wrote {os.path.relpath(NAME + extension, romcheck.ROOT)}, {len(patch)} bytes, '
-              f'and it turns the original into the patched ROM')
+    patch = bps(old, new)
+    if apply_bps(old, patch) != new:
+        sys.exit('the patch does not give back the patched ROM')
+    with open(PATCH, 'wb') as f:
+        f.write(patch)
+    print(f'wrote {os.path.relpath(PATCH, romcheck.ROOT)}, {len(patch)} bytes, and it turns the original into '
+          f'the patched ROM')
     print(f'{changed} bytes of the ROM change, in {len(stretches(old, new))} places')
     print(f'patched ROM: CRC32 {zlib.crc32(new):08x}, SHA-256 {hashlib.sha256(new).hexdigest()}')
 

@@ -61,9 +61,10 @@ the optimized game really runs.
 - [x] Patch files. The 1 MB build no longer carries unpacked tiles. It still holds a few small
       things made from the game: the masking tables, 448 bytes of cell data, the sound link's
       own instructions and a table made from the tile index. Chris decided on 2026-11-19 that
-      those bits and pieces aren't a problem in a patch file. `tools/make_patch.py` writes BPS
-      and IPS files.
-- [ ] Try the patch files with a patcher other than our own, such as Flips.
+      those bits and pieces aren't a problem in a patch file. `tools/make_patch.py` writes a
+      BPS file, the only format we'll release. It stays out of git and goes out attached to
+      a release.
+- [ ] Try the patch file with a patcher other than our own, such as Flips.
 - [ ] Release the patch: where it goes, what it's called and what the notes say.
 - [ ] Try the patched ROM on real hardware.
 - [ ] Controls said to feel less responsive than the NES version. Measure the delay from

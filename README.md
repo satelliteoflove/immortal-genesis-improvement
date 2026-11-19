@@ -29,13 +29,13 @@ Put your own copy in `rom/` and check it:
     tools/build_rom.py            # writes build/immortal-patched.md, 1 MB like the original
     tools/build_rom.py --check    # also tests the result (needs the BlastEm fork build)
 
-## Making patch files
+## Making the patch file
 
-    tools/make_patch.py           # writes build/immortal-patch.bps and build/immortal-patch.ips
+    tools/make_patch.py           # writes build/immortal-patch.bps
 
-Use the BPS file where you can. It checks that it's being applied to the right ROM, and IPS
-doesn't. Each file is applied to the original as it's made, and has to give back the patched
-ROM exactly. The patch changes about 11 KB of the ROM. None of that is the game's graphics.
+A BPS file checks that it's being applied to the right ROM. It's applied to the original as
+it's made, and has to give back the patched ROM exactly. It isn't tracked here; it will go out
+attached to a release. The patch changes about 11 KB of the ROM. None of that is the game's graphics.
 What it holds of the game is a few small tables worked out from the game's own, and a few
 hundred bytes of its code and data that the new routines carry with them.
 
