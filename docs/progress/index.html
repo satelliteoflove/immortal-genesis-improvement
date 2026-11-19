@@ -15,8 +15,16 @@ figcaption { color: #8b93a1; font-size: .8rem; margin-top: .2rem; }
 img, video { image-rendering: pixelated; max-width: 100%; border: 1px solid #2a2e36; background: #000; display: block; }
 </style></head>
 <body><h1>The Immortal (Genesis patch): progress</h1>
-<div class="sub">Newest first. Last entry 2026-11-18 18:19. Reload to see new entries.</div>
-<article><time>2026-11-18 18:19</time><h2>The game now holds its speed almost everywhere</h2><p>Late updates across all eight levels are down from 23.8% in the original to 2.0%. Whenever the camera moved 8 pixels, the game re-sent every background tile on screen to video memory, even though 96% of them were already there. It now sends only the new ones.
+<div class="sub">Newest first. Last entry 2026-11-18 19:39. Reload to see new entries.</div>
+<article><time>2026-11-18 19:39</time><h2>Sprite masking and camera steps cost about half, and a mask bug is fixed</h2><p>Three more changes, all proven against the original routines on random inputs and again during play.
+
+Sprite masking, which hides the parts of sprites behind scenery, now reads its shifted masks from tables built from your ROM. It costs about half what it did.
+
+That work turned up a bug in the original. The right-hand half of each mask was shifted one bit short, so a pixel or so along a mask&#x27;s edge came out in the wrong colour, such as a yellow dot at the wizard&#x27;s foot where he stands behind a floor edge. It showed in about 13% of frames in the walks. It&#x27;s fixed, and the picture shows before and after. The fix is one number in tools/build_rom.py if it should ever need to come back out.
+
+Camera steps, the heaviest updates left, went from about 223k cycles to 133k. The routine that works out what&#x27;s on screen is rewritten, and the tile table is scanned only where it has something in it.
+
+Late updates are 1.7%, nearly all deliberate waits in animations. The better measure now is how much of each update&#x27;s time its work needs. Updates needing more than 3 frames of work went from 14% to 3.7%, and more than 4 frames from 4.0% to 0.1%. The full record is in docs/optimizations.md. None of this has been on real hardware yet.</p><div class="media"><figure><img src="local/20261118_193900_shift_small.png" onerror="this.closest('figure').remove()" alt=""><figcaption>shift_small.png</figcaption></figure></div></article><article><time>2026-11-18 18:19</time><h2>The game now holds its speed almost everywhere</h2><p>Late updates across all eight levels are down from 23.8% in the original to 2.0%. Whenever the camera moved 8 pixels, the game re-sent every background tile on screen to video memory, even though 96% of them were already there. It now sends only the new ones.
 
 That work also ran with interrupts off for long enough to miss vertical blanks, up to 6% of them on level 5. None are missed now.
 

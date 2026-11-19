@@ -36,5 +36,13 @@
   "title": "The game now holds its speed almost everywhere",
   "note": "Late updates across all eight levels are down from 23.8% in the original to 2.0%. Whenever the camera moved 8 pixels, the game re-sent every background tile on screen to video memory, even though 96% of them were already there. It now sends only the new ones.\n\nThat work also ran with interrupts off for long enough to miss vertical blanks, up to 6% of them on level 5. None are missed now.\n\nNearly all the late updates left are deliberate waits inside animations. The patch still builds from your own ROM, and it's only been tested in emulators.",
   "files": []
+ },
+ {
+  "time": "2026-11-18 19:39",
+  "title": "Sprite masking and camera steps cost about half, and a mask bug is fixed",
+  "note": "Three more changes, all proven against the original routines on random inputs and again during play.\n\nSprite masking, which hides the parts of sprites behind scenery, now reads its shifted masks from tables built from your ROM. It costs about half what it did.\n\nThat work turned up a bug in the original. The right-hand half of each mask was shifted one bit short, so a pixel or so along a mask's edge came out in the wrong colour, such as a yellow dot at the wizard's foot where he stands behind a floor edge. It showed in about 13% of frames in the walks. It's fixed, and the picture shows before and after. The fix is one number in tools/build_rom.py if it should ever need to come back out.\n\nCamera steps, the heaviest updates left, went from about 223k cycles to 133k. The routine that works out what's on screen is rewritten, and the tile table is scanned only where it has something in it.\n\nLate updates are 1.7%, nearly all deliberate waits in animations. The better measure now is how much of each update's time its work needs. Updates needing more than 3 frames of work went from 14% to 3.7%, and more than 4 frames from 4.0% to 0.1%. The full record is in docs/optimizations.md. None of this has been on real hardware yet.",
+  "files": [
+   "local/20261118_193900_shift_small.png"
+  ]
  }
 ]
