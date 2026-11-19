@@ -2,24 +2,27 @@
 """Die on purpose in each room of each level, and see whether the level can still be finished.
 
     tools/harness/route/retry_test.py [--original] [--levels 1,2,...] [--jobs 3]
-    tools/harness/route/retry_test.py --one LEVEL ENTRY [--original]
+    tools/harness/route/retry_test.py --plan LEVEL [--original]
+    tools/harness/route/retry_test.py --one LEVEL ENTRY FRAME [--original]
 
-A level's route is played as usual, but on its ENTRY-th first entry into a room (0 is the
-room the level starts in) the wizard is killed once he has walked a little way in (16 from
-where he could first be steered, or after 15 seconds): his health is set to 0, and the game's own death and retry follow. A retry puts him back at the start of
-the level (or of part of it) with everything else as he left it, so the test walks him back
-along the route's own path: the turns it took and the doors it went through, fighting what
-attacks and answering NO to any question. Back where he died, the route carries on as if
-nothing had happened, except that his health is set back to what it was when he died
-(routes check it). The test notes where he came back, his health, retries and what he
-carries, and whether the level could be finished.
+Each level's route is played once without dying, to choose a moment in each room it goes
+through: the moment he is farthest from the doors he came in and went out by, among those
+when he is steered and no button but a direction is held. Then the route is played again for
+each room, and at that moment his health is set to 0. The game's own death and retry follow.
+A retry puts him at a spot the game keeps for the room he died in, most often where he came
+into the room before it, and leaves everything else as it was. The test walks him back along
+the route's own path (the turns it took and the doors it went through, fighting what attacks
+and answering NO to any question), sets his health back to what it was and arms again the
+spell he had armed, since the routes count on those. Then the route carries on as if nothing
+had happened, with the time all that took hidden from it.
 
 A route is written for an unbroken run, and the walk back only knows how to walk, so a
 failure is a lead to look at, not a bug in itself. It's a bug when the level can't be
 finished at all from where the retry leaves it.
 
-The whole run tries every room of every level; --one runs one case and prints its result as
-JSON. Pictures of failures go in scratch/route/retry/. See docs/playthrough.md.
+--plan prints a level's moments as JSON, and --one runs one of them and prints its result.
+The results go in scratch/route/retry/, with a picture of each failure. See
+docs/playthrough.md.
 """
 import argparse
 import importlib
@@ -38,6 +41,7 @@ import play
 
 OUT = os.path.join(common.ROOT, 'scratch', 'route', 'retry')
 PREPARE = 0x42F9                        # the text of "Prepare to continue..."
+DIRECTIONS = ('UP', 'DOWN', 'LEFT', 'RIGHT')
 
 
 def state(g):
@@ -161,36 +165,35 @@ def walk_back(g, track, to):
     settle(g)
 
 
-class DyingGame(play.Game):
-    """A Game that kills the wizard once, on the entry-th first entry into a room, and then
-    walks him back to where he died."""
+def quiet(buttons):
+    """True if buttons holds nothing but directions: a kill then can't leave a C or an A to
+    be taken once he is back."""
+    return all(w in DIRECTIONS for w in (buttons or '').split('+') if w)
 
-    def __init__(self, rom, entry):
+
+class DyingGame(play.Game):
+    """A Game that notes the route's path and, if `at` is a frame, kills the wizard once at the
+    first update from then on when he can be steered, and walks him back to where he died."""
+
+    def __init__(self, rom, at=None):
         super().__init__(rom)
-        self.entry, self.seen, self.armed, self.inside, self.pending = entry, [], False, False, False
-        self.entered = None             # where he could first be steered in the room
+        self.at, self.inside = at, False
         self.not_before = 0             # a kill that ran into a text box is tried again later
         self.before = self.after = self.walked = None
-        self.track = []
+        self.track = []                 # (room, x, y, buttons, steered, frame, could die) per update
+        self.spent = 0                  # frames the death and walk back took
 
     def step(self, frames=1, buttons=''):
         if self.inside or self.after is not None:
             return super().step(frames, buttons)
-        steer, deadline = bool(buttons) and steerable(self), self.long(common.DEADLINE)
+        can = steerable(self)
+        deadline = self.long(common.DEADLINE)
         super().step(frames, buttons)
-        if self.long(common.DEADLINE) != deadline:          # an update of the game
-            self.track.append((self.room, *common.xy(self), buttons, steer))
-        if not self.armed or buttons:   # not while the route holds a button: C would open
-            return self                 #   the inventory once he is back
-        if self.room not in self.seen:
-            self.seen.append(self.room)
-            if len(self.seen) - 1 == self.entry:
-                self.pending, self.entered = self.frame, None
-        if self.pending is not False and self.entered is None and steerable(self):
-            self.entered = common.xy(self)
-        if self.pending is not False and self.entered and self.frame >= self.not_before and (
-                abs(common.xy(self)[0] - self.entered[0]) + abs(common.xy(self)[1] - self.entered[1]) >= 16
-                or self.frame - self.pending > 900):
+        if self.long(common.DEADLINE) == deadline:          # not an update of the game
+            return self
+        could = can and quiet(buttons) and steerable(self)
+        self.track.append((self.room, *common.xy(self), buttons, bool(buttons) and can, self.frame, could))
+        if self.at is not None and could and self.frame >= max(self.at, self.not_before):
             self.inside = True
             try:
                 self.die()
@@ -220,6 +223,11 @@ class DyingGame(play.Game):
         walk_back(self, self.track, (self.before['room'], *self.before['xy']))
         self.walked = {'frames': self.frame - start, 'health': common.health(self),
                      'retries': common.retries(self)}
+        # The route was in the middle of a step, and may be counting frames toward a limit
+        # (the wait for a straw bed's dream, say): hide the time the death and the walk back
+        # took, so it goes on as if this step had been an ordinary one.
+        self.spent = self.frame - self.before['frame']
+        self.frame = self.before['frame']
         # The retry refills his health, and routes check it (a straw bed does nothing at
         # full health, a trap room is crossed without losing any), so give back what he had.
         self.poke(common.HEALTH, self.byte(common.HEALTH) & 0x0F | self.before['health'] << 4)
@@ -230,19 +238,54 @@ class DyingGame(play.Game):
             self.walked['armed again'] = self.before['armed']
 
 
-def one(level, entry, original):
+def start(level, original, at=None):
     route = importlib.import_module(f'level{level}')
-    rom = play.original() if original else play.PATCHED
-    result = {'level': level, 'entry': entry, 'rom': 'original' if original else 'patched'}
-    with DyingGame(rom, entry) as g:
-        if route.CERTIFICATE:
-            g.start_level(route.CERTIFICATE)
-        else:
-            g.new_game()
-        g.armed = True
+    g = DyingGame(play.original() if original else play.PATCHED, at)
+    if route.CERTIFICATE:
+        g.start_level(route.CERTIFICATE)
+    else:
+        g.new_game()
+    g.track.clear()
+    return route, g
+
+
+def plan(level, original):
+    """Play the level without dying, and choose a moment in each room to die: the update,
+    among those when he could be killed, farthest from where he came in and where he left
+    (the smaller of the two distances)."""
+    route, g = start(level, original)
+    with g:
+        route.play(g, lambda *words: None)
+        track = g.track
+    visits, seen = [], set()
+    for i, (room, *_rest) in enumerate(track):
+        if room in seen and visits and visits[-1]['room'] == room:
+            visits[-1]['last'] = i
+        elif room not in seen:
+            seen.add(room)
+            visits.append({'room': room, 'first': i, 'last': i})
+    moments = []
+    for v in visits:
+        steps = track[v['first']:v['last'] + 1]
+        steered = [s for s in steps if s[4]] or steps
+        come, go = steered[0][1:3], steps[-1][1:3]
+        could = [s for s in steps if s[6]]
+        if not could:
+            moments.append({'room': v['room'], 'frame': None})
+            continue
+        far = max(could, key=lambda s: min(abs(s[1] - come[0]) + abs(s[2] - come[1]),
+                                           abs(s[1] - go[0]) + abs(s[2] - go[1])))
+        moments.append({'room': v['room'], 'frame': far[5], 'xy': far[1:3]})
+    return moments
+
+
+def one(level, entry, at, original):
+    result = {'level': level, 'entry': entry, 'rom': 'original' if original else 'patched', 'at': at}
+    route, g = start(level, original, at)
+    with g:
         try:
             result['certificate'] = route.play(g, lambda *words: None)
-            result['outcome'] = 'finished' if g.after else 'no such room'
+            result['outcome'] = 'finished' if g.after else 'never died'
         except common.Died as error:
             if level == 8 and 'retries ran out' in str(error):
                 result['outcome'] = 'game over'     # level 8 gives no retries
@@ -257,34 +300,40 @@ def one(level, entry, original):
                 result['picture'] = os.path.relpath(path, common.ROOT)
             except Exception:
                 pass
-        result['rooms'] = g.seen
         result['before'], result['after'], result['back'] = g.before, g.after, g.walked
-        result['frames'] = g.frame
+        result['frames'] = g.frame + g.spent
     return result
 
 
 def run_level(level, original):
-    """Every entry of one level, in order, until the route never reaches the next."""
+    """Plan the level's deaths, then try each in its own process."""
+    flag = ['--original'] if original else []
+    me = [sys.executable, os.path.abspath(__file__)]
+    done = subprocess.run(me + ['--plan', str(level)] + flag, capture_output=True, text=True)
+    try:
+        moments = json.loads(done.stdout.strip().splitlines()[-1])
+    except (IndexError, ValueError):
+        result = {'level': level, 'entry': -1, 'outcome': 'failed', 'error': 'plan: ' + done.stderr[-300:]}
+        print(line(result), flush=True)
+        return [result]
     results = []
-    for entry in range(40):
-        command = [sys.executable, os.path.abspath(__file__), '--one', str(level), str(entry)]
-        if original:
-            command.append('--original')
-        done = subprocess.run(command, capture_output=True, text=True)
-        try:
-            result = json.loads(done.stdout.strip().splitlines()[-1])
-        except (IndexError, ValueError):
-            result = {'level': level, 'entry': entry, 'outcome': 'crashed', 'error': done.stderr[-300:]}
+    for entry, moment in enumerate(moments):
+        if moment['frame'] is None:
+            result = {'level': level, 'entry': entry, 'outcome': 'skipped',
+                      'error': f"room {moment['room']}: never a moment to die in"}
+        else:
+            done = subprocess.run(me + ['--one', str(level), str(entry), str(moment['frame'])] + flag,
+                                  capture_output=True, text=True)
+            try:
+                result = json.loads(done.stdout.strip().splitlines()[-1])
+            except (IndexError, ValueError):
+                result = {'level': level, 'entry': entry, 'outcome': 'crashed', 'error': done.stderr[-300:]}
         results.append(result)
         print(line(result), flush=True)
-        if result['outcome'] == 'no such room':
-            break
     return results
 
 
 def line(r):
-    if r['outcome'] == 'no such room':
-        return f"level {r['level']}: {r['entry']} rooms tried"
     a, b = r.get('before') or {}, r.get('after') or {}
     where = (f"died in room {a.get('room')} at {tuple(a.get('xy', ()))}, back in room {b.get('room')} "
              f"at {tuple(b.get('xy', ()))}, health {b.get('health')}, retries {b.get('retries')}"
@@ -293,6 +342,7 @@ def line(r):
                 f", carried {a.get('carried')} became {b.get('carried')}")) if b else 'never died'
     tail = f"finished, certificate {r.get('certificate')}" if r['outcome'] == 'finished' else \
         'game over, as level 8 has no retries' if r['outcome'] == 'game over' else \
+        f"skipped: {r.get('error')}" if r['outcome'] == 'skipped' else \
         f"FAILED: {r.get('error', '')[:160]}"
     return f"level {r['level']} entry {r['entry']:2d}: {where}; {tail}"
 
@@ -302,10 +352,14 @@ def main():
     parser.add_argument('--original', action='store_true')
     parser.add_argument('--levels', default='1,2,3,4,5,6,7,8')
     parser.add_argument('--jobs', type=int, default=3)
-    parser.add_argument('--one', nargs=2, type=int, metavar=('LEVEL', 'ENTRY'))
+    parser.add_argument('--one', nargs=3, type=int, metavar=('LEVEL', 'ENTRY', 'FRAME'))
+    parser.add_argument('--plan', type=int, metavar='LEVEL')
     args = parser.parse_args()
     if args.one:
-        print(json.dumps(one(args.one[0], args.one[1], args.original)))
+        print(json.dumps(one(*args.one, args.original)))
+        return
+    if args.plan:
+        print(json.dumps(plan(args.plan, args.original)))
         return
     began = time.time()
     levels = [int(n) for n in args.levels.split(',')]
@@ -315,7 +369,7 @@ def main():
     name = 'original' if args.original else 'patched'
     with open(os.path.join(OUT, f'results-{name}.json'), 'w') as f:
         json.dump(everything, f, indent=1)
-    tried = [r for r in everything if r['outcome'] != 'no such room']
+    tried = [r for r in everything if r['outcome'] != 'skipped']
     failed = [r for r in tried if r['outcome'] not in ('finished', 'game over')]
     print(f'\n{name}: {len(tried)} deaths tried, {len(tried) - len(failed)} levels finished afterward, '
           f'{len(failed)} not, {time.time() - began:.0f} s')
