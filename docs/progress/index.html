@@ -15,8 +15,14 @@ figcaption { color: #8b93a1; font-size: .8rem; margin-top: .2rem; }
 img, video { image-rendering: pixelated; max-width: 100%; border: 1px solid #2a2e36; background: #000; display: block; }
 </style></head>
 <body><h1>The Immortal (Genesis patch): progress</h1>
-<div class="sub">Newest first. Last entry 2026-11-18 21:08. Reload to see new entries.</div>
-<article><time>2026-11-18 21:08</time><h2>A trial build draws in-between pictures: about 24 a second at the same game speed</h2><p>This is the build to judge by eye. tools/build_rom.py --smooth writes build/immortal-smooth.md beside the normal build, which is unchanged.
+<div class="sub">Newest first. Last entry 2026-11-18 22:36. Reload to see new entries.</div>
+<article><time>2026-11-18 22:36</time><h2>What averaging two poses looks like</h2><p>Chris asked to see it. Each row shows two poses one update apart, their plain average, and the same average with every pixel moved to the nearest colour the two poses actually use, since the Genesis can&#x27;t show the in-between shades.
+
+The wizard&#x27;s two poses were slid over each other to their best match first, so this is the kindest case. His head and chest agree and come through clean. His legs, arm and staff are in different places in the two poses, so the average shows both at half strength, and in the game&#x27;s colours it turns into a mottled patch.
+
+The candle flame fares better. It&#x27;s a soft shape that only gets taller, and the average reads as a flame partway up.
+
+Also in this round: fights are back at the original&#x27;s pace, the level&#x27;s song no longer starts over when nothing interrupted it, and holding a button types message text at twice the usual speed without skipping the pause at the end of a page.</p><div class="media"><figure><img src="local/20261118_223641_averaged_poses.png" onerror="this.closest('figure').remove()" alt=""><figcaption>averaged_poses.png</figcaption></figure></div></article><article><time>2026-11-18 21:08</time><h2>A trial build draws in-between pictures: about 24 a second at the same game speed</h2><p>This is the build to judge by eye. tools/build_rom.py --smooth writes build/immortal-smooth.md beside the normal build, which is unchanged.
 
 The game still updates 12 times a second. Each update, the trial draws one extra picture with everything, camera included, part of the way from where it was to where it&#x27;s going, then the real picture 2 frames later. In the clips the normal build is on the left and the trial on the right, on the same scripted input. On a level 4 walk with the camera following, the picture changed 136 times in 680 frames on the left and 262 times on the right.
 

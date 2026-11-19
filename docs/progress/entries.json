@@ -60,5 +60,13 @@
    "local/20261118_210804_smooth_camera_level4.mp4",
    "local/20261118_210804_smooth_fight_level7.mp4"
   ]
+ },
+ {
+  "time": "2026-11-18 22:36",
+  "title": "What averaging two poses looks like",
+  "note": "Chris asked to see it. Each row shows two poses one update apart, their plain average, and the same average with every pixel moved to the nearest colour the two poses actually use, since the Genesis can't show the in-between shades.\n\nThe wizard's two poses were slid over each other to their best match first, so this is the kindest case. His head and chest agree and come through clean. His legs, arm and staff are in different places in the two poses, so the average shows both at half strength, and in the game's colours it turns into a mottled patch.\n\nThe candle flame fares better. It's a soft shape that only gets taller, and the average reads as a flame partway up.\n\nAlso in this round: fights are back at the original's pace, the level's song no longer starts over when nothing interrupted it, and holding a button types message text at twice the usual speed without skipping the pause at the end of a page.",
+  "files": [
+   "local/20261118_223641_averaged_poses.png"
+  ]
  }
 ]
