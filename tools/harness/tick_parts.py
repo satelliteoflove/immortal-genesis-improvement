@@ -3,6 +3,7 @@
 
     tools/harness/tick_parts.py [rom] [name:start:end ...]
     tools/harness/tick_parts.py --headroom [rom]
+    tools/harness/tick_parts.py --frames [rom]
 
 Uses the walks from fork_timing.py, on the patched ROM by default. Each part is a pair of
 addresses; the default parts follow the main loop at 013470 and the drawing at 01564E. The
@@ -11,6 +12,16 @@ tick, and a tick has about 639k before it runs late.
 
 --headroom shows how much work each tick does, leaving out its waits for vertical blank
 and its timed pauses, and how many ticks wouldn't fit a shorter tick.
+
+--frames shows how many video frames each tick takes to get its picture ready, counting
+from the tick's start to the end of the drawing that follows its wait for vertical blank.
+Waits inside the game logic and timed pauses are left out. This is the figure that says
+whether a shorter tick would fit.
+
+The profiler reports once a video frame, so a part that finishes in the same frame its
+tick starts in is counted with the tick before. Averages over many ticks come out right,
+and so do --headroom and --frames, which rest on parts that finish at a tick's end. Don't
+rely on the parts of any one tick.
 """
 import collections
 import os
@@ -84,10 +95,30 @@ def headroom(rom):
               ''.join(f'{percentile(work, p):7.0f}' for p in (.5, .9, .99)) + f'{max(work):7.0f}   {over}')
 
 
+def frames(rom):
+    parts = [p.split(':') for p in HEADROOM]
+    jobs = [(l, w) for l in range(8) for w in range(cc.WALKS)]
+    with ThreadPoolExecutor(os.cpu_count()) as pool:
+        done = list(pool.map(lambda j: run(rom, parts, *j), jobs))
+    print('level  ticks   picture ready in 1, 2, 3, 4 and 5 or more frames')
+    every = []
+    for level in [*range(8), None]:
+        if level is None:
+            ready = every
+        else:
+            ready = [max(1, round((t[1]['work'] - t[1]['vblank'] - t[1]['pause']) / 1000 / FRAME))
+                     for l, found in done if l == level for t in found if t[0] < cc.PAUSE]
+            every += ready
+        shares = [100 * sum(r == n for r in ready) / len(ready) for n in (1, 2, 3, 4)]
+        shares.append(100 * sum(r >= 5 for r in ready) / len(ready))
+        print(f'{"all" if level is None else level + 1:>5} {len(ready):6}   ' + ''.join(f'{x:7.1f}%' for x in shares))
+
+
 def main():
     args = sys.argv[1:]
-    if args and args[0] == '--headroom':
-        return headroom(args[1] if len(args) > 1 else os.path.join(ft.ROOT, 'build', 'immortal-patched.md'))
+    if args and args[0] in ('--headroom', '--frames'):
+        rom = args[1] if len(args) > 1 else os.path.join(ft.ROOT, 'build', 'immortal-patched.md')
+        return headroom(rom) if args[0] == '--headroom' else frames(rom)
     rom = args.pop(0) if args and ':' not in args[0] else os.path.join(ft.ROOT, 'build', 'immortal-patched.md')
     parts = [p.split(':') for p in (args or DEFAULT)]
     names = [p[0] for p in parts]

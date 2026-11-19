@@ -50,8 +50,12 @@ the optimized game really runs.
       900 cycles a frame saved.
 - [ ] Listen to sampled sounds on levels 3, 4 and 7 against the original. The Z80 is stopped for
       less time now, so they should have shorter hitches and run about 0.7% faster.
-- [ ] More headroom: sending sprite tiles during vertical blank, then the game logic not read
-      yet (`009930`, `005B78`, `01370A`).
+- [x] Measure frames to a finished picture (`tick_parts.py --frames`): 91% of ticks are ready in
+      2 frames and 99.5% in 3. The optimizing pass stops here, and `docs/optimizations.md` lists
+      what wasn't done and why.
+- [ ] Find out whether drawing that finishes after vertical blank shows on screen (16% of plain
+      ticks, 52% of camera steps). Sending sprite tiles in vertical blank would fix it, and would
+      shorten the Z80's stops as well.
 - [ ] Release the patch as tools that build it from the player's own ROM, for now. The
       unpacked tiles are the game's graphics, so an ordinary IPS or BPS file would contain them.
 - [ ] Try the patched ROM on real hardware.

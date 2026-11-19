@@ -299,8 +299,9 @@ alone.
 ### Room to spare
 
 `tools/harness/tick_parts.py --headroom` measures the work in each tick without those waits. The
-median tick now needs about 161k cycles, 90% need under 295k and 99% under 423k, against 639k
-available. The heaviest are still camera-step ticks, which spend about 133k in the three map
+median tick needs about 155k cycles, 90% need under 294k and 99% under 420k, against 639k
+available. Counted in frames, 44% of ticks have their picture ready in 1 frame, 47% in 2 and 8.5%
+in 3, where the original had three quarters at 3 or more. The heaviest are still camera-step ticks, which spend about 133k in the three map
 routines where they spent 223k. Only 0.1% of ticks wouldn't fit in 4 frames and 3.7% wouldn't fit
 in 3, but 26% wouldn't fit in 2. These are random walks, so a real route may differ.
 
@@ -308,6 +309,19 @@ The largest remaining costs, as shares of work outside waits, are the object til
 `02E3E4` (9%), what looks like the link to the sound driver at `01624E` (9%), the sprite masking
 at `01428C` (9%), `015E9C`, which hasn't been read (7%), and sprite tile uploads through `0150E6`
 (7%).
+
+### The end of a tick
+
+`01564E` draws a tick's picture. It masks the sprites (`01428C`), then sends all their tiles to
+video memory (`014A34`), 16 DMA transfers into whichever of two areas isn't on screen, at `4C80`
+and `8980`. Then it waits for vertical blank unless it's already in it (`014E4E`), builds the
+sprite table pointing at the new area (`0149B8`), sends it (`014A12`), sets the scroll position,
+and on a camera step writes the 612 cells of the map (`013BF6`). The DMA routine `0150E6` stops
+the Z80 for as long as each transfer runs.
+
+The vertical blank handler at `014D2A` counts the frame, reads the pad, steps a colour cycle every
+12 frames when one is running, and runs the sound link, which takes about 10 of vertical blank's 38 scan lines. The
+main loop then waits until 5 frames after the tick started.
 
 ### How sound works
 

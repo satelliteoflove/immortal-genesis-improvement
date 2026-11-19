@@ -41,6 +41,7 @@ A tick has about 639,000 68000 cycles, at about 127,800 per frame.
 | `tools/harness/fork_timing.py` | Late ticks per level on our build of the BlastEm fork. It also confirms that runs repeat exactly and that profiling doesn't change video memory |
 | `tools/harness/tick_parts.py` | Splits ticks into parts between chosen addresses, comparing late ticks with on-time ones |
 | `tools/harness/tick_parts.py --headroom` | How much work each tick does, leaving out its waits |
+| `tools/harness/tick_parts.py --frames` | How many video frames each tick takes to get its picture ready. The best guide to whether a shorter tick would fit |
 | `tools/harness/hotspots.py` | Cycles per routine on each level, using the PicoDrive profiling core |
 | `tools/build_rom.py --check` | Builds the patch and runs its test ROMs |
 | `tools/harness/sound_writes.py` | Logs every write two ROMs make to the sound chips over the same walks, and compares them |
@@ -276,7 +277,34 @@ waiting for vertical blank inside the game logic. On levels 2 and 6 the waits co
 loop at `0074A8`, which waits four frames per step. On level 7 most come from `011776`, which waits
 two. They look like deliberate animations, though we haven't identified them.
 
-**Headroom.** This is the work in each tick, in thousands of cycles, without those waits:
+**Frames to a finished picture.** This is the measure that matters for any change to the tick
+rate: how many video frames pass from a tick's start until its picture is on screen. Deliberate
+waits inside the game logic are left out.
+
+| Level | 1 frame | 2 frames | 3 frames | 4 frames | 5 or more |
+|---|---|---|---|---|---|
+| 1 | 32.7% | 66.7% | 0.5% | 0.0% | 0.0% |
+| 2 | 0.4% | 78.8% | 15.3% | 5.6% | 0.0% |
+| 3 | 47.9% | 42.0% | 9.7% | 0.0% | 0.4% |
+| 4 | 12.0% | 70.8% | 17.0% | 0.3% | 0.0% |
+| 5 | 63.0% | 28.0% | 8.9% | 0.1% | 0.0% |
+| 6 | 25.0% | 61.9% | 13.1% | 0.0% | 0.0% |
+| 7 | 74.4% | 23.7% | 1.8% | 0.0% | 0.1% |
+| 8 | 79.8% | 20.2% | 0.0% | 0.0% | 0.0% |
+| **All, now** | **44.2%** | **46.8%** | **8.5%** | **0.4%** | **0.1%** |
+| All, original | 2.1% | 22.5% | 26.3% | 20.8% | 28.3% |
+
+The game's tick is 5 frames. As it stands, 99.5% of ticks would fit a tick of 3 frames and 91% a
+tick of 2. In the original, three quarters of ticks needed 3 frames or more.
+
+A test build that counted frames inside the game split this by kind of tick. Ticks without a
+camera step are ready in 1 frame 51% of the time and in 2 frames 46%. Ticks with a camera step,
+15% of all ticks, are never ready in 1: 44% take 2 frames, 51% take 3 and 3% take 4. So the camera
+step is the whole of what's left above 2 frames, apart from the deliberate waits.
+
+**Work in each tick.** This is the older measure: the work in each tick, in thousands of cycles,
+without its waits. It overstates the cost, because it counts the sprite tile upload as work. See
+"Sprite tile upload" below.
 
 | Level | Median | 90% | 99% | Most | Over 4 frames | Over 3 frames | Over 2 frames |
 |---|---|---|---|---|---|---|---|
@@ -299,9 +327,8 @@ How the "All" row has moved:
 | Camera steps | 161 | 295 | 423 | 0.1% | 3.7% | 25.8% |
 | The sound link | 155 | 294 | 420 | 0.1% | 3.4% | 24.9% |
 
-So 12 updates a second has plenty of room, and 15 fits nearly always. 20 would need a quarter of
-ticks to shrink, and the median tick is over half of that budget already. This doesn't settle the
-question of changing the rate, because movement and timers are counted in ticks.
+Changing the rate isn't only a question of fitting, because movement and timers are counted in
+ticks.
 
 **Remaining costs**, as shares of the CPU time not spent waiting, over all levels:
 
@@ -324,6 +351,45 @@ An earlier version of this table had `015466` and `00D2C6` near the top. They tu
 YES/NO prompt polling the pad until the choice changes, which is waiting, and `hotspots.py` counts
 it that way now. That's also why the other shares are higher than they were.
 
+## What wasn't done, and why
+
+**Sprite tile upload.** Each tick the game sends its sprite tiles to video memory by DMA, 48 to 64
+tiles on most ticks and up to 160. It does this during active display, where DMA moves about 18
+bytes a scan line against about 205 in vertical blank, and the 68000 is stopped while it runs.
+That's 37k cycles on a median tick and 91k on a heavy one, which made it look like the best thing
+left to fix. It isn't. The game's next step is to wait for vertical blank, so the upload fills time
+that would otherwise be spent waiting. If vertical blank arrives part way through, the rest goes at
+the fast rate and the tick carries on in the same blank. An estimate from the measured parts is
+that if the upload cost nothing, the picture would be ready a frame sooner on somewhere between 1%
+and 4% of ticks and in the same frame on the rest. That's not worth restructuring the end of the
+tick for.
+
+Looking into it turned up two things that aren't about speed. In the patched build, 16% of ticks
+without a camera step and 52% of ticks with one finish their drawing after vertical blank has
+ended. For camera steps that's mostly the last rows of the cell map, which are written well ahead
+of where the screen is being drawn. For the rest it means the sprite table or the scroll position
+changed a few lines into the picture. Whether that shows hasn't been checked, and it wasn't
+measured on the original, though the code is the original's. The upload also stops the Z80 for as
+long as it runs, which is another source of hitches in sampled sounds. Uploading in vertical blank
+would help both, so it may come back as a fix.
+
+**The music and sound effect sequencers.** See "The sound link" above.
+
+**The object tile copy.** `02E3E4` is the largest single routine left, at about 190 cycles a tile,
+160 of which are the eight moves that copy it. Going further would mean not copying tiles for
+sprites that haven't changed, which also means not masking or uploading them, and that's a
+redesign of how sprites are drawn.
+
+**Game logic.** It's 28% of the work, spread over 281 routines, and the largest is under 3%. The
+code reads as if it was translated mechanically from another processor's, with byte-sized
+variables and flags juggled by hand. Nothing in it stands out, and rewriting game logic is the
+riskiest kind of change for the least return.
+
+**More from the camera step.** It's down from 223k cycles to 133k. The next step would be to
+update only the row or column that scrolled into view, with a count of uses for each tile. That
+changes which video memory slot each tile gets, so it couldn't be proven against the original the
+way everything here has been, and it would only matter for a tick shorter than 3 frames.
+
 ## Mistakes worth remembering
 
 - **A wrong register mask in the first build tool.** The new object routine saved one set of
@@ -336,6 +402,12 @@ it that way now. That's also why the other shares are higher than they were.
   behaved differently and the old and new routines seemed to disagree.
 - **Let the video queue drain before reading video memory back.** Queued writes may not have
   landed yet.
+- **Counting stopped time as work.** The work-per-tick measure counted the sprite tile upload,
+  which made the upload look like a third of a typical tick. Measuring frames to a finished
+  picture showed that it costs almost nothing in practice.
+- **The profiler reports once a frame.** A part of a tick that finishes in the frame the tick
+  starts in is counted with the tick before. Averages are right, but a breakdown of single ticks
+  isn't, which gave a confusing picture of camera steps until it was counted inside the game.
 - **A failed emulator run can look like a game result.** BlastEm sometimes failed at startup, which
   once showed up as "level 8 not reached". The tools now stop on any short run, and the emulator
   bug is fixed. See `docs/blastem-fork-fixes.md`.
@@ -350,6 +422,7 @@ it that way now. That's also why the other shares are higher than they were.
     ROM=build/immortal-patched.md tools/harness/fork_timing.py
     tools/harness/tick_parts.py
     tools/harness/tick_parts.py --headroom
+    tools/harness/tick_parts.py --frames
     tools/harness/hotspots.py
     tools/harness/sound_writes.py rom/your-rom.md build/immortal-patched.md
 
