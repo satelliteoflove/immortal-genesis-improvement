@@ -103,6 +103,8 @@ and `disasm/immortal.dis` is the whole disassembly (made by `tools/disasm.py`, n
 | `FF0A70`, `FF0A9A` | Each thing's x and y, 42 bytes each, in step with the things table at `FF0AEE` | Seen |
 | `FF0B42` | Each thing's place: `40` carried by the wizard, `40`+n by creature n, `80`+n on the floor of room n, lower numbers inside the thing of that number | Seen |
 | `FF0DD4`+16, `FF0D54`+16, `FF0C54` | How many things the wizard carries, where his list starts, and the lists themselves (thing numbers, in inventory order) | Seen |
+| `FF08F8` | 20 bytes, one for each creature (the wizard first): the number of the list that holds what it carries. The wizard's is 16 after a new game and 0 after a certificate | Seen, levels 1 and 6 |
+| `FF0B6C` | 42 bytes in step with the things table: for a chest or body, the number of the list of what's inside it | Seen, level 6 |
 | `FF1083` | The inventory's cursor: slot 0 to 5. `FF1086` is 1 if it was left with A | Seen |
 | `FF1087` | The inventory page's first index into the carried list: 0, 5, 10 | Seen |
 | `FF0A17` | The thing number of the fireball scroll once it has been used, `FF` before | Seen |
@@ -244,6 +246,12 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
   raised `Stuck`. `bump(g, buttons)` holds a direction until the game stops. Then `read(g)`:
   it got through the candle's four pages in 686 frames on the patched ROM and 265 on the
   original (a held button skips the original's page pauses), against 1,350 with no presses.
+- 2026-11-19, level 6, **shared helper changed: `carried(g)`**. It read list 16, which is
+  the wizard's only after a new game. Started from a certificate his list is number 0, and
+  `carried` returned junk (so `use` and `search` failed). It now looks the list's number up
+  at `FF08F8`. Lists are handed out as the level loads; a room has two (`FF0EC6` + room and
+  `FF0ED6` + room, the second being the things on its floor) and a chest or body has one
+  (`FF0B6C` + its thing number).
 
 ## Where each level stands
 

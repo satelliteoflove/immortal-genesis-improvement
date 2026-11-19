@@ -30,7 +30,8 @@ COUNT, DEADLINE = 0x9624, 0x12E6        # vertical blanks, and when the next upd
 THING_X, THING_Y = 0x0A70, 0x0A9A       # 42 bytes each, like the things table at 0AEE
 THING_KIND, THING_PLACE = 0x0AEE, 0x0B42
 LIST_AREA, LIST_START, LIST_COUNT = 0x0C54, 0x0D54, 0x0DD4  # who holds what; see carried()
-WIZARD_LIST = 0x10
+WIZARD_LIST = 0x10                      # only true after a new game; carried() looks it up
+CREATURE_LIST = 0x08F8                  # 20 bytes: which list holds what each creature carries
 PRESSED = 0x0C4E                        # bit 1: the game has seen C down; bit 2: A down
 LAST_LETTER, WAIT_LENGTH = 0x0C52, 0x0C4C
 QUESTION = 0x0C4D                       # 1 with NO lit, 2 with YES lit
@@ -145,8 +146,11 @@ def thing_xy(g, thing):
 
 def carried(g):
     """The numbers of the things the wizard carries, in the order the inventory shows them."""
-    count = g.byte(LIST_COUNT + WIZARD_LIST)
-    start = g.byte(LIST_START + WIZARD_LIST)
+    which = g.byte(CREATURE_LIST)           # the wizard is creature 0
+    count = g.byte(LIST_COUNT + which)
+    start = g.byte(LIST_START + which)
+    if count == 0xFF:
+        return []
     return list(g.bytes(LIST_AREA + start, count))
 
 
