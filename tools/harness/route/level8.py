@@ -95,7 +95,7 @@ def dragon(g, log):
     Fire reaches the wizard while the dragon's picture is 7: positions 14 to 20 of a short
     breath, 22 to 33 of the long one. A blink lasts 11 updates and has to be under way
     before the fire comes and not be over until it has gone, so A is pressed at position 9
-    (8 to 12 work). The seventh breath is too long for a blink; the fire protection scroll
+    (7 to 11 work). The seventh breath is too long for a blink; the fire protection scroll
     lasts 16 updates and is used at position 16 (15 to 19 work)."""
     blinked = None
     while True:
@@ -152,7 +152,11 @@ def teacher(g, log):
     if armed(g) != STATUE:
         fail(g, LEVEL, 'the statue book is not the armed spell')
     log('the teacher has the amulet; statue is armed')
+    duel(g, log)
 
+
+def duel(g, log):
+    """Outlast the teacher's spells, then take the amulet from him."""
     # A bolt lands when its animation ends, and strikes for the 6 updates after. A statue
     # lasts 11, so A is pressed 4 positions before the end (6 to 1 before work).
     done = None
@@ -172,7 +176,8 @@ def teacher(g, log):
         if now and move in BOLTS and step != done and now[1] >= BOLTS[move] - 2:
             cast(g, LEVEL, STATUES, 'statue')
             done = step
-            log(f'statue for the bolt at step {step}, {g.byte(STATUES)} left')
+            log(f'statue for bolt {move:02x} at step {step}, position {now[1]}; '
+                f'{g.byte(STATUES)} left')
         elif now and move == STOOP and not used_sonic:
             # He stoops to cast something that kills when the animation ends (12 updates)
             # unless the sonic scroll is used while it runs. Used sooner, it's wasted.

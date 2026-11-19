@@ -33,7 +33,7 @@ and the Genesis ROM accepts all of them:
 | 5 | `level5.py` takes the egg, buys the potion, goes through the hole, beats both trolls, empties the chest, shoots both lizards and takes the key | Those parts pass on both ROMs |
 | 6 | `563ff53010a41` |
 | 7 | `c250f63010ac1` |
-| 8 | `e011f730178c1` |
+| 8 | `level8.py` plays the whole level: chest, ladder, pit, the dragon, the teacher, the closing story | All six pass |
 
 Level 1 starts from a new game.
 
@@ -124,6 +124,15 @@ and `disasm/immortal.dis` is the whole disassembly (made by `tools/disasm.py`, n
 | `FF10A6`, `FF10A5` | In a fight, the wizard's pose and the enemy's | Read from code, used |
 | `FF0A1D`, `FF0A1C` | The wizard's size (3 while small from level 5's potion, 0 normal) and the updates of smallness left, about 126 falling by 1 an update (`FF` when unused) | Seen, level 5 |
 | `FF0970` | 20 bytes of flags, one for each creature, the wizard first. Bit 6: poisoned, a point of health goes every 16 updates of the main loop | Read from code (`0076FE`), seen on level 5 |
+| `FF09FC` + n | What creature n is having done to it, the wizard being n 0: 0 when free, else the number of a posted happening (a fall's landing, a spell on himself, a killing blow). `action(g)` | Read from code (`006452`, `0077C0`), seen on level 8 |
+| `FF0AC4` + thing | The picture each thing is showing, 42 bytes in step with the things table. `thing_frame(g, n)` | Read from code (`00C976`), seen on level 8 |
+| `FF0E68` + slot, `FF0E88` + slot | 32 slots of scripted animations: how far through each is (starts at 3, +1 an update, `FF` when the slot is free) and which animation it is. `animation(g, slot)` | Read from code (`00DA90` to `00DB64`), used on level 8 |
+| `FF0600`, `FF0601` | While a text box is up, the ROM address its text began at, low byte first. `text_address(g)` | Read from code (`0132B4`), used on level 8 |
+| `FF0C02` | The game's random numbers: 55 bytes, with its two indexes at `FF0C3A` and `FF0C3B` | Read from code (`00CCF4`) |
+| `FF103E`, `FF103F` | Casts left in the blink book and the statue book, 6 each | Seen, level 8 |
+| `FF0BC2`, `FF0BC3` | Level 8's dragon: how many of its 24 moves it has begun, and the slot of the animation running (`FF` between moves) | Read from code (`00BE7A`), used |
+| `FF0BBD`, `FF0BBE`, `FF0BBC` | Level 8's teacher: moves begun, the move he is in, and its animation's slot | Read from code (`00BC1E`), used |
+| `FF0BC4` | Level 8: 0 while the dragon attacks, 1 once the amulet is held up, 2 once the teacher has come | Read from code, used |
 
 The x and y look like bytes in tables of 20, one entry for each moving thing, with the wizard
 first: `FF08BC` + n and `FF08D0` + n. That's a guess from one look.
@@ -462,6 +471,63 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
   key: the key's place is `40` + the creature's number) asks to be searched by itself a
   few updates after it dies if the wizard is close. If he shot it from far off, walk to
   `creature_xy(g, n)`, where it fell, and the question comes: `search(g, 'yy', KEY)`.
+- 2026-11-19, level 8, **timing an action by an enemy's animation**. An enemy with set-piece
+  moves (level 8's dragon and teacher; look for the same on other levels) plays each move as
+  a scripted animation in one of 32 slots. Its routine keeps the slot's number in a byte of
+  its own, `FF` between moves. `animation(g, slot)` returns `(which, position)`: `which` is
+  the animation's number, so it tells one move from another, and `position` starts at 3 and
+  goes up by exactly one an update on either ROM. Find the enemy's slot byte by watching
+  `FF0E68` to `FF0E87` for the slot that leaves `FF` when the move starts, then looking for
+  a byte nearby that holds that slot number. To find the window, keep a state at the start
+  of the move, and for each k go back, run k updates, act, and see whether the wizard lives.
+  Then act in the middle of the window: `if now[1] >= 9: press`. The animations' pictures
+  are bytes in the ROM (a table of addresses at `0011B4`, low byte first, indexed by the
+  animation's number; three bytes of header, then a picture number an update, `FF` at the
+  end), so a move's length can be read off before trying it.
+- 2026-11-19, level 8, **the wizard's action byte**. `action(g)` (`FF09FC`) is 0 when the
+  wizard is free. The game posts a number there for anything that happens to him (landing
+  from a fall is 1, level 8's blink `14`, fire protection `15`, statue `16`, the dragon's
+  fire `1D`) and his routine clears it when that's over. While it isn't 0 he can't walk and
+  **C doesn't open the inventory, and the press is used up**, so `use()` fails with "the
+  inventory did not open". After a fall, a ladder or a spell, wait with
+  `g.until(lambda g: action(g) == 0)` before `use()`. A harmful number can overwrite a
+  spell's while the spell still protects him, so wait for 0, not for the spell's number to
+  go.
+- 2026-11-19, level 8, **spell books**. A book (blink, statue) is armed from the inventory
+  like the fireball scroll: a box says so, `armed(g)` then gives its thing number, and each
+  fresh press of A casts it once. `press_a(g)` holds A until the game has seen it. The cast
+  begins on the next update and holds the wizard for 11. The casts left are at `FF103E`
+  (blink) and `FF103F` (statue); check the count went down. When a book's casts run out it
+  leaves the carried list, though `armed(g)` still gives its number. A scroll (fire
+  protection, sonic, magnetic hands) works the moment it is used, with no box, and is gone.
+- 2026-11-19, level 8, **a box that opens inside an update**. `tick()` returns True for the
+  update in which an enemy's routine opened a text box, because the box only shows as
+  `busy` 12 frames later. A `use()` straight after such a tick presses C into the box. When
+  RAM says a speech has just begun (the enemy's move changed to the one that speaks), call
+  `wait_busy(g)` and `read(g)` before anything else.
+- 2026-11-19, level 8, **which message is up**: `text_address(g)` is the ROM address of the
+  text in the box, the same on both ROMs for the game's own messages (the patch's own are
+  at `97B0`). Message n's address is in two tables, low bytes at `001684` + n and high bytes
+  at `00177E` + n.
+- 2026-11-19, level 8, **`has()` can be wrong about a thing that was taken away**. When the
+  teacher takes the amulet its place byte stays `40`; only the carried list loses it. Test
+  `thing in carried(g)` for something a creature takes from the wizard.
+- 2026-11-19, level 8, **a death on level 8, and how the game ends**. The last level has no
+  retries, whatever `FF109A` says: health 0, then about 50 updates later the Game Over flag
+  (`FF1072`), with no "prepare to continue". `revive()` raises `Died` there, rightly. And
+  winning ends the same way. The Genesis game never sets its level-over flag on level 8, so
+  the "Congratulations!" message in the main loop (`011256`) is never shown: the closing
+  story's pages turn by themselves, then the wizard's routine runs into the last level's
+  death code and the Game Over flag goes up. The original shows "Game Over" and asks to
+  play again; the patched ROM shows its "Try this level again?" there, after a win.
+  `ending(g)` is true while the story is in the box, and `end_of_game(g)` is level 8's
+  `end_of_level()`: it waits for the story, lets it play, and returns None when the flag
+  goes up. Which of the story's two tellings comes depends on bit 1 of `FF1071`, which the
+  certificate carries.
+- 2026-11-19, level 8, **random choices**. The game's random numbers are a table of 55
+  bytes at `FF0C02`. To see every branch of something random while exploring (the teacher
+  throws either of two bolts of different lengths), go back to a kept state, poke random
+  bytes over the table and play on. Never in `play()`.
 
 ## Where each level stands
 
