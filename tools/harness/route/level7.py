@@ -3,14 +3,27 @@
 
     tools/harness/route/level7.py [--original] [--delay N] [--quiet]
 
-Not finished: it gets as far as the barrel in the water of room 4.
-
-The level has five rooms, 0 to 4, and starts in room 1.
+The level has five rooms, 0 to 4, and the route uses three: room 1 where it starts, room 2
+below the first ladder, and room 4, the water, below the second.
 
 Thing numbers on this level (indexes into the tables at FF0AEE): 0 the wizard's gold, 1 the
 ring, 2 the amulet, 4 the man chained to the wall in room 1, who holds 5 (a book of statue
-spells), 6 (a magnetic scroll) and 7 (a sonic scroll); 3 is in room 2, 8 and 9 in room 4.
+spells), 6 (a magnetic scroll) and 7 (a sonic scroll); 3 is the straw in room 2; 8 is the
+water monster at its gate in room 4 and 9 the whirlpool.
 Creature 2 is the troll in room 1 and creature 1 is the man in room 2.
+
+The water monster (the game's routine at 009FF0, once an update):
+
+    FF1045  0 until the wizard comes within reach of the gate (x 192 or more, y 128 to
+            191), then 1: it is after him
+    FF1044  counts updates, 0 to 9
+    FF1046  counts tens of updates since it woke, up to 22
+
+It doesn't follow him. It keeps a timetable, and he dies if he is still in a part of the
+water it has reached: from 20 updates after it wakes, x 192 or more with y 128 or more;
+from 90, x 96 or more with y 80 or more; from 140, x 104 or more; from 190, y under 96;
+and from 220, anywhere. The whirlpool at (31, 176) drowns him if the monster is asleep and
+ends the level if it is awake.
 """
 import os
 import sys
@@ -22,6 +35,61 @@ CERTIFICATE = 'c250f63010ac1'
 LEVEL = 7
 
 RING, STATUE, MAGNETIC, SONIC = 1, 5, 6, 7
+AWAKE, CLOCK, TENS = 0x1045, 0x1044, 0x1046     # the water monster; see above
+POOL = (31, 176)
+
+
+def chased(g):
+    return g.byte(AWAKE) != 0
+
+
+def since_woken(g):
+    """Updates since the water monster woke."""
+    return g.byte(TENS) * 10 + g.byte(CLOCK)
+
+
+def water(g, log):
+    """Room 4, on the barrel from the foot of the ladder: wake the monster and get to the
+    whirlpool ahead of its timetable. Raises Died if it catches the wizard."""
+    # Up the left channel, right along the top water, down the long diagonal channel and
+    # into the bottom water. The gate is up a short channel at the bottom water's right.
+    sail(g, (30, 66), (44, 46), (196, 46), (208, 76), (126, 158), (116, 200), (150, 212))
+    sail(g, (224, 201), near=1, rest=True)
+    log('below the gate')
+
+    # Wake it on the move: run left under the mouth of the gate's channel and dip up into
+    # it just far enough (y 191), so no time goes on turning round.
+    if sail_to(g, 190, 190, stop=chased) != 'stop':
+        fail(g, LEVEL, 'the water monster did not wake')
+    log('the water monster is awake')
+
+    # Back the way he came. The tight part is the first: left along the bottom water,
+    # round the corner at (128, 190) and up the diagonal channel to y under 80 inside 90
+    # updates. Flat out all the way it takes about 80.
+    sail(g, (130, 199), (118, 186))
+    sail_to(g, 204, 76, stop=lambda g: xy(g)[1] < 80)
+    log(f'out of the diagonal channel {since_woken(g)} updates after it woke (90 allowed)')
+    sail(g, (196, 50))
+    sail_to(g, 40, 48, stop=lambda g: xy(g)[0] < 104)
+    log(f'x under 104 after {since_woken(g)} (140 allowed)')
+    sail(g, (40, 48), (28, 70))
+    sail_to(g, 30, 110, stop=lambda g: xy(g)[1] >= 96)
+    log(f'y 96 after {since_woken(g)} (190 allowed)')
+    sail(g, (30, 110))
+
+    # The whirlpool pulls the barrel in from about 15 away.
+    if not chased(g):
+        fail(g, LEVEL, 'the water monster is not awake; the whirlpool would drown him')
+    sail_to(g, POOL[0], 150)
+    for _ in range(60):
+        if xy(g) == POOL:
+            break
+        if dead(g):
+            raise Died(f'the water monster caught the wizard at {xy(g)}, frame {g.frame}')
+        tick(g)
+    else:
+        fail(g, LEVEL, 'the whirlpool did not take the barrel')
+    log(f'in the whirlpool {since_woken(g)} updates after it woke (220 allowed)')
 
 
 def play(g, log=print, until=None):
@@ -55,7 +123,7 @@ def play(g, log=print, until=None):
     # The ladder down is a hole in the floor near the bottom corner. Stepped onto from its
     # right, the wizard climbs down. Stepped onto from its left, he falls in and dies.
     go(g, (60, 80), (84, 106))
-    through_door(g, 'LEFT', 2)
+    through_door(g, 'LEFT', 2)      # not ladder(): a text box comes before he steps off
     log('down the first ladder')
     if until == 'room2':
         return
@@ -72,13 +140,22 @@ def play(g, log=print, until=None):
     # The straw (thing 3) isn't needed. The next ladder is a hole on the left, safe from its
     # right and top like the first one, and it goes straight to room 4.
     go(g, (90, 80), (67, 102))
-    through_door(g, 'LEFT', 4)
+    ladder(g, 'LEFT', 4)
     log('down the second ladder')
     if until == 'room4':
         return
 
-    fail(g, LEVEL, 'the route is not written past the second ladder')
-    return end_of_level(g)
+    # Room 4. The wizard steps off the ladder onto a barrel. A death here puts him back on
+    # it at the foot of the ladder with the monster asleep again.
+    while True:
+        try:
+            water(g, log)
+            return end_of_level(g)
+        except Died as error:
+            left = revive(g)
+            log(f'lost a life in the water ({error}); {left} retries left')
+            if g.room != 4:
+                fail(g, LEVEL, f'came back in room {g.room}, not on the water')
 
 
 if __name__ == '__main__':

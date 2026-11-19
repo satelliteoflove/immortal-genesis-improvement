@@ -677,6 +677,79 @@ def mount(g, thing, on=True, limit=60):
                      f'(frame {g.frame})')
 
 
+# --- sailing (the barrel in level 7's water) ---
+
+SAIL_SPEED = 0x0984                     # low four bits across, high four down, each signed
+SAIL_TOP = 5
+
+
+def sail_speed(g):
+    """The barrel's speed as (across, down), each -5 to 5. One of speed is half a step of
+    the wizard's coordinates an update."""
+    b = g.byte(SAIL_SPEED)
+    vx, vy = b & 15, b >> 4
+    return (vx - 16 if vx > 7 else vx), (vy - 16 if vy > 7 else vy)
+
+
+def _sail_want(d, rest):
+    """The speed wanted on one axis, d away from the target: flat out when passing through,
+    or the most that can still be braked to nothing in d when coming to rest."""
+    if abs(d) <= 1:
+        return 0
+    v = SAIL_TOP
+    if rest:
+        v = 0
+        while v < SAIL_TOP and (v + 1) * (v + 2) / 4 <= abs(d):
+            v += 1
+    return v if d > 0 else -v
+
+
+def sail_to(g, x, y, near=4, rest=False, limit=300, stop=None):
+    """On the barrel, steer to (x, y) in the wizard's coordinates.
+
+    Returns 'there' when within `near` of both (and standing still, with rest=True), 'busy'
+    if the game stopped, 'room' if the room changed, 'stop' if stop(g) became true. Raises
+    Died if he dies and Stuck if he isn't there after `limit` updates.
+
+    The barrel keeps its speed when the pad is let go; each direction held changes that axis
+    by 1 an update, 5 at most, and 5 is 2.5 of his coordinates an update. Walls throw it
+    back at the speed it came. With rest it brakes on both axes to stop on the point.
+    Without, the axis with farther to go runs flat out through the point and the other is
+    brought to the point's line and held there (both run flat out when they have about as
+    far to go, an even diagonal). Give it points clear of walls."""
+    room = g.room
+    for _ in range(limit):
+        if dead(g):
+            raise Died(f'sail_to({x}, {y}): the wizard died at {xy(g)} in room {g.room}, '
+                       f'frame {g.frame}')
+        if stop and stop(g):
+            return 'stop'
+        (wx, wy), (vx, vy) = xy(g), sail_speed(g)
+        if abs(x - wx) <= near and abs(y - wy) <= near and (not rest or (vx, vy) == (0, 0)):
+            return 'there'
+        dx, dy = x - wx, y - wy
+        tx = _sail_want(dx, rest or abs(dx) < abs(dy) - 8)
+        ty = _sail_want(dy, rest or abs(dy) < abs(dx) - 8)
+        buttons = [('UP' if vy > ty else 'DOWN' if vy < ty else ''),
+                   ('LEFT' if vx > tx else 'RIGHT' if vx < tx else '')]
+        if not tick(g, '+'.join(b for b in buttons if b)):
+            return 'busy'
+        if g.room != room:
+            return 'room'
+    raise Stuck(f'sail_to({x}, {y}): not there after {limit} updates, at {xy(g)} speed '
+                f'{sail_speed(g)} in room {g.room}, frame {g.frame}')
+
+
+def sail(g, *points, near=4, rest=False):
+    """Steer the barrel through each (x, y) in turn. Raises RouteError unless every one is
+    reached."""
+    for x, y in points:
+        result = sail_to(g, x, y, near=near, rest=rest)
+        if result != 'there':
+            raise RouteError(f'sail({x}, {y}): {result} at {xy(g)} in room {g.room}, '
+                             f'frame {g.frame}')
+
+
 # --- the inventory ---
 
 def ladder(g, buttons, room=None, limit=1500):

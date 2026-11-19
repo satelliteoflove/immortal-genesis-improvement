@@ -118,6 +118,8 @@ and `disasm/immortal.dis` is the whole disassembly (made by `tools/disasm.py`, n
 | `FF1042` | The carpet's life left: 25 new, 1 less every 16 updates of flying | Seen, level 4 |
 | `FF1043` | Steps on foot left before a worm comes (level 4's flame rooms): 16 on entering | Seen, level 4 |
 | `FF0F80` + i, `FF0F88` + i, `FF0F90` + i | Fireball i of 8: x, y, and `FF` when the slot is empty | Seen, level 4 |
+| `FF0984` | The barrel's speed on level 7's water: across in the low four bits, down in the high four, each signed, -5 to 5, half a step an update | Seen, level 7 |
+| `FF1044`, `FF1045`, `FF1046` | Level 7's water monster: a count of updates 0 to 9, 1 once it is after the wizard, and the tens of updates since | Read from code, used |
 | `FF10AE` | Not zero while a fight is on | Seen |
 | `FF10A7`, `FF10A8` | In a fight, the enemy's health and the wizard's. A hit takes 1 | Seen |
 | `FF10B0`, `FF10B2` | In a fight, the wizard's move and the enemy's (see "Fights" below) | Read from code, used |
@@ -543,6 +545,43 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
   and nothing else. With the key the box says so, and when it closes the wizard walks
   through by himself: `wait_busy(g); read(g, quiet=0)`, then wait for the room number.
   The key leaves the carried list. `room_map` shows such a door as `!`.
+- 2026-11-19, level 7, **a harder one-on-one fight**: the man at the foot of level 7's
+  first ladder has 9 health (the troll above him 3). The plain `fight(g)` beat both without
+  a hit on both ROMs, about 1,000 and 770 frames; nothing needed changing. He speaks first,
+  the moment the ladder ends: `wait_busy(g); read(g)` returns when the fight has begun.
+  `ladder()` can't be used for a ladder that ends in a text box like that (it waits for the
+  wizard to step off, which he doesn't while the box is up, and raises); `through_door`
+  got down both of level 7's ladders on both ROMs.
+- 2026-11-19, level 7, **steering a vehicle: the barrel, `sail_to(g, x, y)` and
+  `sail(g, (x, y), ...)`**. In level 7's water the wizard steps off the ladder onto a
+  barrel. Its speed is one byte, `FF0984` (`sail_speed(g)`): across in the low four bits,
+  down in the high four, each signed, -5 to 5, and 1 of speed is half a step of his
+  coordinates an update (2.5 at most on each axis). A direction held changes that axis by 1
+  an update; letting go changes nothing, there is no drag, and the water's current is
+  slight (about 1 of speed downward every 4 updates in the one channel that has it). A wall
+  throws the barrel back like a ball at the speed it came, which turns it round at once but
+  not where you'd choose. The carpet's bytes (`FF0A3E`/`3F`) hold only the last step here,
+  so `fly_to` won't do. `sail_to` passes through a point flat out on the axis with farther
+  to go and holds the other axis on the point's line; `rest=True` brakes to a stop on it;
+  `stop=` ends it on a test, as in `walk_to`. `room_map` is no use with a thing that keeps
+  its speed: `scratch/route/level7/bmap.py` did the same search holding each direction for
+  3 updates, in about 5 minutes.
+- 2026-11-19, level 7, **being chased: it was a timetable**. The water monster doesn't
+  follow the wizard. Its routine (`009FF0`, once an update) wakes it when he comes inside
+  a box by its gate, then counts updates (`FF1044` 0 to 9, `FF1046` the tens, `FF1045` the
+  awake flag) and kills him if he is still inside a fixed part of the room when the count
+  passes fixed marks. `level7.py`'s docstring has the boxes and marks. So the route is a
+  race against a count that RAM shows, the same on both ROMs since it is in updates, and
+  the log says how many updates were to spare at each mark. If something on your level
+  "chases", search the ROM for the bytes of its state's address (a level's retry code,
+  near `0081D6`, clears them, which is how these were found) and read its routine with
+  `dasm.py` before trying to outrun it by feel. Also: wake such a thing on the move. Coming
+  to a stop inside its box and turning round cost 9 of the 90 updates.
+- 2026-11-19, level 7, **the end through the whirlpool** needs nothing new. The whirlpool
+  drowns a wizard the monster isn't after, and ends the level if it is: about 1,100 frames
+  of him going under with the game not busy, then the usual "End of level!" screen.
+  `end_of_level(g)` as it stands returned the certificate on both ROMs, the same one the
+  1991 walkthrough gives for level 8.
 
 ## Where each level stands
 
@@ -554,5 +593,5 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
 | 4 | `level4.py` gets past the troll at the start and takes the carpet | Those parts pass all six |
 | 5 | `level5.py` takes the egg, buys the potion, goes through the hole, beats both trolls, empties the chest and drinks the water | Those parts pass on both ROMs |
 | 6 | not started | |
-| 7 | `level7.py` beats the troll, gives the ring and climbs down the first ladder | Those parts pass on both ROMs |
+| 7 | `level7.py` plays the whole level: troll, ring, the fight below the ladder, the barrel, the water monster, the whirlpool | Patched and original pass with no delay; the six runs are next |
 | 8 | not started | |
