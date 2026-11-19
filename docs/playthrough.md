@@ -105,6 +105,9 @@ and `disasm/immortal.dis` is the whole disassembly (made by `tools/disasm.py`, n
 | `FF0DD4`+16, `FF0D54`+16, `FF0C54` | How many things the wizard carries, where his list starts, and the lists themselves (thing numbers, in inventory order) | Seen |
 | `FF08F8` | 20 bytes, one for each creature (the wizard first): the number of the list that holds what it carries. The wizard's is 16 after a new game and 0 after a certificate | Seen, levels 1 and 6 |
 | `FF0B6C` | 42 bytes in step with the things table: for a chest or body, the number of the list of what's inside it | Seen, level 6 |
+| `FF0934` + n | Creature n's state, the wizard being n 0. Seen for him: `22` on his feet, `2B` climbing a ladder, `33` held fast by a web or a swarm and about to die | Seen, level 6 |
+| `FF0BAE` | Level 6, room 0: the thing number of the spider hole with legs showing, `FF` for neither | Seen, level 6 |
+| `FF1089`, `FF108A` | Level 6's corridor (room 3): stretches of it still to come, 21 at first, and the updates the wizard may still stand on its floor | Seen, level 6 |
 | `FF1083` | The inventory's cursor: slot 0 to 5. `FF1086` is 1 if it was left with A | Seen |
 | `FF1087` | The inventory page's first index into the carried list: 0, 5, 10 | Seen |
 | `FF0A17` | The thing number of the fireball scroll once it has been used, `FF` before | Seen |
@@ -113,7 +116,7 @@ and `disasm/immortal.dis` is the whole disassembly (made by `tools/disasm.py`, n
 | `FF090C` + n, low four bits | The room creature n is in | Seen, level 3 |
 | `FF0B6C` + a scroll's thing number | The fireballs left in it | Seen, level 3 |
 | `FF0F62`, `FF0F68`, `FF0BCC` | Level 3's spike room: the x and y of the spike that is up, and its step in a round of 15 | Seen, level 3 |
-| `FF0A1D` | 1 while the wizard is on the flying carpet | Seen, level 4 |
+| `FF0A1D` | 1 while the wizard is on the flying carpet, `0E` under level 6's levitation spell (which flies the same way and runs on the same life at `FF1042`) | Seen, levels 4 and 6 |
 | `FF0A3E`, `FF0A3F` | The carpet's speed across and down, signed, -5 to 5 | Seen, level 4 |
 | `FF1042` | The carpet's life left: 25 new, 1 less every 16 updates of flying | Seen, level 4 |
 | `FF1043` | Steps on foot left before a worm comes (level 4's flame rooms): 16 on entering | Seen, level 4 |
@@ -582,6 +585,71 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
   of him going under with the game not busy, then the usual "End of level!" screen.
   `end_of_level(g)` as it stands returned the certificate on both ROMs, the same one the
   1991 walkthrough gives for level 8.
+- 2026-11-19, level 6, **a death that health doesn't show**. A web or a swarm of small
+  spiders holds the wizard where he stands: `FF0934` goes from `22` to `33` (and `action(g)`
+  to `11` for a web, `0F` for a swarm), he can't move, and about 30 updates later a retry
+  is gone. His health stays 15 the whole time for the swarm, so `dead(g)`, `walk_to` and
+  `room_map`'s `x` never see it. Test `g.byte(0x0934) == 0x33` in the walk's `stop=` where
+  such a thing is about (`caught(g)` in `level6.py`).
+- 2026-11-19, level 6, **an enemy with a rhythm: read its bytes, not the picture**. The big
+  spider (creature 1 of room 1) looks for the wizard once every 6 updates. If he is in
+  front of it (above y 88 there) the low four bits of `FF0948` + 1 go from 5 to 9 as it
+  rears, and 6 updates later its web takes him wherever in that area he stands; walking
+  doesn't dodge it, only being outside. Then `FF0984` + 1 is set to 5 and steps down to 0
+  at random, 20 to 45 updates, before it will rear again. So the route steps over the
+  line, steps back the moment `rearing(g)`, waits for that to clear, and runs the 8 updates
+  to the spider while it can't shoot; touching it starts an ordinary fight, which the
+  plain `fight(g)` won without a scratch (6 health). For any enemy like it: stand still
+  outside its reach and print its column of the creature tables (`FF08BC` + n to `FF09D4`
+  + n in steps of 20) each update to find the byte that marks the wind-up and the one that
+  counts the wait, then measure the wait over 20 or 30 kept states before trusting it.
+  `room_map` is no use while such an enemy lives: the map comes out striped with `!`,
+  because each spot is tried at a different moment of its cycle. Map again when it's dead.
+- 2026-11-19, level 6, **two holes, one safe at a time** (room 0's spider holes, things 13
+  and 14). `FF0BAE` is the thing number of the hole with legs showing. The game looks once,
+  as the wizard steps in: legs in the other hole is the only safe moment; legs in neither
+  kills as surely as legs in this one, 32 updates later. Stand below the hole, wait for the
+  byte, then `through_door(g, 'UP', 1)`; the crawl is 34 updates.
+- 2026-11-19, level 6, **using one thing on another**. There's no aiming. Stand beside the
+  target (bump the chest, answer its question no) and use the thing from the inventory:
+  the game asks its usual question first and, if that is refused, offers the other use.
+  `use(g, 5); read(g, 'ny')` is "drink the alcohol? no; pour it on the chest? yes". Away
+  from the chest only the first question comes. The thing is gone as soon as `read`
+  returns, and the chest's own question changes. A thing lying loose on the floor (the
+  bottle) asks "take it?": `walk_to(g, *thing_xy(g, n), near=1)` then `search(g, 'y', n)`.
+- 2026-11-19, level 6, **a spell switched on and off: levitation is the carpet again**.
+  **Shared helper changed: `flying(g)`** is now true for `FF0A1D` = `0E` (the spell) as
+  well as 1 (the carpet), so `mount(g, 7)`, `mount(g, 7, on=False)`, `fly_to`, `fly`,
+  `fly_speed` and `fly_time` all work for the spell as they are; carpet callers see no
+  difference. Same speeds, same walls, same life of 25 at `FF1042`, so 400 updates in the
+  air and then he is set down wherever he is. No text box either way. A ladder doesn't
+  take a flying wizard: land beside it and walk on.
+- 2026-11-19, level 6, **a room longer than a room**. The corridor (room 3) is flown down
+  and right for about 780 of the wizard's coordinates. Each time his x reaches 183 the game
+  takes 32 off his x and y and off those of the five egg sacks, and the sack that fell
+  behind comes back ahead at a height picked at random; `FF1089` counts the 21 times this
+  happens. So positions there mean nothing from one update to the next (wait on `FF1089`,
+  not on x), and the sacks can't be learned. `corridor_push` in `level6.py` picks each
+  update's push by trying every way of pushing for the next 16 updates and keeping one
+  that never comes near a sack: the flight is exact (a push changes the speed by 1, then
+  the speed is added to the position), so the look-ahead matched the game on every update
+  of a 390-update flight. Copy it for anything that has to be steered through things
+  whose places are only known a second ahead. A sack catches within 3 on both axes, in the
+  air too. Standing on that floor is on a clock as well: `FF108A` is 35 on coming in and
+  drops 1 an update while he is on foot, not while he flies or a box is up; at 0 the swarm
+  has him. Using the spell first thing left 28, and 26 for the ladder at the far end.
+- 2026-11-19, level 6, **finding a ladder up**. `room_map` doesn't show one: touching it
+  only snaps the wizard to its foot and he climbs from there. Give the mapper a test for
+  `FF0934` = `2B` (climbing) or `walking_in(g)` after each step and the spots that start
+  the climb show up; level 6's is touched from its left at the end of the corridor, and
+  the climb in the old room was 6 updates, not 38. The three ladders down on this level
+  are safe from the right and from the top, and kill from the left and from below.
+- 2026-11-19, level 6, **committing a shared file someone else is in the middle of**.
+  `git commit -- common.py` takes the whole file, another agent's unfinished edits and
+  all. To commit only your own lines: build the commit from HEAD's copy plus your exact
+  replacements in a temporary index (`GIT_INDEX_FILE`, `read-tree HEAD`, `hash-object -w`,
+  `update-index --cacheinfo`, `write-tree`, `commit-tree`, `update-ref HEAD new old`), then
+  `git reset -q -- path` so the real index matches. The working file keeps everyone's.
 
 ## Where each level stands
 
@@ -592,6 +660,6 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
 | 3 | `level3.py` takes the scroll, kills the troll for the knife, passes the king, takes the gem and climbs down to room 8 | Those parts pass all six |
 | 4 | `level4.py` gets past the troll at the start and takes the carpet | Those parts pass all six |
 | 5 | `level5.py` takes the egg, buys the potion, goes through the hole, beats both trolls, empties the chest and drinks the water | Those parts pass on both ROMs |
-| 6 | not started | |
+| 6 | `level6.py` plays the whole level: the spider hole, the big spider, the alcohol on the chest, the levitation spell down the corridor, the ladders | All six pass, with the walkthrough's certificate for level 7 |
 | 7 | `level7.py` plays the whole level: troll, ring, the fight below the ladder, the barrel, the water monster, the whirlpool | Patched and original pass with no delay; the six runs are next |
 | 8 | not started | |
