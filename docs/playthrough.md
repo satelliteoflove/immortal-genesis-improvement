@@ -30,7 +30,7 @@ and the Genesis ROM accepts all of them:
 | 2 | `cddff10006f70` |
 | 3 | `f47ef21000e10` |
 | 4 | `level4.py` gets past the troll, takes the carpet and flies the first flame room (room 4) to the door of the second | Those parts pass on both ROMs |
-| 5 | `level5.py` takes the egg, buys the potion, goes through the hole, beats both trolls, empties the chest, shoots both lizards and takes the key | Those parts pass on both ROMs |
+| 5 | `level5.py` plays rooms 8, 0, 1, 2, 4 and 5 (egg, potion, hole, trolls, chest, lizards, key, worm room) to the door of the last room | Those parts pass on both ROMs |
 | 6 | `563ff53010a41` |
 | 7 | `c250f63010ac1` |
 | 8 | `level8.py` plays the whole level: chest, ladder, pit, the dragon, the teacher, the closing story | All six pass |
@@ -528,6 +528,21 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
   bytes at `FF0C02`. To see every branch of something random while exploring (the teacher
   throws either of two bolts of different lengths), go back to a kept state, poke random
   bytes over the table and play on. Never in `play()`.
+- 2026-11-19, level 5, **a path with unseen deadly sides (the worm room, room 5)**. The
+  walkthroughs' "only safe path" is a maze drawn in the wizard's own x and y: its walls
+  are straight lines about 3 wide, up and down or across, that kill at a touch (he sinks
+  where he stands, `action(g)` 4, health unchanged for a while), and the corridors between
+  are 20 or more wide. Nothing shows on the floor, and the Genesis room is brown, not red.
+  `room_map` draws it exactly: the lines come out as `x`, with `.` on both sides where the
+  far side was reached another way. So make the map, read the corridors off it, and
+  `go()` down their middles; `near=2` is plenty and no step counting is needed. The
+  sensor only beeps and the route doesn't use it. Also in `room_map`: an edge of floor
+  with no wall (he falls) is `x` too, and so is the spot inside a door he was walking in
+  from, since he is carried through.
+- 2026-11-19, level 5, **a locked door**. Without the key, walking into it brings a box
+  and nothing else. With the key the box says so, and when it closes the wizard walks
+  through by himself: `wait_busy(g); read(g, quiet=0)`, then wait for the room number.
+  The key leaves the carried list. `room_map` shows such a door as `!`.
 
 ## Where each level stands
 

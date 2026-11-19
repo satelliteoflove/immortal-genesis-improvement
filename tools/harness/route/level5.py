@@ -28,7 +28,7 @@ KEY = 14
 
 def play(g, log=print, until=None):
     """until names a place to stop early, for exploring: 'egg', 'room0', 'bought', 'hole',
-    'room2', 'trolls', 'chest', 'lizards'."""
+    'room2', 'trolls', 'chest', 'lizards', 'room5', 'room7'."""
     if g.level != 4 or g.room != 8:
         fail(g, LEVEL, f'expected the first room of level 5, found level {g.level} room {g.room}')
 
@@ -150,7 +150,36 @@ def play(g, log=print, until=None):
     if until == 'lizards':
         return
 
-    fail(g, LEVEL, 'the route is not written past the chest in room 2')
+    # The door at the bottom left is locked. Walking into it with the key brings a box, and
+    # after it the wizard goes through by himself.
+    go(g, (160, 78), (110, 84), (96, 100))
+    if walk_to(g, 80, 100) != 'busy':
+        fail(g, LEVEL, 'the locked door said nothing')
+    wait_busy(g)
+    read(g, quiet=0)
+    g.until(lambda g: g.room == 5, limit=300)
+    for _ in range(12):
+        if not walking_in(g):
+            break
+        tick(g)
+    log('through the locked door')
+    if until == 'room5':
+        return
+
+    # Room 5, the worm room (brown here, not red). The floor is an unseen maze: its walls
+    # are lines about 3 wide that kill at a touch (the wizard sinks where he stands), and
+    # the corridors between them are 20 or more wide. The sensor only tells how near a
+    # line is and isn't needed. Down the middle of each corridor: left along the top wall
+    # (keeping above the ladder's hole), down the left side, right, down, left, down,
+    # right, up, right, and down into the door.
+    go(g, (24, 32), (24, 70), (81, 72), (81, 146), (57, 146), (57, 186), (105, 186),
+       (105, 138), (137, 146))
+    through_door(g, 'DOWN', 7)
+    log('across the worm room')
+    if until == 'room7':
+        return
+
+    fail(g, LEVEL, 'the route is not written past the door of room 7')
     return end_of_level(g)
 
 
