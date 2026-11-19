@@ -9,8 +9,9 @@ straw bed; 8 the sign in the triangle; 14 the girl's ring in room 4; 18 the girl
 
 The ring and the trade with the girl aren't needed to finish the level, but they set the
 flag that decides how the game's closing story goes, so the certificate this makes has the
-same flags as the walkthrough's for level 5. Fireballs in the flame rooms cost 3 or 4 health
-by chance, so the certificate's health digit (the fifth) varies from run to run.
+same flags as the walkthrough's for level 5. Fireballs in the flame rooms cost 0 to 6 health
+by chance, so the certificate's health digit (the fifth) varies with the timing; with 2 or
+less it is 15 after the straw bed and the certificate is the walkthrough's d630f43000eb0.
 """
 import os
 import sys
