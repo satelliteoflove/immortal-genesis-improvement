@@ -788,6 +788,11 @@ def in_between(old_poses=False, hidden=False, trace=False):
     moves every position and the camera 3/8 of the way back toward the previous ones, draws
     that at frame 2, puts the real values back and draws again at frame 4.
 
+    Depth, which decides what's drawn in front, isn't blended. It was at first, and in-between
+    pictures then sometimes drew a thing on the floor in front of the wizard standing before
+    it. The depth kept from the last update isn't a sound thing to blend from; why hasn't been
+    traced. Each entry now keeps this update's depth, shifted with the camera like the rest.
+
     The list has no names for things, and entries come and go, so each entry is paired with
     the nearest entry of last update's list that has the same sprite set and is within 16
     pixels of it in the room. An entry with no pair is drawn where it really is.
@@ -856,9 +861,10 @@ def in_between(old_poses=False, hidden=False, trace=False):
     w(0x3442)                                       # a2 = the one it was
     if old_poses:
         w(0x43F8, ram + 0x400, 0x3DB1, 0xA000, 0x6000, 0x3DB1, 0xA040, 0x6040)  # its two pose numbers
-    for mine, last in ((0xC0, 0x80), (0x00, 0xC0), (0x40, 0x00)):   # x, y and depth, part of the way back
+    for mine, last in ((0xC0, 0x80), (0x00, 0xC0)):         # x and y, part of the way back
         w(0x3030, 0x6000 | mine, 0x9075, 0xA000 | last); l(0x6100, 'part')
         w(0x9170, 0x6000 | mine)
+    w(0x3038, back_y, 0x9170, 0x6040)               # depth: this update's, moved with the camera only
     s(0x6000, 'put')
     c.label('new')                                  # not there last update: it stays put in the room
     w(0x3038, back_x, 0xD170, 0x60C0, 0x3038, back_y, 0xD170, 0x6000, 0x9170, 0x6040)
