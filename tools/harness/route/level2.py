@@ -66,7 +66,65 @@ def first_room(g, log):
     log('out of the first room')
 
 
-STEPS = [first_room]
+CHARMED = 0x0BB6                        # 1 once the charm scroll has been read
+
+
+def merchant(g, log):
+    """Room 1, the big room. Take the stone from its far left corner, read the charm (the
+    wisps follow the wizard about after that and leave him alone), and buy the slime oil
+    from the merchant on the ledge to the right. He asks 80 gold first, which is refused;
+    walked into again he asks 60, which is taken."""
+    go(g, (160, 175), (100, 175), (40, 165))
+    walk_to(g, 25, 140, near=1)
+    search(g, 'y', STONE)
+    log('took the stone')
+    use(g, CHARM)
+    read(g)
+    if g.byte(CHARMED) != 1:
+        fail(g, LEVEL, 'the charm was read but the wisps are not charmed')
+    log('read the charm')
+    go(g, (60, 170), (150, 170))
+    walk_to(g, 150, 140)
+    wait_busy(g)
+    read(g, 'n')
+    go(g, (150, 158))
+    walk_to(g, 150, 140)
+    wait_busy(g)
+    read(g, 'y')
+    if not has(g, OIL):
+        fail(g, LEVEL, 'the merchant did not sell the oil')
+    log('bought the oil')
+
+
+def to_the_goblins(g, log):
+    """Room 1 to room 0 by the metal door in the upper floor's top right wall."""
+    go(g, (100, 165), (60, 150), (60, 110), (110, 50), (116, 44))
+    through_door(g, 'RIGHT', 0)
+    log("in the goblins' room")
+
+
+GOBLINS = (5, 6)
+
+
+def goblins(g, log):
+    """Room 0. Two goblins guard the door to the king's room, the one nearer that door
+    carrying the dust. Each has 10 health and fight(counter=True) beats them without a
+    blow taken (the plain fight lost to the second). The first is searched as he falls;
+    the second has nothing, and a box comes and goes. Then the door at the top right."""
+    for n in GOBLINS:
+        health_left = attack(g, n, counter=True)
+        log(f'beat goblin {n}, health {health_left}')
+        if n == GOBLINS[0]:
+            search(g, 'yy', DUST)
+            log('took the dust')
+        else:
+            read(g)
+    go(g, (186, 136))
+    through_door(g, 'RIGHT', 5)
+    log("in the king's room")
+
+
+STEPS = [first_room, merchant, to_the_goblins, goblins]
 
 
 def play(g, log=print):
