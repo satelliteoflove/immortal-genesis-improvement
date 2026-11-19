@@ -18,6 +18,8 @@ nothing of the game is stored here. What it changes:
   * Sprite masking. Hiding the parts of a sprite behind scenery shifted eight mask rows
     a bit at a time for every tile. The shifted masks are now worked out here, and tiles
     with nothing in front of them are skipped early.
+  * Mask edges. The game's shift put half of each mask one bit out of line, leaving stray
+    miscoloured pixels where a sprite passes behind scenery. The tables line it up.
   * The boot check at 0FFFB0, which halts the game if the first megabyte has changed.
 
 --check builds test ROMs that boot straight into a small test. One runs the game's own,
@@ -327,19 +329,24 @@ def background_check():
     return c.origin, c.finish(), pattern_at, pattern
 
 
-def mask_tables(rom):
-    """Every mask shape at every horizontal shift, as the game would have shifted it.
+def mask_tables(rom, as_game=False):
+    """Every mask shape at every horizontal shift.
+
+    The game shifts the right-hand cell's shape by 31 minus the offset, which leaves it one
+    bit out of line and miscolours stray pixels along mask edges. 32 lines it up. as_game
+    keeps the 31, for proving the routine against the original.
 
     Shapes 6 to 15 are whatever bytes follow the six real ones, which is the old routine's
     own code. They're kept as they were, in case a cell ever names one.
     """
+    right_shift = 31 if as_game else 32
     left, right = bytearray(), bytearray()
     for shape in range(16):
         rows = [int.from_bytes(rom[MASK_SHAPES + shape * 32 + 4 * r:][:4], 'big') for r in range(8)]
         for shift in range(0, 32, 4):
             for row in rows:
                 left += ((row << shift) & 0xFFFFFFFF).to_bytes(4, 'big')
-                right += (row >> (31 - shift)).to_bytes(4, 'big')     # 31, as the game does
+                right += (row >> (right_shift - shift)).to_bytes(4, 'big')
     return bytes(left + right)
 
 def sprite_mask(origin=MASK):
@@ -516,7 +523,9 @@ def check_mask(rom, patched):
     records, extra, tiles = mask_test_data()
     code = mask_test(pattern_at)
     results = []
-    for source in (with_tiles(rom, b''), patched):
+    exact = bytearray(patched)                      # the new routine with the game's own shift
+    exact[MASK_TABLES:MASK_TABLES + 0x2000] = mask_tables(rom, as_game=True)
+    for source in (with_tiles(rom, b''), exact):
         test = bytearray(source)
         for at, data in ((MASK_RECORDS, records), (MASK_EXTRA, extra), (MASK_TILES, tiles),
                          (pattern_at, b''.join(r.to_bytes(4, 'big') for r in registers))):

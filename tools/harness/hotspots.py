@@ -26,7 +26,10 @@ CORE = os.path.join(ROOT, 'build', 'picodrive_trace_libretro.so')
 WAITS = ((0x1349C, 0x134A7),     # the main loop, until the next tick is due
          (0x14E06, 0x14E0B),     # reading the pad variable, nearly always from a pause
          (0x14E3A, 0x14E6D),     # the two waits for vertical blank
-         (0x153DA, 0x15405))     # timed pauses
+         (0x153DA, 0x15405),     # timed pauses
+         (0xD2DE, 0xD317),       # the YES/NO prompt, polling until the choice changes
+         (0x134BE, 0x134C3),     # which reads the pad through these two
+         (0x15466, 0x15481))
 PATCH_ROUTINES = [0x2E480]      # the new tile routine, which sits inside the old 02E3E4
 TOP = 12
 

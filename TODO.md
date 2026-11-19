@@ -43,8 +43,6 @@ the optimized game really runs.
 - [ ] Slowdown that's left: 2.0% of ticks, mostly deliberate waits in animations on levels 2, 6
       and 7. Find out what those animations are.
 - [x] Sprite masking reads shifted masks from tables. It costs about half what it did.
-- [ ] Look at the mask's one-bit shift (see `docs/optimizations.md`): is it visible, and should
-      it be corrected?
 - [ ] More headroom: the map routines on camera steps (`013D34`, `013B16`, `013B78`), and sending
       sprite tiles during vertical blank.
 - [ ] Release the patch as tools that build it from the player's own ROM, for now. The
@@ -56,6 +54,8 @@ the optimized game really runs.
 ## Bugs fixed
 
 - [x] The wall torch's flame loses its top, from a slip in the game's tile search.
+- [x] Stray miscoloured pixels where a sprite passes behind scenery, from a mask shifted one bit
+      too little.
 
 ## Things to keep
 

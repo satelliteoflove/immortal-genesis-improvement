@@ -198,6 +198,18 @@ Across all levels 23.8% of ticks were late. Level 6 came out worse here, at 58% 
 levels. The walks drift apart between emulators, so small differences between tables don't
 mean much, but PicoDrive's cycle counts should be read as a little optimistic.
 
+### Sprite masking
+
+`01428C` hides the parts of sprites behind scenery. `8ADE` holds one byte per cell of a 34 by 18
+grid over the play window, two 4-bit shape numbers each. For every sprite tile the routine takes
+the four cells under it and compares the sprite's depth (its word in the list at `9254`, plus the
+camera's y) with each cell row's to choose which half of the byte applies. Shape 0 hides nothing
+and shape 5 hides everything. The shapes are 32 bytes each at `0141CC`, and only the first six are
+data. A list word with its top bit set means the sprite isn't masked at all.
+
+The original shifts the right-hand cells' shape one bit too little, which miscolours stray pixels
+along mask edges. `docs/optimizations.md` has the details and the fix.
+
 ## The object graphics patch
 
 `tools/build_rom.py` unpacks all the object tiles from your ROM into a new second megabyte
