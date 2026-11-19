@@ -114,6 +114,7 @@ TEXT_TURN = 0x96A9              # flips each time a held button meets a letter's
 DRAW_CALLS = 0x1348C            # the main loop's two calls that draw an update's picture
 IN_BETWEEN = 0x2E800            # the routine that draws two pictures for each update
 REACH = 16                      # how far, in pixels, a thing can move in one update and be the same thing
+HIDDEN_Y = 300                      # a y that puts a thing below the screen: scenery-only recordings
 SMOOTH_RAM = 0xA000             # FFA000 on: the previous update's draw list, and working values
 MASK = 0x1428C                  # hides the parts of sprites that are behind scenery
 MASK_END = 0x14508              # the first byte after its rts
@@ -778,7 +779,7 @@ def text_wait():
     return c.finish()
 
 
-def in_between(old_poses=False):
+def in_between(old_poses=False, hidden=False, trace=False):
     """Draw two pictures for each update: one part of the way from the last update, then the real one.
 
     The game logic leaves a list of things to draw: up to 32 entries of position, pose, depth
@@ -794,6 +795,11 @@ def in_between(old_poses=False):
     With old_poses, the in-between picture shows each paired entry in last update's pose
     where it otherwise shows this update's. Nothing ships that way. Two builds that differ
     only in this give two pictures to average, which is how a video of blended poses is made.
+
+    hidden and trace are for pulling the sprites out of a recording, and nothing ships with
+    them either. hidden draws every entry below the bottom of the screen, which leaves a
+    recording of the scenery alone. trace copies the list the in-between picture was drawn
+    from (poses, x and y, then the count) to RAM at $A500, and counts the copies at $A602.
 
     There's no in-between picture when message text is on screen (text is drawn outside the
     list), when the camera has jumped, when the last update was too long ago, or when the
@@ -860,7 +866,16 @@ def in_between(old_poses=False):
     w(0x5446, 0xBC47); l(0x6600, 'entry')
     w(0x3038, back_x, 0x916C, 0x1160, 0x3038, back_y, 0x916C, 0x1162)   # the camera, part of the way back
     w(0x202C, 0x0FE6, 0x5780, 0x21C0, target)       # show it at frame 2
+    if trace:
+        w(0x41EC, 0x0DE2, 0x43F8, ram + 0x500, 0x703F)
+        c.label('trace')
+        w(0x22D8); l(0x51C8, 'trace')
+        w(0x32EC, 0x0FE2, 0x5278, ram + 0x602)
+    if hidden:
+        l(0x6100, 'hide')
     w(0x4EB9, 0x0001, 0x5334, 0x4EB9, 0x0001, 0x3682); l(0x6100, 'draw')
+    if hidden:
+        l(0x6100, 'unhide')
     w(0x21F8, 0x9624, shown)
     w(0x0C38, 0x0064, 0x8D52); s(0x6600, 'colors')  # room $64's color cycle stepped: step it back
     w(0x5378, 0x963E); s(0x6A00, 'colors')
@@ -887,7 +902,11 @@ def in_between(old_poses=False):
     c.label('single')
     w(0x5278, skipped, 0x202C, 0x0FE6, 0x5380, 0x21C0, target)
     c.label('real')
+    if hidden:
+        l(0x6100, 'hide')
     w(0x4EB9, 0x0001, 0x5334, 0x4EB9, 0x0001, 0x3682); l(0x6100, 'draw')
+    if hidden:
+        l(0x6100, 'unhide')
     w(0x41EC, 0x0E62, 0x4BF8, prev, 0x704F)         # remember this update: 320 bytes of list,
     c.label('keep')
     w(0x2AD8); l(0x51C8, 'keep')
@@ -909,6 +928,17 @@ def in_between(old_poses=False):
     c.label('wait')
     w(0x2038, 0x9624, 0xB0B8, target); s(0x6D00, 'wait')
     w(0x4EF9, 0x0001, 0x565A)
+    if hidden:
+        c.label('hide')                             # keep every y, then put them all off the screen
+        w(0x41EC, 0x0EA2, 0x43F8, ram + 0x610, 0x701F)
+        c.label('hiding')
+        w(0x32D0, 0x30FC, HIDDEN_Y); l(0x51C8, 'hiding')
+        w(0x4E75)
+        c.label('unhide')
+        w(0x41EC, 0x0EA2, 0x43F8, ram + 0x610, 0x701F)
+        c.label('unhiding')
+        w(0x30D9); l(0x51C8, 'unhiding')
+        w(0x4E75)
     code = c.finish()
     assert IN_BETWEEN + len(code) <= MUSIC_KEEP
     return code
