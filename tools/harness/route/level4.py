@@ -3,10 +3,14 @@
 
     tools/harness/route/level4.py [--original] [--delay N] [--quiet]
 
-Not finished: see the fail() at the end of play().
-
 Thing numbers on this level (indexes into the tables at FF0AEE): 0 to 4 what the certificate
-gives the wizard, 5 the man in the first room (room 6), who holds 6, the flying carpet.
+gives the wizard, 5 the man in the first room (room 6), who holds 6, the flying carpet; 7 the
+straw bed; 8 the sign in the triangle; 14 the girl's ring in room 4; 18 the girl.
+
+The ring and the trade with the girl aren't needed to finish the level, but they set the
+flag that decides how the game's closing story goes, so the certificate this makes has the
+same flags as the walkthrough's for level 5. Fireballs in the flame rooms cost 3 or 4 health
+by chance, so the certificate's health digit (the fifth) varies from run to run.
 """
 import os
 import sys
@@ -17,7 +21,7 @@ from common import *
 CERTIFICATE = 'b5fff31001eb0'
 LEVEL = 4
 
-MAN, CARPET, BED = 5, 6, 7
+MAN, CARPET, BED, RING, GIRL = 5, 6, 7, 14, 18
 TROLL = 1                               # the creature beside the wizard as the level starts
 CREATURE_HEALTH = 0x090C                # 20 bytes, the wizard first; health in the high bits
 CREATURE_POSE = 0x0920                  # 20 bytes; the low seven bits are the pose
@@ -63,10 +67,33 @@ def first_flame_room(g, log):
     through_door(g, 'UP', 4)
     mount(g, CARPET)
     log('on the carpet, life', fly_time(g))
-    fly(g, (184, 150), (184, 83), (66, 83), (64, 78))
+    fly(g, (184, 150), (184, 83), (66, 83))
+    the_ring(g, log)
+    fly(g, (66, 83), (64, 78))
     mount(g, CARPET, on=False)
     through_door(g, 'LEFT', 0)
     log(f'through the first flame room; carpet life {fly_time(g)}, steps left {worm_steps(g)}')
+
+
+# From the wooden door down the room's left arm to the ring at its dead end, and back. The
+# turns keep 8 clear of six nozzles: (60, 104), (36, 112), (50, 154), (92, 168), (72, 188)
+# and (114, 186).
+RING_WAY = [(72, 96), (72, 106), (62, 120), (62, 140), (62, 160), (72, 176), (94, 182),
+            (94, 192), (80, 200), (72, 206)]
+
+
+def the_ring(g, log):
+    """The ring (thing 14) lies at the end of room 4's left arm. Flying into it brings it up
+    with a question, take it? The carpet keeps its speed while the box is up, so the last
+    leg comes in slowly and the way back starts the moment the box has gone."""
+    fly(g, *RING_WAY)
+    if fly_to(g, *thing_xy(g, RING), near=1, top=1) != 'busy':
+        fail(g, LEVEL, f'the ring brought no box; at {xy(g)}')
+    read(g, 'y', quiet=0)
+    if not has(g, RING):
+        fail(g, LEVEL, f'the ring was not taken; carrying {carried(g)}')
+    fly(g, *reversed(RING_WAY[:-1]))
+    log(f'have the ring; carpet life {fly_time(g)}')
 
 
 def second_flame_room(g, log):
@@ -109,10 +136,30 @@ def two_trolls(g, log):
     log('down the second ladder')
 
 
-def past_the_girl(g, log):
+STORY = 0x1071                          # bit 1: the girl has her ring back; see the_girl
+
+
+def the_girl(g, log):
     """Room 2: a girl (thing 18) stands in the top corner and asks after a ring when walked
-    up to. The route doesn't go for the ring and leaves her be. The hole at x 24 to 45, y 40
-    to 60 is the ladder when walked LEFT onto with y 46 to 50; lower down it is a drop."""
+    up to: is it hers? Yes, and she takes it, they hug for about 170 frames, deaf to the
+    pad, and then she speaks again and gives one back: thing 14 stays carried but its kind
+    goes from 1D to 1E. It is that second speech that sets bit 1 of FF1071, which the
+    certificate carries on and which picks the telling of the story at the end of level 8.
+    The walkthrough's certificates for levels 5 to 8 all have it."""
+    walk_to(g, *thing_xy(g, GIRL))
+    wait_busy(g)
+    read(g, 'y')
+    wait_busy(g, limit=900)
+    read(g)
+    if not has(g, RING) or g.byte(THING_KIND + RING) != 0x1E or not g.byte(STORY) & 2:
+        fail(g, LEVEL, f'the trade with the girl went wrong: carrying {carried(g)}, the ring '
+                       f'of kind {g.byte(THING_KIND + RING):02X}, FF1071 {g.byte(STORY):02X}')
+    log('gave the girl her ring and took hers')
+
+
+def past_the_girl(g, log):
+    """The hole at x 24 to 45, y 40 to 60 is the ladder when walked LEFT onto with y 46 to
+    50; lower down it is a drop."""
     go(g, (56, 48))
     ladder(g, 'LEFT', 3)
     log('down the third ladder')
@@ -148,7 +195,7 @@ def triangle(g, log):
 
 
 STAGES = [first_troll, get_carpet, first_flame_room, second_flame_room, bed_and_ladder,
-          two_trolls, past_the_girl, triangle]
+          two_trolls, the_girl, past_the_girl, triangle]
 
 
 def play(g, log=print, stages=None):
