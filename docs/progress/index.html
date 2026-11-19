@@ -15,8 +15,16 @@ figcaption { color: #8b93a1; font-size: .8rem; margin-top: .2rem; }
 img, video { image-rendering: pixelated; max-width: 100%; border: 1px solid #2a2e36; background: #000; display: block; }
 </style></head>
 <body><h1>The Immortal (Genesis patch): progress</h1>
-<div class="sub">Newest first. Last entry 2026-11-18 23:22. Reload to see new entries.</div>
-<article><time>2026-11-18 23:22</time><h2>Blended poses the console could show: a checkerboard</h2><p>Chris liked the true half-and-half blend best. The console can&#x27;t show it: a sprite has 15 colors and no way to be half see-through. The flicker on the staff in the last video&#x27;s fourth panel was that limit showing.
+<div class="sub">Newest first. Last entry 2026-11-19 00:21. Reload to see new entries.</div>
+<article><time>2026-11-19 00:21</time><h2>In-between poses made by RIFE and by Qwen Image Edit</h2><p>A test of whether a model can draw the pose between two of the wizard&#x27;s poses, since the console can&#x27;t blend them and the checkerboard looks poor on a sharp screen.
+
+The wizard&#x27;s walk turns out to be 4 poses in each of 8 directions. Straight walking needs 32 in-between poses, and turns need more: two walks on level 5 used 56 different pairs. Each pose was cut out of recordings onto plain green, given to the model, and the result shrunk back to game pixels in the wizard&#x27;s own 12 colors. The video puts those poses into the trial&#x27;s in-between pictures.
+
+RIFE (bottom left) moves pixels from one pose toward the other. Its poses really are in between, but soft: the glow on the staff smears into a blob and the sword goes mushy. On turns the staff can melt away. All 56 took a few seconds.
+
+Qwen Image Edit (bottom right) drew two or three wizards when shown the two poses. Shown the ghosted blend and asked to redraw it as one clean figure, it drew a single crisp wizard. Some of its poses are close copies of one of the two it was given, and a few have details it made up. About 40 seconds a pose.
+
+Still a mock-up put together on the PC. Parts of the wizard the game hides behind scenery aren&#x27;t hidden on the generated poses.</p><div class="media"><figure><video src="local/20261119_002158_generated_poses_level5.mp4" onerror="this.closest('figure').remove()" controls loop muted autoplay playsinline width="640"></video><figcaption>generated_poses_level5.mp4</figcaption></figure><figure><video src="local/20261119_002158_generated_poses_level5_quarter_speed.mp4" onerror="this.closest('figure').remove()" controls loop muted autoplay playsinline width="640"></video><figcaption>generated_poses_level5_quarter_speed.mp4</figcaption></figure></div></article><article><time>2026-11-18 23:22</time><h2>Blended poses the console could show: a checkerboard</h2><p>Chris liked the true half-and-half blend best. The console can&#x27;t show it: a sprite has 15 colors and no way to be half see-through. The flicker on the staff in the last video&#x27;s fourth panel was that limit showing.
 
 The old trick is a checkerboard. In each in-between picture, the odd pixels come from one pose and the even pixels from the other. It uses only colors the sprite already has, it needs no new artwork, and the game could build it as it goes. The bottom right panel now shows that in place of the nearest-color version. The other three panels are as before.
 

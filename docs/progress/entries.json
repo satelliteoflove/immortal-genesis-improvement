@@ -86,5 +86,14 @@
    "local/20261118_232215_checkerboard_poses_level5.mp4",
    "local/20261118_232215_checkerboard_poses_level5_quarter_speed.mp4"
   ]
+ },
+ {
+  "time": "2026-11-19 00:21",
+  "title": "In-between poses made by RIFE and by Qwen Image Edit",
+  "note": "A test of whether a model can draw the pose between two of the wizard's poses, since the console can't blend them and the checkerboard looks poor on a sharp screen.\n\nThe wizard's walk turns out to be 4 poses in each of 8 directions. Straight walking needs 32 in-between poses, and turns need more: two walks on level 5 used 56 different pairs. Each pose was cut out of recordings onto plain green, given to the model, and the result shrunk back to game pixels in the wizard's own 12 colors. The video puts those poses into the trial's in-between pictures.\n\nRIFE (bottom left) moves pixels from one pose toward the other. Its poses really are in between, but soft: the glow on the staff smears into a blob and the sword goes mushy. On turns the staff can melt away. All 56 took a few seconds.\n\nQwen Image Edit (bottom right) drew two or three wizards when shown the two poses. Shown the ghosted blend and asked to redraw it as one clean figure, it drew a single crisp wizard. Some of its poses are close copies of one of the two it was given, and a few have details it made up. About 40 seconds a pose.\n\nStill a mock-up put together on the PC. Parts of the wizard the game hides behind scenery aren't hidden on the generated poses.",
+  "files": [
+   "local/20261119_002158_generated_poses_level5.mp4",
+   "local/20261119_002158_generated_poses_level5_quarter_speed.mp4"
+  ]
  }
 ]
