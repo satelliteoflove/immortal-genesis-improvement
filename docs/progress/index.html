@@ -15,8 +15,16 @@ figcaption { color: #8b93a1; font-size: .8rem; margin-top: .2rem; }
 img, video { image-rendering: pixelated; max-width: 100%; border: 1px solid #2a2e36; background: #000; display: block; }
 </style></head>
 <body><h1>The Immortal (Genesis patch): progress</h1>
-<div class="sub">Newest first. Last entry 2026-11-19 00:21. Reload to see new entries.</div>
-<article><time>2026-11-19 00:21</time><h2>In-between poses made by RIFE and by Qwen Image Edit</h2><p>A test of whether a model can draw the pose between two of the wizard&#x27;s poses, since the console can&#x27;t blend them and the checkerboard looks poor on a sharp screen.
+<div class="sub">Newest first. Last entry 2026-11-19 02:06. Reload to see new entries.</div>
+<article><time>2026-11-19 02:06</time><h2>Back to a 1 MB ROM, with the game&#x27;s own packed graphics</h2><p>The patched ROM is the size of the original again. It no longer carries every object tile unpacked in a second megabyte. The game&#x27;s own decoder unpacks tiles as before, and a new routine remembers the last 640 it unpacked in RAM the game only touches while starting up, so most tiles are a plain copy.
+
+Late updates on the usual 32 walks: 1.7% overall, against 1.5% to 1.7% for the 2 MB build and 23.8% for the original. Level 5 is 0% and level 6 is 4%, where the original has 41% and 58%. The 1 MB build has less to spare: 86% of pictures are ready within two frames of an update&#x27;s five, against 91% for the 2 MB build and 25% for the original.
+
+Fights keep the original&#x27;s pace. A death animation whose pictures are almost all new tiles takes 11 and 13 frames a picture, as it does in the original.
+
+The torch bug is fixed without the unpacked table. The slip was in the game&#x27;s search for a tile&#x27;s place in its index. The new routine does that search itself, faster and correctly, and the game&#x27;s search is no longer used. The picture shows two torches in level 4&#x27;s first room, original on the left: the lower one has lost the top of its flame there. The flames flicker, so the two sides aren&#x27;t at the same moment.
+
+build/immortal-patched.md is the 1 MB build. tools/build_rom.py --check asks the new routine for all 29,671 tiles so that each is unpacked, found again, pushed out and unpacked again, and every answer matches. Details are in docs/optimizations.md under One megabyte.</p><div class="media"><figure><img src="local/20261119_020621_torch_original_and_1mb.png" onerror="this.closest('figure').remove()" alt=""><figcaption>torch_original_and_1mb.png</figcaption></figure></div></article><article><time>2026-11-19 00:21</time><h2>In-between poses made by RIFE and by Qwen Image Edit</h2><p>A test of whether a model can draw the pose between two of the wizard&#x27;s poses, since the console can&#x27;t blend them and the checkerboard looks poor on a sharp screen.
 
 The wizard&#x27;s walk turns out to be 4 poses in each of 8 directions. Straight walking needs 32 in-between poses, and turns need more: two walks on level 5 used 56 different pairs. Each pose was cut out of recordings onto plain green, given to the model, and the result shrunk back to game pixels in the wizard&#x27;s own 12 colors. The video puts those poses into the trial&#x27;s in-between pictures.
 

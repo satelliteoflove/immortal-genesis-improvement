@@ -425,8 +425,9 @@ on the same pictures. The 2 MB build drew those in 8.
 | Registers | A list of 16 tiles, with blanks, repeats and a set overfilled, comes out right and leaves every register as it was |
 | Deliberate breaks | The game's search put back, a place read from its neighbor, tags stored wrongly and the turn never moving on each made a check fail. A real slip in blank tiles, made along the way, was caught by the register check |
 
-Not checked: real hardware, and anyone's eye. The torch hasn't been looked at in play on this
-build, though its tile comes out right.
+A screenshot of level 4's first room shows the torch with its whole flame on this build, where
+the original's has the top cut off. Not checked: real hardware, and anyone's eye on the game in
+motion.
 
 ## What's left
 

@@ -95,5 +95,13 @@
    "local/20261119_002158_generated_poses_level5.mp4",
    "local/20261119_002158_generated_poses_level5_quarter_speed.mp4"
   ]
+ },
+ {
+  "time": "2026-11-19 02:06",
+  "title": "Back to a 1 MB ROM, with the game's own packed graphics",
+  "note": "The patched ROM is the size of the original again. It no longer carries every object tile unpacked in a second megabyte. The game's own decoder unpacks tiles as before, and a new routine remembers the last 640 it unpacked in RAM the game only touches while starting up, so most tiles are a plain copy.\n\nLate updates on the usual 32 walks: 1.7% overall, against 1.5% to 1.7% for the 2 MB build and 23.8% for the original. Level 5 is 0% and level 6 is 4%, where the original has 41% and 58%. The 1 MB build has less to spare: 86% of pictures are ready within two frames of an update's five, against 91% for the 2 MB build and 25% for the original.\n\nFights keep the original's pace. A death animation whose pictures are almost all new tiles takes 11 and 13 frames a picture, as it does in the original.\n\nThe torch bug is fixed without the unpacked table. The slip was in the game's search for a tile's place in its index. The new routine does that search itself, faster and correctly, and the game's search is no longer used. The picture shows two torches in level 4's first room, original on the left: the lower one has lost the top of its flame there. The flames flicker, so the two sides aren't at the same moment.\n\nbuild/immortal-patched.md is the 1 MB build. tools/build_rom.py --check asks the new routine for all 29,671 tiles so that each is unpacked, found again, pushed out and unpacked again, and every answer matches. Details are in docs/optimizations.md under One megabyte.",
+  "files": [
+   "local/20261119_020621_torch_original_and_1mb.png"
+  ]
  }
 ]
