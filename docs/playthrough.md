@@ -758,15 +758,18 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
   comes within about 4 of the wizard on both axes (`007520`: it posts action 2 to him,
   then he melts over about 15 updates). It moves as fast as he walks, along no simple
   line, and rests for 16 updates now and then: its animation step at `FF0984` + n runs
-  `0F` to `1F` through the rest and stays `1F` while it moves. Nothing in it is left to
-  chance. So don't steer round them by forecast (an earlier try at that failed five runs
-  in six): **wait for a RAM event that pins the room's clock**, such as a slime's first
-  rest beginning, and from that update on the room is the same game on both ROMs at any
+  `0F` to `1F` through the rest and stays `1F` while it moves. When it rests is drawn
+  from the random numbers, but at a level's start those are the same on both ROMs. So
+  don't steer round them by forecast (an earlier try at that failed five runs in six):
+  **wait for a RAM event that pins the room's clock**, such as a slime's first rest
+  beginning, and from that update on the room is the same game on both ROMs at any
   delay, random numbers included (checked by hashing 60 updates of positions). Then find
   a walk that works by trying waits and paths from a state kept at the event, and pick a
-  wait in the middle of a run of good ones. A wizard on the carpet (`FF0A1D` = 1) isn't
-  touched. Level 2's slime oil works as a budget: `FF0A1C` is 80 when it's put on and
-  drops 1 for each update a slime is touching him.
+  wait in the middle of a run of good ones. This only works while the random numbers
+  agree: a fight (its loop runs by frames) draws a different count on each ROM, and after
+  level 2's first fight the slimes of rooms 4 and 6 went differently on the two. A
+  wizard on the carpet (`FF0A1D` = 1) isn't touched. Creatures in rooms the wizard isn't
+  in stand still until he comes back.
 - 2026-11-19, level 4, **picking a thing up from the carpet, and a box in flight**. Flying
   into a thing on the floor brings its box just as walking does (level 4's ring, thing 14,
   "take it?": `read(g, 'y')`). The carpet keeps its speed while the box is up and after,
@@ -855,13 +858,53 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
   10, with a straw bed by the foot of the ladder (`rest()`, +2 to +3) and the ladder down
   in the middle; LEFT onto it from (120, 74) ends the level. The route makes the
   walkthrough's level 6 certificate `563ff53010a41` at full health on both ROMs.
+- 2026-11-19, level 2, **haggling**. The merchant (thing 7 on room 1's floor, the oil
+  inside him) asks 80 gold, more than the wizard has. Walk into him, `wait_busy(g);
+  read(g, 'n')`, step back a little and walk into him again: he asks 60, and `read(g,
+  'y')` buys. A refusal is simply a 'n' to the question; nothing else is needed, and his
+  kind goes from `3E` to `3F` once he has sold.
+- 2026-11-19, level 2, **slime oil, a protection with a budget**. `use(g, 8); read(g)`
+  puts it on; `FF0A1C` (`oil_left` in `level2.py`) goes from `FF` to 80. Each time a slime
+  posts its touch (action 2) the wizard's routine (`007AAE`) takes 1 off instead of
+  melting him, and at 0 the next touch kills. A slime that catches up with a walking
+  wizard follows at the same speed and touches every update, so one chase across a room
+  can cost 45. Measure such a budget over 30 starting waits on both ROMs before trusting
+  it: level 2's first plan ran it down to 1, and the fix was to stay out of slimes' rooms
+  altogether while it is on, not to dodge better (a dodging walk did no better than a
+  straight one, since they are as fast as he is, and nor did standing still until the
+  slime near him settled). Room 6 alone, over 120 starting waits on each ROM, left 4 to
+  80 of it at the door, median 50 to 66.
+- 2026-11-19, level 2, **dropping a thing for a creature to change**. Using the stone
+  drops it at the wizard's feet with no question (its place becomes `80` + room). When a
+  slime passes within about 3 of a thing of kind `3A` it turns it into a gem (kind `39`,
+  code at `009464`); wait on the kind. A thing he's standing on doesn't ask to be taken:
+  step off and walk back onto it, then `search(g, 'y', n)`.
+- 2026-11-19, level 2, **putting things in holes**. Using a gem in room 7 drops it, no
+  question, and within about 6 of one of the twelve holes it settles into the hole's x
+  and y. The holes' x, y pairs are a table in the ROM (`001EAD`), and the first three are
+  the ones that open the floor, in the order the king's hint gives. So check
+  `thing_xy(g, gem)` against the hole after each. Look for such a table (search the ROM
+  for the x, y bytes where a dropped thing lands) before trying holes by hand.
+- 2026-11-19, level 2, **using a thing on a person, and a spell for followers**. The dust
+  asks "do that here?" (`use(g, 10); read(g, 'y')`) near the dwarf, after which walking up
+  to him brings his gem with no question. The charm scroll makes room 1's will-o'-the-wisps
+  follow and leave the wizard alone (`FF0BB6` goes to 1); read it as soon as he comes in,
+  since on one timing they took 2 health on the way to the stone. The route never needed
+  them against anyone. The spores: `use(g, 5)` on the dirt (no box), then out of the door
+  at once (their cloud kills about 29 updates later), in again, and the king lies there
+  asking for water: `read(g, 'y')` gives the key.
+- 2026-11-19, level 2, **after the gems, a ladder hole**. It opens left of room 7's middle
+  symbol at (92, 64): LEFT onto it from the right or DOWN from above climbs down and ends
+  the level; from below it's a fall. With every fight won at full health the route ends at
+  the walkthrough's level 3 certificate `f47ef21000e10`; a run that lost 2 health to the
+  wisps ended at `143ed21000e10`.
 
 ## Where each level stands
 
 | Level | Route | Passes six runs |
 |---|---|---|
 | 1 | `level1.py` plays the whole level from a new game: body, three goblins, key, chest, the arrow room without touching a plate, the pits, the dark room's scroll and amulet, the straw bed, the amulet at the beam, the ladder. Certificate `cddff10006f70` (the walkthrough's), no life lost | All six pass at health 15; the arrow room at 30 starting waits on each ROM, and the dark room at 60 patched and 30 original, all passed |
-| 2 | `level2.py` plays room 4 (past the slimes) to the door of room 1 | That part passes all six |
+| 2 | `level2.py` plays the whole level: room 4's gem and sword past the slimes (a pinned game), the charm, the stone, haggling for the oil, two goblins, the dust, two guards, the spores and the king's key, the troll, the dwarf's gem, the stone turned to a gem by room 6's slimes with the oil on, the locked door, the three holes, the ladder. Certificate `f47ef21000e10` (the walkthrough's), no life lost | All six pass at full health. Room 6 goes by chance: of 240 runs of it from varied starts, all passed, the worst with 4 of the oil's 80 left (see "slime oil") |
 | 3 | `level3.py` plays the whole level: scroll, troll and knife, the king, the gem, the knife thrown, three trolls beaten by hand, the beam, the last ladder. Certificate `573ff31000e60`, no life lost | Passes all six, at full health (rechecked by a second agent) |
 | 4 | `level4.py` plays the whole level: the troll, the carpet over both flame rooms with the ring picked up on the way, the straw bed, two trolls, the girl's trade, the triangle. Certificate `d630f43000eb0` (the walkthrough's) when fireballs cost 2 health or less; they cost 0 to 6 by chance | All six pass (the six runs make `6210e43000eb0` patched and `f4ffd43000eb0` original, health 14 and 13); 20 runs with random waits passed |
 | 5 | `level5.py` plays the whole level: egg, potion, hole, trolls, chest, lizards, key, worm room, the slime, the hatchling and the bait, the straw bed. Certificate `563ff53010a41` (the walkthrough's), no life lost | All six pass at full health; room 7's slime is a chosen game (see "fireballs at something that takes several") |

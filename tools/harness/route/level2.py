@@ -28,6 +28,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import *
+from common import _toward
 
 CERTIFICATE = 'cddff10006f70'
 LEVEL = 2
@@ -209,7 +210,12 @@ def troll(g, log):
     health_left = attack(g, TROLL, patient=True)
     log(f'beat the troll, health {health_left}')
     read(g)
-    go(g, (20, 130), (30, 180), (60, 200))
+    # the fight can end anywhere down the corridor, as far as its bend
+    if xy(g)[1] < 130:
+        go(g, (20, 130))
+    if xy(g)[1] < 185:
+        go(g, (30, 180))
+    go(g, (60, 200))
     through_door(g, 'RIGHT', 3)
     log("in the dwarf's passage")
 
@@ -252,28 +258,31 @@ def locked_door(g, log):
     end. The door is walked into from the left (RIGHT); the king's key opens it and the
     wizard walks through by himself.
 
-    First the stone: dropped from the inventory (no question) just inside the door, it
-    lies on the floor until a slime crosses it, and that turns it into a gem: its kind goes
-    from 3A to 39. The slimes come for the wizard, so it doesn't take long. With the oil
-    on, each update a slime spends touching the wizard (posting action 2 to him) takes 1
-    off the oil and nothing else."""
+    First the stone, for a slime to turn into a gem (see stone_for_a_slime). Then the walk
+    to the door, which a slime can block for a while (walk_to raises Stuck); it is tried
+    again after a few updates. With the oil on, each update a slime spends touching the
+    wizard (posting action 2 to him) takes 1 off the oil and nothing else."""
     go(g, (44, 52))
-    use(g, STONE)
-    g.until(lambda g: not busy(g) and place(g, STONE) == 0x80 + g.room, limit=300)
-    for _ in range(400):
-        if g.byte(THING_KIND + STONE) == GEM_KIND:
+    for attempt in range(5):
+        if stone_for_a_slime(g, fetch=attempt > 0):
             break
-        if not tick(g):
-            fail(g, LEVEL, 'the game stopped while waiting for a slime to take the stone')
+        log(f'no slime came to the stone; oil left {oil_left(g)}')
     else:
         fail(g, LEVEL, 'no slime turned the stone into a gem')
     log(f'a slime turned the stone into a gem; oil left {oil_left(g)}')
-    go(g, (52, 58))                     # off it: a thing underfoot doesn't ask
-    if walk_to(g, *thing_xy(g, STONE), near=1) != 'busy':
-        wait_busy(g, limit=60)
-    search(g, 'y', STONE)
+    take_from_the_floor(g, STONE)
     log(f'took it; oil left {oil_left(g)}')
-    go(g, (60, 64), (120, 86), (190, 86), (196, 76))
+    for x, y in ((60, 64), (120, 86), (190, 86), (196, 76)):
+        for _ in range(10):
+            try:
+                result = walk_to(g, x, y)
+                break
+            except Stuck:
+                ticks(g, 4)             # a slime in the way; it moves on
+        else:
+            fail(g, LEVEL, f'could not get to ({x}, {y}) past the slimes')
+        if result != 'there':
+            fail(g, LEVEL, f'walking to ({x}, {y}) in room 6 ended {result}')
     log(f'at the locked door; oil left {oil_left(g)}')
     bump(g, 'RIGHT')
     read(g, quiet=0)
@@ -286,6 +295,60 @@ def locked_door(g, log):
     if has(g, KEY):
         fail(g, LEVEL, 'the key was not used')
     log('through the locked door')
+
+
+SLIMES_6 = (8, 9)
+
+
+def nearest_slime(g):
+    """The x and y of the nearest live slime in the wizard's room, or None."""
+    here = [creature_xy(g, n) for n in SLIMES_6
+            if g.byte(HEALTH + n) & 15 == g.room and creature_health(g, n)]
+    if not here:
+        return None
+    wx, wy = xy(g)
+    return min(here, key=lambda c: max(abs(c[0] - wx), abs(c[1] - wy)))
+
+
+def take_from_the_floor(g, thing):
+    """Pick up a thing lying on the floor: it asks only when walked onto, not while the
+    wizard stands on it, so step off it first if need be."""
+    tx, ty = thing_xy(g, thing)
+    wx, wy = xy(g)
+    if abs(tx - wx) <= 6 and abs(ty - wy) <= 6:
+        go(g, (tx + 8, ty + 8))
+    if walk_to(g, tx, ty, near=1) != 'busy':
+        wait_busy(g, limit=60)
+    search(g, 'y', thing)
+
+
+def stone_for_a_slime(g, fetch=False, wait=150):
+    """Drop the stone at the wizard's feet and wait up to `wait` updates for a slime to
+    cross it, which turns it into a gem (kind 3A to 39). True if it did.
+
+    The slimes mostly come for the wizard, but on one timing in thirty neither came near
+    in 400 updates. With fetch, the stone is picked up again first and carried toward the
+    nearest slime, and dropped when it is within 16; it comes on over the stone to him."""
+    if fetch:
+        take_from_the_floor(g, STONE)
+        for _ in range(100):
+            slime = nearest_slime(g)
+            if slime is None:
+                fail(g, LEVEL, 'no slime left in the room')
+            wx, wy = xy(g)
+            if max(abs(slime[0] - wx), abs(slime[1] - wy)) <= 16:
+                break
+            # not left of x 46: the door back to room 3 is there
+            if not tick(g, _toward(max(slime[0], 46) - wx, slime[1] - wy, 2)):
+                fail(g, LEVEL, 'the game stopped while carrying the stone to a slime')
+    use(g, STONE)
+    g.until(lambda g: not busy(g) and place(g, STONE) == 0x80 + g.room, limit=300)
+    for _ in range(wait):
+        if g.byte(THING_KIND + STONE) == GEM_KIND:
+            return True
+        if not tick(g):
+            fail(g, LEVEL, 'the game stopped while waiting for a slime to take the stone')
+    return g.byte(THING_KIND + STONE) == GEM_KIND
 
 
 # Room 7's three symbols have four holes each, a corner at the top, the left and the right
