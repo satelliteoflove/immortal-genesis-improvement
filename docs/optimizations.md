@@ -368,7 +368,7 @@ different layouts. The share of requests that had to be unpacked:
 Sets matter much more than size: a tile with one place to live is pushed out by any other tile
 that shares it. "No limit" is the floor, a tile's first appearance.
 
-**The routine.** It's 292 bytes at `0FFBD0`, and `02E3E4` jumps to it. By a count of
+**The routine.** It's 292 bytes at `0FFBA6`, and `02E3E4` jumps to it. By a count of
 instructions a tile it has costs about 320 cycles, against about 260 for the 2 MB build's copy.
 Unpacking one measured about 6,000. To find it
 the routine compares the tile's number, as the game stores it, with the set's five tags.
@@ -376,8 +376,8 @@ the routine compares the tile's number, as the game stores it, with the set's fi
 A tile it doesn't have is unpacked by the game's decoder, called as a subroutine: its two exits,
 at `02E4C2` and `02F4D4`, become returns. The decoder is entered at `02E48E`, after its search
 for the run of tiles the number belongs to. The game halved its way through the whole index for
-every tile, about 700 cycles by the same count. The new routine starts from a 256-byte table, one entry for each
-128 tile numbers, and steps forward: no steps for 54% of tile numbers, one for 44%, never more
+every tile, about 700 cycles by the same count. The new routine starts from a 232-byte table, one entry for each
+128 tile numbers there are, and steps forward: no steps for 54% of tile numbers, one for 44%, never more
 than four. That pays for the look-up and the copy into the memory, so a picture made wholly of
 new tiles takes what it took in the original. Without it such pictures were about a frame slower
 than the original. The index's end marker at `02E3DE` becomes `FFFF` so the stepping stops there.
@@ -385,7 +385,14 @@ than the original. The index's end marker at `02E3DE` becomes `FFFF` so the step
 **Fitting in 1 MB.** Everything the patch adds goes in `0FD65C` to `0FFFAF`, 10,580 bytes that
 are all `FF` in the original, just before the boot check. The masking tables take 8,192 of them.
 The routines that sat in the old decoder's place moved there too, since the decoder is back.
-10,090 bytes are used and 490 are left.
+10,090 bytes were used and 490 left.
+
+The battery saves came later and needed 510 bytes (`docs/how-the-game-works.md`, "Saving"). To
+make room the routines were packed end to end, and the table of runs, which had 256 entries,
+was cut to the 232 that the game's 29,671 tile numbers need. A tile number past the last one
+would now read beyond the table. The game has no such tile, and the original's own search
+made nothing sensible of one either. 10,576 bytes are used and 4 are left. If more is ever
+needed, the masking tables hold shapes 6 to 15, which the cell data never names: about 5 KB.
 
 **The result.** Late ticks are in the table at the top: 1.7% overall. The 2 MB build measured
 1.5% on the same day, and the two differ by less than one run differs from the next.

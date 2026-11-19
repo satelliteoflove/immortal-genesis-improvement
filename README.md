@@ -6,8 +6,9 @@ game. It started as an idea for a 32X port (hence the folder's name), but the pr
 people raised with the game aren't ones the 32X would fix, so this is a straight patch for
 the Genesis.
 
-So far the patch speeds up object graphics and background scrolling, and restores the wall
-torch's flame. `TODO.md` has
+So far the patch speeds up object graphics and background scrolling, restores the wall
+torch's flame, saves each level reached to battery RAM, and offers the level again at Game
+Over. `TODO.md` has
 what we're looking into and `docs/progress/index.html` is the running record.
 
 ## The ROM
@@ -68,6 +69,7 @@ It runs the game headless in PicoDrive, using the core and source that 32xKarts 
     tools/harness/hotspots.py              # the busiest routines on each level
     tools/harness/fight_pace.py            # the pace of fights, original against patched
     tools/harness/text_pace.py             # typing speed of messages, with and without a button held
+    tools/harness/save_check.py            # battery saves, the level picker and Game Over's second try
     tools/disasm.py                        # writes disasm/, which git ignores
 
 `tools/harness/runner.c` lists its options. What's been learned is in

@@ -103,5 +103,13 @@
   "files": [
    "local/20261119_020621_torch_original_and_1mb.png"
   ]
+ },
+ {
+  "time": "2026-11-19 10:19",
+  "title": "Battery saves, a level picker, and a second try at Game Over",
+  "note": "Each level reached is now saved to battery RAM when the level before it ends, and the end-of-level screen says so under the certificate. With saves present the game asks \"Continue a saved game?\" before \"New game?\", and YES lists the saved levels: Up and Down step through them and any button starts the one shown. Reaching a level again replaces its save. Game Over asks \"Try this level again?\": YES restarts the level with three lives and what the wizard carried into it, NO goes on to the usual prompts. Certificates work as before; one typed into the original starts the same level with the same things as loading the save. The ROM is still 1 MB. tools/harness/save_check.py runs 17 checks, all passing, on BlastEm's libretro core, and a save and load were also tried on the fork. Not yet played by hand or tried on a console.",
+  "files": [
+   "local/20261119_101949_battery_saves.png"
+  ]
  }
 ]

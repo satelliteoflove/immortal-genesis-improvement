@@ -9,17 +9,20 @@ reviews unless they say otherwise, and what to change is still to be decided.
 - [x] Find the main loop and its timing.
 - [x] Find how deaths and lives work.
 - [ ] Trace how a room reaches the screen.
-- [ ] Enter a real certificate and confirm what it holds.
+- [x] Enter a real certificate and confirm what it holds. One has been typed in and matches
+      what the game loads itself; the digits haven't been tried one by one.
 
 ## Fairness
 
 - [ ] Deaths with little or no warning: traps that kill within seconds of entering a room.
-- [ ] Game Over gets a screen offering Continue (restart the current level) or End (back to
-      the main menu). Decided, not built. Three lives per level stay as they are. Check what
-      the player is carrying after a Continue.
+- [x] Game Over asks "Try this level again?". YES restarts the level with three lives and what
+      the wizard carried into it; NO goes on to the prompts a game starts with. Three lives per
+      level stay as they are.
 - [ ] Items that can be used up in the wrong place, forcing a restart.
-- [ ] Battery saves in place of typing certificates. Looks very doable at the start of each
-      level; see "Saving" in `docs/how-the-game-works.md`. Not decided or built.
+- [x] Battery saves. Each level reached is saved when the level before it ends, and the game
+      offers the saved levels when it starts. Certificates still work. See "Saving" in
+      `docs/how-the-game-works.md`; `tools/harness/save_check.py` checks it.
+- [ ] Play through a level's end and a Game Over by hand, to see the new screens in use.
 - [ ] Fights that start with little warning.
 - [ ] Fights that all play alike.
 - [ ] Ladders, which can kill when approached from the wrong angle.

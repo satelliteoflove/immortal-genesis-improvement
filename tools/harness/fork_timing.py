@@ -22,6 +22,19 @@ ROOT = os.path.dirname(os.path.dirname(HERE))
 OUT = os.path.join(ROOT, 'scratch', 'fork-timing')
 BLASTEM = os.environ.get('BLASTEM', os.path.join(ROOT, 'build', 'blastem-fork', 'blastem'))
 HOME = os.path.join(ROOT, 'build', 'blastem-home')
+
+
+def forget_saves():
+    """Remove battery saves the fork has kept under HOME.
+
+    The patched game saves when a level ends. One left by an earlier run would put "Continue
+    a saved game?" in front of the scripted opening.
+    """
+    for path in glob.glob(os.path.join(glob.escape(HOME), '.local', 'share', 'blastem', '*', 'save.sram')):
+        os.remove(path)
+
+
+forget_saves()
 ROM = os.environ.get('ROM', sorted(glob.glob(os.path.join(ROOT, 'rom', '*')))[0])
 TICK = '134a8'
 PROF = re.compile(r'KIT PROF frame=(\d+) total=(\d+) tick=(\d+):(\d+) objgfx=(\d+):(\d+)')

@@ -20,12 +20,16 @@ The game keeps most of its variables relative to a base of `FF0300`.
 | `FF1073` | Set to restart the level | Seen |
 | `FF1088` | Set to skip the "New game?" prompt and load from the fields below | Seen |
 | `FF1091` | Level to load | Seen |
-| `FF1090` to `FF1098` | The rest of what a certificate carries | Read from code |
+| `FF108C` to `FF1098` | A certificate's 13 digits, a byte each: 4 of check, then 9 | Seen |
+| `FF106F` | Set when the level is over. Setting it by hand ends the level | Seen |
+| `FF1072` | Set when the retries have run out. Setting it by hand brings Game Over | Seen |
+| `FF0AEE` to `FF0B17` | The level's 42 things, a byte each, `FF` for none | Seen |
 | `FF9624` | Count of vertical blanks (long) | Seen |
 | `FF12E6` | The count at which the next tick may begin (long) | Seen |
 | `FF962A` | Pad 1, as read in the vertical blank | Read from code |
 | `FF9656` to `FF9755` | The object decoder's working space: a packed tile's bits, one to a byte | Seen |
-| `FF9760` to `FFBFFF` | No fixed address here is named anywhere in the code | Read from code |
+| `FF9642` | Set, text is drawn without the frame's wait after each letter, and isn't shown until `015738` is called with it clear | Seen |
+| `FF9760` to `FFBFFF` | No fixed address here is named anywhere in the code. The patch keeps its own variables from `FF9760`, a message being shown at `FF97B0`, and the tile memory from `FF9800` | Read from code |
 | `FFC000` to `FFF7FF` | Used by the Sega logo, then cleared and left alone | Seen on 32 walks |
 
 ## The main loop
@@ -54,6 +58,10 @@ Seen in the running game:
   room, at what looks like the room's entrance.
 - With none left, it shows "Game Over", then "Play again?", then the "New game?" prompt.
   YES goes back to the very first room of the game. NO asks for a certificate.
+
+**The change.** Game Over now asks "Try this level again?". YES starts the level over with
+three lives and what the wizard carried into it. NO goes on to the prompts a game starts
+with. See "Saving" below.
 
 The retry handling is at `0081D6`. It skips the retry altogether on the last level, level 8
 (`0081DE`), which hasn't been tested in play. It also has special cases for levels 2, 4, 5,
@@ -132,8 +140,22 @@ last period counts as typing. `tools/harness/text_pace.py` makes the table.
 These are the game's passwords. The code at `012876` gathers the values and `012804` works
 out a four-digit check over them. Going by the code, a certificate holds the next level, a
 three-digit number that is probably gold, one other value (`FF1071`), and flags for
-particular carried items, some of them depending on the level. None of that has been
-confirmed by entering one.
+particular carried items, some of them depending on the level.
+
+A certificate is 13 letters from `0` to `f`. The game keeps them a digit to a byte at
+`FF108C`: four digits of check, one more value, the level (1 for the second level), then
+the rest. The entry screen (`01266C`) takes a letter with RIGHT, changes it with UP and
+DOWN, erases with LEFT and finishes with Start or A. It accepts anything whose check
+digits agree (`012782`).
+
+Confirmed with one certificate: ending the first level at once gives `2b9cf10000020`, the
+same on the original and the patched ROM. Typed into the original it starts level 2, and
+the level's 42 things at `FF0AEE` come out the same as when the game loads from the fields
+itself. What each of the other digits changes hasn't been tried one by one.
+
+When a level starts (`012DF4`) everything carried is cleared (`00C7C0`) before the loader
+gives back what the certificate names. So a level started from a certificate never carries
+more than the certificate holds, whatever was picked up before.
 
 Between levels the game sets the flag at `FF1088` and loads straight from those fields, with
 no typing. Setting the same flag by hand, with a level number, does load that level, which
@@ -141,22 +163,55 @@ is how the harness reaches all eight.
 
 ## Saving
 
-Nothing has been built or tested here. This is what the ROM and the code read so far suggest.
+The patch adds battery saves. `tools/harness/save_check.py` checks all of what follows.
 
-The ROM is 1 MB and its header's save RAM field is blank, so battery RAM could sit at the
-usual `200000`, well clear of the ROM. None of the code reached so far touches that area or
-the cartridge's mapper port, though only part of the code has been reached. The header
-checksum isn't read, but the game does check itself at boot: `0FFFB0` adds up the first
-megabyte and halts on a solid screen if the total is wrong. Any patch has to get past that,
-and ours turns off the branch at `0FFFD0`.
+**What a save is.** A level's certificate, which the game makes when the level before it
+ends (`012876`). There's a place in battery RAM for each of levels 2 to 8, so reaching a
+level again replaces its save, and nothing else ever erases one. Mid-level saves were
+ruled out: they'd need the state of every room and object, and would change how hard the
+game is.
 
-What a certificate holds is only a handful of small values, gathered when a level ends
-(`012876`), so saving at the start of a level would take very little space. Saving in the
-middle of a level would mean keeping the state of its rooms and objects, and how much that
-comes to isn't known.
+**Battery RAM.** The header's field at `0001B0` now declares battery RAM on the odd bytes
+of `200001` to `2001FF`, and the code writes 1 to the mapper port `A130F1` before using it.
+A level's save is 13 bytes starting 16 bytes times the level's digit into that RAM, so an
+emulator's save file has level 2 at offset 16 and level 8 at 112. A save is believed only if
+all 13 bytes are digits, its level digit matches its place and the game's check (`012804`)
+gives its first four digits. Empty RAM, whether zeros or `FF`, fails that.
 
-There's a run of about 10 KB of unused-looking `FF` bytes at `0FD65C`, and the ROM could also
-be made larger, so new code should have room.
+**When a level ends** (`011266`), the new routine makes the certificate, writes it, shows
+the game's "End of level! Here is your certificate:" and the letters, reads the save back,
+and adds "Game saved." under the letters if it reads back right. If it doesn't, as on a
+cartridge with no battery RAM, the screen is the original's.
+
+**When a game starts** (`012A74`), the new loader looks for saves from level 8 down. With
+none, everything is as it was. With one or more it asks "Continue a saved game?". NO goes
+on to "New game?" as before. YES shows "Level" and a number, starting with the furthest
+level saved. UP and DOWN step through the saved levels and go round at the ends, and any
+button takes the one shown. The save goes into the certificate's fields and the game loads
+from them (`012AB0`), which is what it does itself between levels.
+
+**Game Over** (`012646`) asks "Try this level again?". On YES the routine sets `FF1088`,
+since the fields still hold the certificate the level was started from, however it was
+started. On the first level there's no certificate, so it sets a flag of its own
+(`FF97AA`) that makes the loader start a new game without asking. NO changes nothing, and
+the game goes on to the loader's prompts as the original did.
+
+**Messages.** The game finds a message's text by a 16-bit address, so it can't point at new
+text high in the ROM. The new routine copies its message to `FF97B0` and enters the game's
+message routine past the point where it looks the text up (`00CF2A`), with the address
+`97B0`, which the game reads as RAM. The four new messages are kept at `02E3EA`, in the
+part of the old object routine that no longer runs. The level list is drawn with `FF9642`
+set, so it appears at once when UP or DOWN is pressed.
+
+**Space.** The routines are 510 bytes at `0FFCCA` and the messages 147 bytes. The ROM is
+still 1 MB.
+
+**Tested** on BlastEm's libretro core and on our build of the fork, both of which keep the
+battery RAM in a file. Not tried on a console or a flash cartridge.
+
+The harness's timing tools clear the fork's saved battery RAM before they run
+(`fork_timing.forget_saves`), so a save left by an earlier run can't put a new prompt in
+front of their scripted openings.
 
 ## Drawing
 
