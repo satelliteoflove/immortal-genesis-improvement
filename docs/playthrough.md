@@ -29,11 +29,11 @@ and the Genesis ROM accepts all of them:
 |---|---|
 | 2 | `cddff10006f70` |
 | 3 | `f47ef21000e10` |
-| 4 | `level4.py` gets past the troll, takes the carpet and flies the first flame room (room 4) to the door of the second | Those parts pass on both ROMs |
-| 5 | `level5.py` plays rooms 8, 0, 1, 2, 4 and 5 (egg, potion, hole, trolls, chest, lizards, key, worm room) to the door of the last room | Those parts pass on both ROMs |
+| 4 | `b5fff31001eb0` |
+| 5 | `d630f43000eb0` |
 | 6 | `563ff53010a41` |
 | 7 | `c250f63010ac1` |
-| 8 | `level8.py` plays the whole level: chest, ladder, pit, the dragon, the teacher, the closing story | All six pass |
+| 8 | `e011f730178c1` |
 
 Level 1 starts from a new game.
 
@@ -657,6 +657,23 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
   replacements in a temporary index (`GIT_INDEX_FILE`, `read-tree HEAD`, `hash-object -w`,
   `update-index --cacheinfo`, `write-tree`, `commit-tree`, `update-ref HEAD new old`), then
   `git reset -q -- path` so the real index matches. The working file keeps everyone's.
+- 2026-11-19, level 4, **the straw bed: `rest(g)`**. The bed is a thing on the floor (kind
+  `24`, thing 7 in level 4's room 1). Walk onto its x and y (`walk_to(..., near=1)`) and
+  stand still: after about 60 updates the dream comes up as text. `rest(g)` waits for it,
+  reads it, and waits out the 18 or so updates he lies there and gets up, deaf to the pad
+  (a `go()` straight after the text raises `Stuck`). 4 health, 15 at most, once a level;
+  no button and no question.
+- 2026-11-19, level 4, **trolls in a pair**. The two at the foot of level 4's first ladder
+  have 8 health each and come one after the other without being walked up to. Plain
+  `fight(g)` beat the first but lost 8 health doing it; `fight(g, counter=True)` beat both
+  with no hit taken, on both ROMs, about 1,000 frames each. A fight seems to go the same
+  way whatever the delay before it, once it has begun.
+- 2026-11-19, level 4, **editing the table of levels**: this file has two tables whose rows
+  start `| 4 |`, the certificates near the top and "Where each level stands" at the
+  bottom. Replacing the first line that starts with your level's number hits the
+  certificates. Rows 4, 5 and 8 had been overwritten that way; I put the certificates back
+  and moved levels 5 and 8's words down to their rows unchanged. Match on the text after
+  the "Where each level stands" heading.
 
 ## Where each level stands
 
@@ -665,8 +682,8 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
 | 1 | `level1.py` plays rooms 6, 3 and 7 (body, three goblins, key, chest) to the door of room 1 | Those parts pass all six; the last four rooms aren't written |
 | 2 | not started | |
 | 3 | `level3.py` takes the scroll, kills the troll for the knife, passes the king, takes the gem and climbs down to room 8 | Those parts pass all six |
-| 4 | `level4.py` gets past the troll at the start and takes the carpet | Those parts pass all six |
-| 5 | `level5.py` takes the egg, buys the potion, goes through the hole, beats both trolls, empties the chest and drinks the water | Those parts pass on both ROMs |
+| 4 | `level4.py` plays rooms 6, 4, 0, 1 and 5: the troll, the carpet over both flame rooms, the straw bed, two trolls, two ladders | Those parts pass on both ROMs |
+| 5 | `level5.py` plays rooms 8, 0, 1, 2, 4 and 5 (egg, potion, hole, trolls, chest, lizards, key, worm room) to the door of the last room | Those parts pass on both ROMs |
 | 6 | `level6.py` plays the whole level: the spider hole, the big spider, the alcohol on the chest, the levitation spell down the corridor, the ladders | All six pass, with the walkthrough's certificate for level 7 |
 | 7 | `level7.py` plays the whole level: troll, ring, the fight below the ladder, the barrel, the water monster, the whirlpool | Patched and original pass with no delay; the six runs are next |
-| 8 | not started | |
+| 8 | `level8.py` plays the whole level: chest, ladder, pit, the dragon, the teacher, the closing story | All six pass |
