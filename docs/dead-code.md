@@ -55,7 +55,7 @@ the original ROM, and the patched ROM has them at the same places.
 | `013328`-`013362` | 58 | Prints a byte as two hex digits, with its own table of digits: a debugging aid |
 | `0134DC`-`0134E8`, `01544E`-`015466` | 36 | A reader for the Start button, made like the game's readers for A, B and C |
 | `013C50`-`013C6E` | 30 | Fills 612 words of RAM at `FF714A` with 0, 1, 2... and calls `013BF6` |
-| `0154F4`-`015572` | 126 | A 64-by-32-bit unsigned division, then a sort of two lists of words side by side |
+| `0154F4`-`015572` | 126 | A 64-by-32-bit unsigned division, then a sort of two lists of words side by side. The patch's text wait now sits here |
 | `015CFA`-`015D08`, `015D14` | 18 | The fourth entry in the sound driver's jump table, and a wrapper that calls it. It leads to a routine that sets the flag at `FF022F`, which is also reached other ways |
 | `015DFC`-`015E10`, `015E1A`-`015E24` | 30 | Two more small driver routines that set flags in its RAM |
 | `016030`-`01603E` | 14 | A second way into a driver routine |

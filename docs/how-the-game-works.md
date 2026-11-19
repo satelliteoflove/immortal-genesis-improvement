@@ -140,7 +140,16 @@ Buttons in the original:
 **The change.** A held button now shortens the waits while typing and leaves pauses alone. The
 wait after a letter is one frame, every other time; after punctuation, one frame every time. Every
 letter is drawn. The two-button shortcut is taken out. With nothing held, nothing is different.
-A fresh press still ends a wait.
+
+A fresh press of A, B, C or Start ends a pause, and the rest of a run of pauses (many messages
+end in eight in a row), until typing starts again. In the original any button did that, by
+making the waits instant while it was down, and a tap of any button ended level 1's
+eight-pause message `001AD7` in 12 frames. The first version of the change only let A and C
+through, since those are the two the game itself looks for; B and Start did nothing. Now all
+four take 12 frames there again, and a button held since before the pause still doesn't count.
+The routine keeps the buttons down at the start of each pause in `FF97AC` and its "skip" flag in
+`FF97AD`, and it lives at `0154F4`, over a division and a sort nothing called (see
+`docs/dead-code.md`).
 
 | Opening message, first page | Nothing held | A button held |
 |---|---|---|

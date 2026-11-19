@@ -88,9 +88,8 @@ the optimized game really runs.
       ending animation, which is now at the old pace, and the retry after it measures the same as
       the original (about 90 frames). Chris agreed it was too quick. "Prepare to continue..."
       now stays up for 3 seconds, and a press of A, B, C or Start ends it sooner.
-- [ ] Pauses in other messages can only be cut short with A or C now. In the original any
-      button did it, because a held button made every wait instant. Decide whether B and
-      Start should end a pause too.
+- [x] Pauses in other messages could only be cut short with A or C after the change above. A
+      fresh press of A, B, C or Start ends them now, as any button did in the original.
 - [x] Message text flew by with a button held. It now types at twice the usual speed with a
       button held, and the pause at the end of a page stays. Normal typing is unchanged.
 - [x] Smoother movement at the same game speed: tried and dropped. A trial drew an in-between

@@ -128,7 +128,10 @@ SOUNDING = 0x97A4               # the song playing when the waiting request was 
 SILENT = 0x97A8                 # set once a song has run out and nothing has been started since
 TEXT_WAIT = 0x13452             # message text: called once for each unit of waiting
 TEXT_NO_WAIT = 0xCEC0           # the branch that skips all waiting while two buttons are held
-TEXT_WAIT_NEW = 0xFFB56         # the new TEXT_WAIT
+TEXT_WAIT_NEW = 0x154F4         # the new TEXT_WAIT, over a division and a sort nothing calls
+TEXT_WAIT_NEW_END = 0x15572     #   (docs/dead-code.md)
+TEXT_HELD = 0x97AC              # the buttons down at the last wait, for telling a fresh press
+TEXT_SKIP = 0x97AD              # set when a fresh press has ended the pause going on
 TEXT_LETTER_UNITS = 5           # the wait after a letter, in units
 TEXT_TYPING_UNITS = 0x0D        # waits of up to this many units are typing; longer ones are pauses
 TEXT_TURN = 0x97A9              # flips each time a held button meets a letter's wait
@@ -1056,26 +1059,41 @@ def text_wait():
     Now a held button shortens the waits while typing and makes no difference to a pause.
     After a letter the wait is one frame, every other time it comes around. After punctuation
     it's one frame every time. With the frame it takes to draw each letter, that comes to
-    twice the usual typing speed. Every letter is drawn. A fresh press of A or C still ends a
-    pause, as it always did: that's handled by the caller, and isn't changed. B and Start no
-    longer do, since in the original they did it only by making every wait instant.
+    twice the usual typing speed. Every letter is drawn.
+
+    A fresh press of A, B, C or Start ends a pause, and the rest of a run of pauses, until
+    the typing starts again. In the original any button did that, by making every wait
+    instant while it was down. The caller still ends a single pause on a fresh A or C, as it
+    always did. TEXT_HELD keeps the buttons that were down at the last look, and is set at the
+    start of each pause, so a button held from before the pause doesn't count until it has
+    been let go. A fresh press while typing ends that wait too, as it did in the original;
+    the typing goes on.
     """
     c = Code(TEXT_WAIT_NEW)
     w, s = c.words, c.short
+    w(0xB42C, 0x094C); s(0x6600, 'unit')                                   # a pause's first unit (d2 is the
+    w(0x11F8, PAD, TEXT_HELD)                                              #   caller's count): note what's down
+    c.label('unit')
     w(0x066C, 0x0001, 0x0FE4, 0x026C, 0x0003, 0x0FE4); s(0x6600, 'out')    # every fourth unit, as before
-    w(0x48E7, 0xC000)
-    w(0x1238, 0x962A, 0x0201, 0x00F0); s(0x6700, 'full')                   # no button held
-    w(0x0C2C, TEXT_TYPING_UNITS, 0x094C); s(0x6200, 'full')                # a pause, not typing
+    w(0x48E7, 0xE000)                                                      # movem.l d0-d2,-(a7)
+    w(0x0C2C, TEXT_TYPING_UNITS, 0x094C); s(0x6200, 'pause')               # a pause, not typing
+    w(0x4238, TEXT_SKIP)                                                   # typing: a new pause can come
+    w(0x1238, PAD, 0x0201, 0x00F0); s(0x6700, 'full')                      # no button held
     w(0x0C2C, TEXT_LETTER_UNITS, 0x094C); s(0x6200, 'frame')               # after punctuation
     w(0x0878, 0x0000, TEXT_TURN); s(0x6700, 'done')                        # after a letter: every other time
     c.label('frame')
-    w(0x4EB9, 0x0001, 0x4E3A); s(0x6000, 'done')                           # one frame
+    w(0x4EB9, FRAME_WAIT >> 16, FRAME_WAIT & 0xFFFF); s(0x6000, 'done')    # one frame
+    c.label('pause')
+    w(0x4A38, TEXT_SKIP); s(0x6600, 'done')                                # a press has ended these pauses
     c.label('full')
-    w(0x4281, 0x3200, 0xD2B8, 0x9624)                                      # the wait the game always made
-    c.label('wait')
-    w(0xB2B8, 0x9624); s(0x6A00, 'wait')
+    w(0x7201, 0xD2B8, 0x9624)                                              # the wait the game always made
+    c.label('look')                                                        #   (d0 is always 1), watching
+    w(0x1038, PAD, 0x0200, 0x00F0)                                         #   for a fresh press: d0 down now,
+    w(0x1438, TEXT_HELD, 0x11C0, TEXT_HELD, 0x4602, 0xC400)                #   d2 down now and not before
+    w(0x56F8, TEXT_SKIP); s(0x6600, 'done')                                # sne.b TEXT_SKIP
+    w(0xB2B8, 0x9624); s(0x6A00, 'look')
     c.label('done')
-    w(0x4CDF, 0x0003)
+    w(0x4CDF, 0x0007)                                                      # movem.l (a7)+,d0-d2
     c.label('out')
     w(0x4E75)
     return c.finish()
@@ -1627,8 +1645,9 @@ def main():
                            (SONG_END, '13FC0001FFFF022F4E75', starts[1])):
         assert rom[at:at + len(was) // 2] == bytes.fromhex(was)
         out[at:at + 6] = b'\x4e\xf9' + start.to_bytes(4, 'big')     # jmp
-    code = text_wait()
-    add(TEXT_WAIT_NEW, code)
+    code = text_wait()                              # over the unused division and sort
+    assert len(code) <= TEXT_WAIT_NEW_END - TEXT_WAIT_NEW and out[TEXT_WAIT_NEW:TEXT_WAIT_NEW_END] == rom[TEXT_WAIT_NEW:TEXT_WAIT_NEW_END]
+    out[TEXT_WAIT_NEW:TEXT_WAIT_NEW + len(code)] = code
     assert rom[TEXT_WAIT:TEXT_WAIT + 22] == bytes.fromhex('066C00010FE4026C00030FE4660000064EBA1F764E75')
     out[TEXT_WAIT:TEXT_WAIT + 6] = b'\x4e\xf9' + TEXT_WAIT_NEW.to_bytes(4, 'big')        # jmp
     assert rom[TEXT_NO_WAIT - 4:TEXT_NO_WAIT + 4] == bytes.fromhex('B03C000367000016')
