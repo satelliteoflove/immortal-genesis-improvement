@@ -23,7 +23,7 @@ nothing of the game is stored here. What it changes:
     a bit at a time for every tile. The shifted masks are now worked out here, and tiles
     with nothing in front of them are skipped early.
   * Mask edges. The game's shift put half of each mask one bit out of line, leaving stray
-    miscoloured pixels where a sprite passes behind scenery. The tables line it up.
+    miscolored pixels where a sprite passes behind scenery. The tables line it up.
   * The boot check at 0FFFB0, which halts the game if the first megabyte has changed.
 
 --check builds test ROMs that boot straight into a small test. One runs the game's own,
@@ -691,7 +691,7 @@ def check_sound(rom, patched):
 def fight_pace():
     """Hold a fight's two loops to the pace they ran at in the original.
 
-    A fight has no clock. Each loop draws and goes round again, so it ran as fast as the
+    A fight has no clock. Each loop draws and goes around again, so it ran as fast as the
     drawing allowed, and the faster object graphics made fights nearly three times too fast.
     Each drawing call now waits until the frame before its picture is due, counted from the
     last picture, and then draws as before. Returns the code and where its two routines start.
@@ -752,7 +752,7 @@ def text_wait():
     they could be worked out and the pause at the end of a page was gone too.
 
     Now a held button shortens the waits while typing and makes no difference to a pause.
-    After a letter the wait is one frame, every other time it comes round. After punctuation
+    After a letter the wait is one frame, every other time it comes around. After punctuation
     it's one frame every time. With the frame it takes to draw each letter, that comes to
     twice the usual typing speed. Every letter is drawn. A fresh press still ends any wait,
     as it always did: that's handled by the caller, and isn't changed.
@@ -862,10 +862,10 @@ def in_between(old_poses=False):
     w(0x202C, 0x0FE6, 0x5780, 0x21C0, target)       # show it at frame 2
     w(0x4EB9, 0x0001, 0x5334, 0x4EB9, 0x0001, 0x3682); l(0x6100, 'draw')
     w(0x21F8, 0x9624, shown)
-    w(0x0C38, 0x0064, 0x8D52); s(0x6600, 'colours')  # room $64's colour cycle stepped: step it back
-    w(0x5378, 0x963E); s(0x6A00, 'colours')
+    w(0x0C38, 0x0064, 0x8D52); s(0x6600, 'colors')  # room $64's color cycle stepped: step it back
+    w(0x5378, 0x963E); s(0x6A00, 'colors')
     w(0x31FC, 0x000B, 0x963E)
-    c.label('colours')
+    c.label('colors')
     w(0x4DF8, save, 0x43EC, 0x0E62, 0x702F)         # the real values back
     c.label('back')
     w(0x22DE); l(0x51C8, 'back')
@@ -918,7 +918,7 @@ def mask_tables(rom, as_game=False):
     """Every mask shape at every horizontal shift.
 
     The game shifts the right-hand cell's shape by 31 minus the offset, which leaves it one
-    bit out of line and miscolours stray pixels along mask edges. 32 lines it up. as_game
+    bit out of line and miscolors stray pixels along mask edges. 32 lines it up. as_game
     keeps the 31, for proving the routine against the original.
 
     Shapes 6 to 15 are whatever bytes follow the six real ones, which is the old routine's
@@ -1173,7 +1173,7 @@ def with_tiles(rom, table):
 
 
 def routine_check(tile_list):
-    """Call the new routine with known registers, saving them afterwards at FF0100."""
+    """Call the new routine with known registers, saving them afterward at FF0100."""
     pattern_at = 0x1F0100
     pattern = b''.join((0xA1B2C300 + i).to_bytes(4, 'big') for i in range(15))
     c = Code(0x1F0000)

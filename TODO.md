@@ -76,7 +76,7 @@ the optimized game really runs.
 ## Bugs fixed
 
 - [x] The wall torch's flame loses its top, from a slip in the game's tile search.
-- [x] Stray miscoloured pixels where a sprite passes behind scenery, from a mask shifted one bit
+- [x] Stray miscolored pixels where a sprite passes behind scenery, from a mask shifted one bit
       too little.
 
 - [x] The level's song kept starting over while walking about. The game asked for an alert song

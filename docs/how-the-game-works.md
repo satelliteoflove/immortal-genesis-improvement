@@ -64,7 +64,7 @@ switches to the fight song (`0114B0`), runs a main loop from `011590` until one 
 and puts the level's song back (`0117BC`), which starts it from the beginning.
 
 The two fighters are drawn at fixed places and only change pose. The loops draw with their own
-routines (`015738`, `015768`), not the main loop's, and they have no clock: each goes round as
+routines (`015738`, `015768`), not the main loop's, and they have no clock: each goes around as
 soon as its picture is up.
 
 ## Song changes
@@ -88,8 +88,8 @@ That's the restart heard again and again while walking about, and the original d
 **The fix.** The request routine now notices a request made while another is still waiting to be
 picked up. If the new one asks for the song that's playing anyway, both are dropped and the music
 carries on. A change that lasts even one frame goes through as before, so a real fight still
-switches to the fight song and starts the level's song over afterwards. A song that has run out
-is noted (`015E10`), so that asking for it again still starts it. On four scripted walks round
+switches to the fight song and starts the level's song over afterward. A song that has run out
+is noted (`015E10`), so that asking for it again still starts it. On four scripted walks around
 level 1, the original started a song 18 times and the patched build 8.
 
 ## Message text
@@ -98,7 +98,7 @@ Messages are run by a small interpreter at `00CF04`. Most bytes are letters. Oth
 commands: end the page, wait, clear, ask a question and so on.
 
 After each letter it waits a number of units (`00CE6E`): 5 after a letter, 13 more after a comma,
-26 after a full stop, 39 after a question mark or colon, and 40 or 140 at the end of a page. Only
+26 after a period, 39 after a question mark or colon, and 40 or 140 at the end of a page. Only
 every fourth unit is a real wait (`013452`), of two frames. Drawing a letter takes about a frame
 more. That comes to about 15 letters a second.
 
@@ -122,7 +122,7 @@ A fresh press still ends a wait.
 | Patched | 17 a second, then 93 frames | 34 a second, then 81 frames |
 
 The pause with a button held is a little shorter than without because the wait after the page's
-last full stop counts as typing. `tools/harness/text_pace.py` makes the table.
+last period counts as typing. `tools/harness/text_pace.py` makes the table.
 
 ## Certificates
 
@@ -159,7 +159,7 @@ be made larger, so new code should have room.
 
 Only partly explored. The routine at `02E3E4` builds graphics for objects, 32 bytes per
 tile, into RAM at `FF2000`. The code around `014802` queues the matching sprites, in blocks
-of 4 by 4 tiles. `01428C` handles the queue afterwards. How the room itself reaches the
+of 4 by 4 tiles. `01428C` handles the queue afterward. How the room itself reaches the
 screen hasn't been traced yet.
 
 Object tiles are numbered from 1 to 29,670, and tile 0 is blank. The index at `02DCEC` splits
@@ -275,7 +275,7 @@ camera's y) with each cell row's to choose which half of the byte applies. Shape
 and shape 5 hides everything. The shapes are 32 bytes each at `0141CC`, and only the first six are
 data. A list word with its top bit set means the sprite isn't masked at all.
 
-The original shifts the right-hand cells' shape one bit too little, which miscolours stray pixels
+The original shifts the right-hand cells' shape one bit too little, which miscolors stray pixels
 along mask edges. `docs/optimizations.md` has the details and the fix.
 
 ## The object graphics patch
@@ -387,7 +387,7 @@ sprite table pointing at the new area (`0149B8`), sends it (`014A12`), sets the 
 and on a camera step writes the 612 cells of the map (`013BF6`). The DMA routine `0150E6` stops
 the Z80 for as long as each transfer runs.
 
-The vertical blank handler at `014D2A` counts the frame, reads the pad, steps a colour cycle every
+The vertical blank handler at `014D2A` counts the frame, reads the pad, steps a color cycle every
 12 frames when one is running, and runs the sound link, which takes about 10 of vertical blank's 38 scan lines. The
 main loop then waits until 5 frames after the tick started.
 

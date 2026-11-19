@@ -34,7 +34,7 @@ changes show up as one large jump of the camera.
 **Whether the drawing can run twice.** It looks safe. `013682` sorts the list and turns each entry
 into sprite pieces (`01467C`), and `01564E` masks them, sends them and updates the screen. Reading
 them, they keep no state that the game logic depends on. One thing would need guarding: in room
-`$64`, `01564E` steps a colour cycle each time it runs, so a second run would double its speed.
+`$64`, `01564E` steps a color cycle each time it runs, so a second run would double its speed.
 
 **What a second picture costs.** About 50k to 75k cycles: 33k to build the sprite pieces, 12k to
 38k to mask them and 5k for the screen update. That's about half a frame. The sprite tiles are
@@ -117,7 +117,7 @@ build, at gaps of 5 frames, and 262 times on the trial, at gaps of 2 and 3.
 **Fights.** A fight runs in its own loop from `011590`, with its own drawing at `015738` and
 `015768`. The two fighters stand at fixed places and only change pose. There's nothing to blend,
 so this method can't smooth a fight, and the trial doesn't touch one. Fights were run on the trial
-on levels 3 and 7 and the game carried on afterwards.
+on levels 3 and 7 and the game carried on afterward.
 
 **Memory.** RAM from `FF969F` to `FFFEA8` was zero in 30 snapshots taken across five levels, so
 it's taken to be unused. The trial uses `FFA000` to `FFA225`.

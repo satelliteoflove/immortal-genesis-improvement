@@ -165,7 +165,7 @@ Over all the walks the routine went from 515 million cycles to 233 million.
 
 **A bug this exposed, now fixed.** The game shifts the right-hand cells' mask by 31 minus the
 offset, where 32 minus the offset would line it up. That leaves it one bit out, a quarter of a
-pixel's colour number, so pixels along a mask edge come out in the wrong colour or show when they
+pixel's color number, so pixels along a mask edge come out in the wrong color or show when they
 should be hidden. In the walks it changed one to five pixels in about 13% of frames, such as a
 yellow dot at the wizard's foot where he stands behind a floor edge. Because the shifted masks are
 now tables, the fix is one number in `tools/build_rom.py`. The routine is still proven against the
