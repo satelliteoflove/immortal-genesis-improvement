@@ -14,18 +14,23 @@ reviews unless they say otherwise, and what to change is still to be decided.
 
 ## Fairness
 
-- [ ] Deaths with little or no warning: traps that kill within seconds of entering a room.
+Chris decided on 2026-11-19 not to redesign the game: traps, fights and items stay as they
+are, since changing them goes beyond what this patch is for. Fairness work is limited to
+saves, retries, and things that are really bugs.
+
+- [-] Deaths with little or no warning: traps that kill within seconds of entering a room. Out of scope.
 - [x] Game Over asks "Try this level again?". YES restarts the level with three lives and what
       the wizard carried into it; NO goes on to the prompts a game starts with. Three lives per
       level stay as they are.
-- [ ] Items that can be used up in the wrong place, forcing a restart.
+- [-] Items that can be used up in the wrong place, forcing a restart. Out of scope.
 - [x] Battery saves. Each level reached is saved when the level before it ends, and the game
       offers the saved levels when it starts. Certificates still work. See "Saving" in
       `docs/how-the-game-works.md`; `tools/harness/save_check.py` checks it.
 - [ ] Play through a level's end and a Game Over by hand, to see the new screens in use.
-- [ ] Fights that start with little warning.
-- [ ] Fights that all play alike.
-- [ ] Ladders, which can kill when approached from the wrong angle.
+- [-] Fights that start with little warning. Out of scope.
+- [-] Fights that all play alike. Out of scope.
+- [ ] Ladders, which can kill when approached from the wrong angle. Treated as a bug: find out
+      why it happens.
 
 ## Bugs
 
@@ -77,7 +82,8 @@ the optimized game really runs.
       original's pace now.
 - [ ] The death sequence and restart were reported as too fast. A death in a fight is the fight's
       ending animation, which is now at the old pace, and the retry after it measures the same as
-      the original (about 90 frames). Waiting to hear whether it still looks wrong.
+      the original (about 90 frames). Chris agrees it's too quick and wants it longer than
+      1.5 seconds.
 - [x] Message text flew by with a button held. It now types at twice the usual speed with a
       button held, and the pause at the end of a page stays. Normal typing is unchanged.
 - [x] Smoother movement at the same game speed: tried and dropped. A trial drew an in-between
