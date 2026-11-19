@@ -24,6 +24,18 @@
  * -M   file  append the 68000's 64K of RAM after every frame, in the 68000's
  *      own byte order (big: 64K a frame)
  * -m   file  the same RAM, once, at the end
+ * -I   take commands on standard input, one a line, in place of running a set
+ *      number of frames. Each is answered on standard output:
+ *        step N BUTTONS   run N frames with pad 1 holding BUTTONS ("-" for none);
+ *                         answers with the 68000's 64K of RAM
+ *        ram              answers with the RAM, running nothing
+ *        poke ADDR VALUE  as -p, at once; answers "ok"
+ *        keep N / back N  remember the machine's state in slot N (0-63), or go
+ *                         back to it; answers "ok" or "no"
+ *        save FILE / load FILE   the same, to and from a file
+ *        shot FILE        write the picture as a PNG; answers "ok"
+ *        quit
+ *      tools/harness/play.py wraps this for Python.
  * -B   file  the cartridge's battery RAM: read from the file before the first
  *      frame if the file exists, and written to it at the end, as the core
  *      keeps it
@@ -46,6 +58,7 @@
  *      lay the pad out differently from PicoDrive (give it before -i)
  */
 #include <dlfcn.h>
+#include <unistd.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -312,6 +325,8 @@ int main(int argc, char **argv)
     struct shot shots[256];
     static struct ev evs[65536];
     const char *script = NULL, *audio_path = NULL, *ram_path = NULL, *load_path = NULL, *battery_path = NULL;
+    int interactive = 0;
+    FILE *proto = NULL;
     FILE *log_out = NULL, *ram_out = NULL, *watch_out = NULL;
     const char *dma_path = NULL;
     unsigned watch_addr = 0;
@@ -335,6 +350,12 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "-a")) audio_path = argv[++i];
         else if (!strcmp(argv[i], "-m")) ram_path = argv[++i];     /* the 68000's RAM at the end, for debugging */
         else if (!strcmp(argv[i], "-B")) battery_path = argv[++i];
+        else if (!strcmp(argv[i], "-I")) {
+            /* answers go out on what was standard output; anything the core prints goes to standard error */
+            interactive = 1;
+            proto = fdopen(dup(1), "wb");
+            dup2(2, 1);
+        }
         else if (!strcmp(argv[i], "-v")) { video_out = fopen(argv[++i], "wb"); video_from = atoi(argv[++i]); }
         else if (!strcmp(argv[i], "-V")) { video_out = fopen(argv[++i], "wb"); video_from = atoi(argv[++i]); video_all = 1; }
         else if (!strcmp(argv[i], "-x")) scale = atoi(argv[++i]);
@@ -447,6 +468,52 @@ int main(int argc, char **argv)
         trace_hits = dlsym(core.h, "retro_trace_hits");
         trace_cycles = dlsym(core.h, "retro_trace_cycles");
         if (!trace_hits || !trace_cycles) { fprintf(stderr, "-P and -T need the profiling core\n"); return 1; }
+    }
+
+    if (interactive) {
+        static void *slots[64];
+        char line[4096], arg[4000];
+        unsigned a, v;
+        int n;
+        nframes = 0;
+        sn = core.ser_size();
+        sbuf = malloc(sn);
+        while (fgets(line, sizeof line, stdin)) {
+            line[strcspn(line, "\n")] = 0;
+            if (sscanf(line, "step %d %3999s", &n, arg) == 2) {
+                pads[0] = strcmp(arg, "-") ? parse_buttons(arg) : 0;
+                while (n-- > 0) core.run();
+                write_ram(proto);
+            } else if (!strcmp(line, "ram")) {
+                write_ram(proto);
+            } else if (sscanf(line, "poke %x %x", &a, &v) == 2) {
+                poke(a, v);
+                fputs("ok\n", proto);
+            } else if (sscanf(line, "keep %d", &n) == 1 && n >= 0 && n < 64) {
+                if (!slots[n]) slots[n] = malloc(sn);
+                fputs(core.ser(slots[n], sn) ? "ok\n" : "no\n", proto);
+            } else if (sscanf(line, "back %d", &n) == 1 && n >= 0 && n < 64) {
+                fputs(slots[n] && core.unser(slots[n], sn) ? "ok\n" : "no\n", proto);
+            } else if (sscanf(line, "save %3999[^\n]", arg) == 1) {
+                FILE *sf = fopen(arg, "wb");
+                int ok = sf && core.ser(sbuf, sn) && fwrite(sbuf, 1, sn, sf) == sn;
+                if (sf) fclose(sf);
+                fputs(ok ? "ok\n" : "no\n", proto);
+            } else if (sscanf(line, "load %3999[^\n]", arg) == 1) {
+                FILE *lf = fopen(arg, "rb");
+                int ok = lf && fread(sbuf, 1, sn, lf) == sn && core.unser(sbuf, sn);
+                if (lf) fclose(lf);
+                fputs(ok ? "ok\n" : "no\n", proto);
+            } else if (sscanf(line, "shot %3999[^\n]", arg) == 1) {
+                if (frame) save_png(arg, scale);
+                fputs(frame ? "ok\n" : "no\n", proto);
+            } else if (!strcmp(line, "quit")) {
+                break;
+            } else {
+                fputs("what\n", proto);
+            }
+            fflush(proto);
+        }
     }
 
     for (int f = 0; f < nframes; f++) {
