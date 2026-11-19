@@ -79,8 +79,8 @@ DECODE = 0x2E48E                # inside its loop, after the search: unpacks til
 RAW_DONE = 0x2E4C2              # where the loop carries on after a tile stored unpacked,
 PACKED_DONE = 0x2F4D4           #   and after a packed one
 SPREAD = 0x2D4EC                # a table the decoder wants in a3
-RUN_STARTS = 0xFFEB0            # a byte for each 128 tile numbers: the run the first of them is in
-TILE_MEMORY = 0xFFBD0           # the new routine
+RUN_STARTS = 0xFFEC8            # a byte for each 128 tile numbers: the run the first of them is in
+TILE_MEMORY = 0xFFBA6           # the new routine
 MEMORY_SETS = 128               # it remembers tiles in sets, chosen by the low 7 bits of the tile number,
 MEMORY_WAYS = 5                 #   of this many tiles each
 MEMORY_TAGS = 0x9800            # which tile each place holds, as the game stores the number; 0 for none.
@@ -92,9 +92,9 @@ BOOT_CHECK_BRANCH = 0xFFFD0     # the branch taken when the boot check fails
 OUTPUT_TILES = 0xFF2000         # where the routine puts its tiles
 TABLE_RESET = 0x13AE2           # empties the background tile table
 MAP_TILES = 0x13B16             # gives each cell on screen a slot in video memory
-MAP_TILES_NEW = 0xFF8D0         # the new MAP_TILES
+MAP_TILES_NEW = 0xFF8CA         # the new MAP_TILES
 TABLE_RESET_TAIL = 0x13B10      # TABLE_RESET's last two instructions
-TABLE_RESET_NEW = 0xFF940       # their replacement
+TABLE_RESET_NEW = 0xFF938       # their replacement
 TILE_COUNTS = 0x9760            # 64 bytes: how many of each 32 table entries are in use
 TILE_SYNC = 0x13B78             # frees unused slots and sends tiles to video memory
 BACKGROUND_TILES = 0x3D9B2      # the background tile graphics
@@ -112,26 +112,57 @@ CELL_MAPS = 0x110000
 CELL_MAP_SETS = 8
 SOUND_LINK = 0x1624E            # once a frame: fetches 48 bytes from the Z80, runs the music, sends them back
 SOUND_LINK_END = 0x16304
-SOUND_LINK_NEW = 0xFF960
+SOUND_LINK_NEW = 0xFF94A
 SOUND_PASSES = 1792             # for --check: 256 frames of each of six songs, then 256 of silence
 SOUND_RECORDS = 0x100000
 FIGHT_PASS_DRAW = 0x11694       # a fight's main loop: its drawing call and the one after
 FIGHT_STEP_DRAW = 0x11772       # a fight's animation loop: its drawing call and the wait after
 FIGHT_PASS_FRAMES = 6           # frames from one picture to the next in the original, as measured
 FIGHT_STEP_FRAMES = 8
-FIGHT_PACE = 0xFFAD0            # the routines that hold fights to that pace
+FIGHT_PACE = 0xFFABA            # the routines that hold fights to that pace
 FIGHT_SHOWN = 0x97A0            # the frame count when a fight's last picture went up
 SONG_REQUEST = 0x15D44          # asks the sound driver to start a song at the next frame
 SONG_END = 0x15E10              # a song that has run out asks the driver to go quiet
-MUSIC_KEEP = 0xFFB20            # the new versions of both
+MUSIC_KEEP = 0xFFAFE            # the new versions of both
 SOUNDING = 0x97A4               # the song playing when the waiting request was made (a long)
 SILENT = 0x97A8                 # set once a song has run out and nothing has been started since
 TEXT_WAIT = 0x13452             # message text: called once for each unit of waiting
 TEXT_NO_WAIT = 0xCEC0           # the branch that skips all waiting while two buttons are held
-TEXT_WAIT_NEW = 0xFFB80         # the new TEXT_WAIT
+TEXT_WAIT_NEW = 0xFFB56         # the new TEXT_WAIT
 TEXT_LETTER_UNITS = 5           # the wait after a letter, in units
 TEXT_TYPING_UNITS = 0x0D        # waits of up to this many units are typing; longer ones are pauses
 TEXT_TURN = 0x97A9              # flips each time a held button meets a letter's wait
+LEVEL_END = 0x11266             # a level is over: the calls that make its certificate and show it
+GAME_OVER_TEXT = 0x12646        # the end of the Game Over routine: its message, then rts
+LOADER = 0x12A74                # starts a game: from a certificate's fields, a typed certificate or nothing
+LOADER_FROM_FIELDS = 0x12AB0    #   where it starts the level the fields describe
+LOADER_ASK = 0x12A8E            #   where it asks "New game?"
+LOADER_NEW = 0x12C82            #   where it starts a new game
+CERTIFICATE = 0xD8C             # (a4): the certificate's 13 digits, a byte each: 4 of check, then 9
+CERTIFICATE_LEVEL = 0xD91       # (a4): the digit that is the level, 1 for the second
+MAKE_CERTIFICATE = 0x12876      # fills the fields from the game as it stands
+CHECK_CERTIFICATE = 0x12804     # works out the check digits of the fields, into $304-$307(a4)
+DIGIT_LETTERS = 0x12A50         # the 16 letters a certificate is shown in
+PRINT = 0x13362                 # draws the letter in d0 at the text cursor
+SAY = 0xCD56                    # shows message d1 in a new box
+SAY_FIRST = 0xCE0E              # the same, expecting more to follow
+SAY_LOOP = 0xCF2A               # inside the message routine, past where it has found its text
+SHOW = 0x15738                  # a frame's wait that puts what's drawn on the screen, unless $9642 is set
+NEW_BOX = 0x131E4               # clears the box and puts the cursor at its top
+ANSWER = 0x1370A                # after a message that asks: carry set for NO
+PAD = 0x962A                    # pad 1 as last read: up, down, left, right in bits 0-3, buttons above
+SAVE_HEADER = 0x1B0             # the header's field for battery RAM, blank in the original
+SAVE_RAM = 0x200001             # the battery RAM: odd bytes from here
+SAVE_RAM_END = 0x2001FF
+SAVES = 0xFFCCA                 # the new routines
+SAVE_TEXT = 0x2E3EA             # their messages, in the old object routine's unused start
+SAVE_TEXT_END = 0x2E48E
+TEXT_BUFFER = 0x97B0            # a message is copied here to be shown: the game finds text by 16-bit address
+AGAIN = 0x97AA                  # set to start a new game without asking, for "try again" on the first level
+SAVE_MESSAGES = {'over': 'Game Over&&Try this level again?%',
+                 'continue': 'Continue a saved game?%',
+                 'pick': 'Up or Down selects a level.&Press Start or A when done.&&         Level $=',
+                 'saved': '&Game saved.@'}
 MASK = 0x1428C                  # hides the parts of sprites that are behind scenery
 MASK_END = 0x14508              # the first byte after its rts
 MASK_SHAPES = 0x141CC           # 16 shapes of 32 bytes; only the first 6 are data
@@ -237,7 +268,7 @@ class Code:
                 self.data[at:at + 2] = ((address - self.origin - at) & 0xFFFF).to_bytes(2, 'big')
             else:
                 distance = address - self.origin - at - 2
-                assert -128 <= distance < 128 and distance
+                assert -128 <= distance < 128 and distance, (target, distance)
                 self.data[at + 1] = distance & 0xFF
         return bytes(self.data)
 
@@ -330,8 +361,9 @@ def tile_memory():
 
 
 def run_starts(tiles):
-    """For each 128 tile numbers up to 32,767, the run that the first of them belongs to."""
-    return bytes(max(0, min(bisect.bisect_right(tiles.firsts, 128 * block) - 1, INDEX_LAST)) for block in range(256))
+    """For each 128 tile numbers, the run that the first of them belongs to."""
+    blocks = (tiles.count >> 7) + 1                 # enough for every tile number the index has
+    return bytes(max(0, min(bisect.bisect_right(tiles.firsts, 128 * block) - 1, INDEX_LAST)) for block in range(blocks))
 
 
 def map_tiles():
@@ -814,6 +846,188 @@ def music_keep():
     w(0x13FC, 0x0001, 0xFFFF, 0x022F, 0x50F8, SILENT, 0x4E75)   # a song ran out: remember it's quiet
     code = c.finish()
     return code, (MUSIC_KEEP, end)
+
+
+def saves():
+    """Battery saves, and a second try after Game Over.
+
+    A save is a level's certificate, kept in battery RAM when the game makes it at the end
+    of the level before. There's a place for each of levels 2 to 8, so a save replaces the
+    one made the last time that level was reached. Loading one puts it back in the
+    certificate's fields and starts the level from them, which is what the game itself does
+    between levels. A save is believed only if its digits and the game's own check agree.
+
+    Returns the code, where its three entries are, and the messages with their addresses.
+    """
+    text, places = bytearray(), {}
+    for name, words in SAVE_MESSAGES.items():
+        places[name] = SAVE_TEXT + len(text)
+        text += words.encode('ascii') + b'\0'
+    assert SAVE_TEXT + len(text) <= SAVE_TEXT_END and max(len(m) for m in SAVE_MESSAGES.values()) < 0x50
+    c = Code(SAVES)
+    w, s, l = c.words, c.short, c.long
+    starts = {}
+    all_mine, back = (0x48E7, 0x07C0), (0x4CDF, 0x03E0)     # movem.l d5-d7/a0-a1 to and from the stack
+
+    def say(name, routine):
+        w(0x41F9, places[name] >> 16, places[name] & 0xFFFF)   # lea the message,a0
+        l(0x6100, routine)                                      # bsr
+
+    # Show the message at a0 in a new box, with d0 as its number. Flags as the game's routine leaves them.
+    c.label('say')
+    s(0x6100, 'copy')
+    w(0x1940, 0x0940)                               # move.b  d0,$940(a4)       the number a message can show
+    w(0x422C, 0x0948, 0x422C, 0x094B, 0x422C, 0x094A, 0x422C, 0x0949)
+    w(0x4EB9, NEW_BOX >> 16, NEW_BOX & 0xFFFF)
+    c.label('say on')                               # as the game's routine starts, but with our text
+    w(0x103C, 0x0000, 0x4278, 0x9644)               # move.b #0,d0 / clr.w $9644.w
+    w(0x1940, 0x0945, 0x3F01, 0x1942, 0x0944)       # move.b d0,$945(a4) / move.w d1,-(sp) / move.b d2,$944(a4)
+    w(0x196C, 0x0300, 0x0942, 0x196C, 0x0301, 0x0943)   # keep the text address the game had
+    w(0x197C, TEXT_BUFFER & 0xFF, 0x0300, 0x197C, TEXT_BUFFER >> 8, 0x0301)
+    w(0x4202)                                       # clr.b   d2
+    w(0x4EF9, SAY_LOOP >> 16, SAY_LOOP & 0xFFFF)    # the game's routine carries on, and returns for us
+    c.label('say more')                             # the same, after what's in the box already
+    s(0x6100, 'copy')
+    w(0x1940, 0x0940)
+    s(0x6000, 'say on')
+    c.label('copy')
+    w(0x43F8, TEXT_BUFFER)                          # lea     TEXT_BUFFER.w,a1
+    c.label('letter')
+    w(0x12D8)                                       # move.b  (a0)+,(a1)+
+    s(0x6600, 'letter')
+    w(0x4E75)
+
+    # a1 = the place in battery RAM for level d6
+    c.label('place')
+    w(0x13FC, 0x0001, 0x00A1, 0x30F1)               # move.b  #1,$A130F1        battery RAM on, for boards that ask
+    w(0x43F9, SAVE_RAM >> 16, SAVE_RAM & 0xFFFF)    # lea     SAVE_RAM,a1
+    w(0x7000, 0x1006, 0xEB48, 0xD2C0)               # 32 bytes of address, so 16 of RAM, for each level
+    w(0x41EC, CERTIFICATE, 0x7E0C)                  # lea CERTIFICATE(a4),a0 / moveq #12,d7
+    w(0x4E75)
+
+    # Put level d6's save in the certificate's fields. Z set if it's a real one.
+    c.label('fetch')
+    s(0x6100, 'place')
+    c.label('digit')
+    w(0x1011, 0x0C00, 0x0010)                       # move.b (a1),d0 / cmpi.b #16,d0
+    s(0x6400, 'no')                                 # bcc.s   no                not a digit
+    w(0x10C0, 0x5489)                               # move.b d0,(a0)+ / addq.l #2,a1
+    l(0x51CF, 'digit')
+    w(0xBC2C, CERTIFICATE_LEVEL)                    # cmp.b   CERTIFICATE_LEVEL(a4),d6
+    s(0x6600, 'no')                                 # bne.s   no                for some other level
+    w(0x197C, 13, 0x0D8B, 0x700D)                   # 13 digits, in the field and in d0
+    w(0x4EB9, CHECK_CERTIFICATE >> 16, CHECK_CERTIFICATE & 0xFFFF)
+    w(0x2E2C, 0x0304, 0xBEAC, CERTIFICATE)          # move.l $304(a4),d7 / cmp.l CERTIFICATE(a4),d7
+    w(0x4E75)
+    c.label('no')
+    w(0x7001, 0x4E75)                               # moveq #1,d0 / rts
+
+    # A level has ended: make its certificate, save it, show it, and say so if the save kept.
+    starts['level end'] = SAVES + len(c.data)
+    w(0x4EB9, MAKE_CERTIFICATE >> 16, MAKE_CERTIFICATE & 0xFFFF)
+    w(*all_mine)
+    w(0x7C00, 0x1C2C, CERTIFICATE_LEVEL)            # moveq #0,d6 / move.b CERTIFICATE_LEVEL(a4),d6
+    s(0x6100, 'place')
+    c.label('write')
+    w(0x1298, 0x5489)                               # move.b (a0)+,(a1) / addq.l #2,a1
+    l(0x51CF, 'write')
+    w(0x123C, 0x00D7, 0x4EB9, SAY_FIRST >> 16, SAY_FIRST & 0xFFFF)  # "End of level! Here is your certificate:"
+    w(0x4202)                                       # clr.b   d2
+    c.label('show')                                 # its 13 letters, as the game's routine does it
+    w(0x41EC, CERTIFICATE, 0x1230, 0x2000)          # move.b  (a0,d2.w),d1
+    w(0x41F9, DIGIT_LETTERS >> 16, DIGIT_LETTERS & 0xFFFF, 0x1030, 0x1000)
+    w(0x4EB9, PRINT >> 16, PRINT & 0xFFFF)
+    w(0x5202, 0xB42C, 0x0D8B)                       # addq.b #1,d2 / cmp.b $D8B(a4),d2
+    s(0x6600, 'show')
+    l(0x6100, 'place')                              # read it back
+    c.label('same')
+    w(0x1011, 0x5489, 0xB018)                       # move.b (a1),d0 / addq.l #2,a1 / cmp.b (a0)+,d0
+    l(0x56CF, 'same')                               # dbne    d7,same
+    w(0x41F9, places['saved'] >> 16, places['saved'] & 0xFFFF)
+    s(0x6700, 'kept')
+    w(0x41E8, len(SAVE_MESSAGES['saved']) - 1)      # it didn't keep: only the message's end, which waits
+    c.label('kept')
+    l(0x6100, 'say more')
+    w(*back, 0x4E75)
+
+    # Game Over: offer the level again.
+    starts['game over'] = SAVES + len(c.data)
+    w(0x48E7, 0x00C0)                               # movem.l a0-a1,-(sp)
+    say('over', 'say')
+    w(0x4CDF, 0x0300)
+    w(0x4EB9, ANSWER >> 16, ANSWER & 0xFFFF)
+    s(0x6500, 'ended')                              # NO: on to the prompts a game starts with
+    w(0x4A2C, 0x0D70)                               # tst.b   $D70(a4)          which level?
+    s(0x6600, 'fields')
+    w(0x50F8, AGAIN, 0x4E75)                        # the first: a new game, without asking
+    c.label('fields')
+    w(0x197C, 0x0001, 0x0D88)                       # any other: its certificate is still in the fields
+    c.label('ended')
+    w(0x4E75)
+
+    # Starting a game.
+    starts['loader'] = SAVES + len(c.data)
+    w(0x422C, 0x0DD0)                               # clr.b   $DD0(a4)          as the original
+    w(0x4A2C, 0x0D88)                               # tst.b   $D88(a4)          told to load from the fields?
+    s(0x6700, 'ask')
+    w(0x422C, 0x0D88)
+    c.label('from fields')
+    w(0x4EF9, LOADER_FROM_FIELDS >> 16, LOADER_FROM_FIELDS & 0xFFFF)
+    c.label('ask')
+    w(0x4A38, AGAIN)                                # tst.b   AGAIN.w
+    s(0x6700, 'menu')
+    w(0x4238, AGAIN)
+    c.label('new')
+    w(0x4EF9, LOADER_NEW >> 16, LOADER_NEW & 0xFFFF)
+    c.label('menu')
+    w(0x4A78, 0x962E)                               # tst.w   $962E.w           as the original
+    s(0x6600, 'new')
+    w(*all_mine)
+    w(0x7C07)                                       # moveq   #7,d6            the furthest level saved
+    c.label('find')
+    l(0x6100, 'fetch')
+    s(0x6700, 'have')
+    w(0x5306)                                       # subq.b  #1,d6
+    s(0x6600, 'find')
+    c.label('old')                                  # nothing saved, or NO: the game's own prompt
+    w(*back, 0x4EF9, LOADER_ASK >> 16, LOADER_ASK & 0xFFFF)
+    c.label('have')
+    say('continue', 'say')
+    w(0x4EB9, ANSWER >> 16, ANSWER & 0xFFFF)
+    s(0x6500, 'old')
+    c.label('pick')
+    w(0x7000, 0x1006, 0x5200)                       # d0 = the level's number, as players count
+    w(0x50F8, 0x9642)                               # st.b    $9642.w           all at once, not typed
+    say('pick', 'say')
+    w(0x4278, 0x9642)                               # clr.w   $9642.w
+    w(0x4EB9, SHOW >> 16, SHOW & 0xFFFF)            # and put it on the screen
+    c.label('let go')
+    w(0x4A38, PAD)                                  # tst.b   PAD.w
+    s(0x6600, 'let go')
+    c.label('press')
+    w(0x1038, PAD)                                  # move.b  PAD.w,d0
+    s(0x6700, 'press')
+    w(0x7A01, 0x0800, 0x0000)                       # moveq #1,d5 / btst #0,d0      up
+    s(0x6600, 'step')
+    w(0x7AFF, 0x0800, 0x0001)                       # moveq #-1,d5 / btst #1,d0     down
+    s(0x6600, 'step')
+    w(0x0200, 0x00F0)                               # andi.b  #$F0,d0           a button?
+    s(0x6700, 'let go')
+    w(*back)
+    l(0x6000, 'from fields')
+    c.label('step')                                 # the next saved level that way, going round
+    w(0xDC05)                                       # add.b   d5,d6
+    s(0x6600, 'not under')
+    w(0x7C07)
+    c.label('not under')
+    w(0x0C06, 0x0008)                               # cmpi.b  #8,d6
+    s(0x6600, 'not over')
+    w(0x7C01)
+    c.label('not over')
+    l(0x6100, 'fetch')
+    s(0x6600, 'step')
+    s(0x6000, 'pick')
+    return c.finish(), starts, bytes(text)
 
 
 def text_wait():
@@ -1374,6 +1588,17 @@ def main():
         assert rom[at:at + 8] == bytes.fromhex(was)
         out[at:at + 8] = b'\x4e\xb9' + start.to_bytes(4, 'big') + b'\x4e\x71'      # jsr, nop
     out[BOOT_CHECK_BRANCH:BOOT_CHECK_BRANCH + 2] = b'\x4e\x71'      # nop
+    code, starts, text = saves()
+    add(SAVES, code)
+    out[SAVE_TEXT:SAVE_TEXT + len(text)] = text     # in what's left of the old object routine, never run now
+    for at, was, start, fill in ((LEVEL_END, '4EBA160E4EBA17B4', starts['level end'], b'\x4e\xb9'),
+                                 (GAME_OVER_TEXT, '123C009C4EBAA70A4E75', starts['game over'], b'\x4e\xf9'),
+                                 (LOADER, '422C0DD0102C0D886706', starts['loader'], b'\x4e\xf9')):
+        assert rom[at:at + len(was) // 2] == bytes.fromhex(was)
+        out[at:at + 6] = fill + start.to_bytes(4, 'big')        # jsr or jmp
+    out[LEVEL_END + 6:LEVEL_END + 8] = b'\x4e\x71'               # nop
+    assert rom[SAVE_HEADER:SAVE_HEADER + 12] == b' ' * 12
+    out[SAVE_HEADER:SAVE_HEADER + 12] = b'RA\xf8\x20' + (SAVE_RAM).to_bytes(4, 'big') + SAVE_RAM_END.to_bytes(4, 'big')
     os.makedirs(BUILD, exist_ok=True)
     finish_rom(out, OUTPUT)
     if check:

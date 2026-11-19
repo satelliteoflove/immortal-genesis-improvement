@@ -24,6 +24,9 @@
  * -M   file  append the 68000's 64K of RAM after every frame, in the 68000's
  *      own byte order (big: 64K a frame)
  * -m   file  the same RAM, once, at the end
+ * -B   file  the cartridge's battery RAM: read from the file before the first
+ *      frame if the file exists, and written to it at the end, as the core
+ *      keeps it
  * -P   from:to:file  with the profiling core (build_trace_core.sh), write
  *      "address executions cycles" for each 68000 instruction run in those frames
  * -T   tick,lo,hi:file  with the profiling core, write for each frame
@@ -308,7 +311,7 @@ int main(int argc, char **argv)
     FILE *crc_out = NULL;
     struct shot shots[256];
     static struct ev evs[65536];
-    const char *script = NULL, *audio_path = NULL, *ram_path = NULL, *load_path = NULL;
+    const char *script = NULL, *audio_path = NULL, *ram_path = NULL, *load_path = NULL, *battery_path = NULL;
     FILE *log_out = NULL, *ram_out = NULL, *watch_out = NULL;
     const char *dma_path = NULL;
     unsigned watch_addr = 0;
@@ -331,6 +334,7 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "-i")) script = argv[++i];
         else if (!strcmp(argv[i], "-a")) audio_path = argv[++i];
         else if (!strcmp(argv[i], "-m")) ram_path = argv[++i];     /* the 68000's RAM at the end, for debugging */
+        else if (!strcmp(argv[i], "-B")) battery_path = argv[++i];
         else if (!strcmp(argv[i], "-v")) { video_out = fopen(argv[++i], "wb"); video_from = atoi(argv[++i]); }
         else if (!strcmp(argv[i], "-V")) { video_out = fopen(argv[++i], "wb"); video_from = atoi(argv[++i]); video_all = 1; }
         else if (!strcmp(argv[i], "-x")) scale = atoi(argv[++i]);
@@ -412,6 +416,17 @@ int main(int argc, char **argv)
     struct retro_game_info gi = { argv[2], rom, rn, NULL };
     if (!core.load_game(&gi)) { fprintf(stderr, "load_game failed\n"); return 1; }
     if (dev) core.set_port(0, dev);
+    uint8_t *battery = NULL;
+    size_t battery_n = 0;
+    if (battery_path) {
+        uint8_t *(*data)(unsigned) = dlsym(core.h, "retro_get_memory_data");
+        size_t (*size)(unsigned) = dlsym(core.h, "retro_get_memory_size");
+        battery = data ? data(RETRO_MEMORY_SAVE_RAM) : NULL;
+        battery_n = size ? size(RETRO_MEMORY_SAVE_RAM) : 0;
+        if (!battery || !battery_n) { fprintf(stderr, "the core has no battery RAM for this game\n"); return 1; }
+        FILE *bf = fopen(battery_path, "rb");
+        if (bf) { if (fread(battery, 1, battery_n, bf) != battery_n) fprintf(stderr, "%s: short\n", battery_path); fclose(bf); }
+    }
 
     size_t sn = 0;
     void *sbuf = NULL;
@@ -503,6 +518,12 @@ int main(int argc, char **argv)
         printf("rollback check: %d mismatching frames of %d (state %zu bytes)\n", mismatches, nframes - 31, sn);
     if (audio_out) fclose(audio_out);
     if (crc_out) fclose(crc_out);
+    if (battery_path) {
+        FILE *f = fopen(battery_path, "wb");
+        if (!f) { perror(battery_path); return 1; }
+        fwrite(battery, 1, battery_n, f);
+        fclose(f);
+    }
     if (ram_path) {
         FILE *f = fopen(ram_path, "wb");
         if (f) { write_ram(f); fclose(f); }
