@@ -50,7 +50,8 @@ def since_woken(g):
 
 def water(g, log):
     """Room 4, on the barrel from the foot of the ladder: wake the monster and get to the
-    whirlpool ahead of its timetable. Raises Died if it catches the wizard."""
+    whirlpool ahead of its timetable. If the wizard dies on the way this raises Died or
+    some other RouteError, and play() tells a death from a fault by the retries."""
     # Up the left channel, right along the top water, down the long diagonal channel and
     # into the bottom water. The gate is up a short channel at the bottom water's right.
     sail(g, (30, 66), (44, 46), (196, 46), (208, 76), (126, 158), (116, 200), (150, 212))
@@ -77,7 +78,7 @@ def water(g, log):
     log(f'y 96 after {since_woken(g)} (190 allowed)')
     sail(g, (30, 110))
 
-    # The whirlpool pulls the barrel in from about 15 away.
+    # The whirlpool pulls the barrel in from a little way off.
     if not chased(g):
         fail(g, LEVEL, 'the water monster is not awake; the whirlpool would drown him')
     sail_to(g, POOL[0], 150)
@@ -85,7 +86,7 @@ def water(g, log):
         if xy(g) == POOL:
             break
         if dead(g):
-            raise Died(f'the water monster caught the wizard at {xy(g)}, frame {g.frame}')
+            raise Died(f'the wizard died at the whirlpool, at {xy(g)}, frame {g.frame}')
         tick(g)
     else:
         fail(g, LEVEL, 'the whirlpool did not take the barrel')
@@ -138,24 +139,34 @@ def play(g, log=print, until=None):
         return
 
     # The straw (thing 3) isn't needed. The next ladder is a hole on the left, safe from its
-    # right and top like the first one, and it goes straight to room 4.
-    go(g, (90, 80), (67, 102))
-    ladder(g, 'LEFT', 4)
-    log('down the second ladder')
-    if until == 'room4':
-        return
-
-    # Room 4. The wizard steps off the ladder onto a barrel. A death here puts him back on
-    # it at the foot of the ladder with the monster asleep again.
+    # right and top like the first one, and it goes straight to room 4, the water, where the
+    # wizard steps off onto a barrel. A death in the water puts him back in room 2.
     while True:
+        lives = retries(g)
+        go(g, (90, 80), (67, 102))
+        through_door(g, 'LEFT', 4)
+        log('down the second ladder')
+        if until == 'room4':
+            return
         try:
             water(g, log)
             return end_of_level(g)
-        except Died as error:
-            left = revive(g)
-            log(f'lost a life in the water ({error}); {left} retries left')
-            if g.room != 4:
-                fail(g, LEVEL, f'came back in room {g.room}, not on the water')
+        except RouteError as error:
+            # Drowning takes his health to 0. Being caught by the monster doesn't: he is
+            # pulled under at full health and only the retries show it, about 50 updates
+            # after he is caught.
+            if not isinstance(error, Died):
+                for _ in range(600):
+                    if retries(g) < lives or game_over(g):
+                        break
+                    g.step(1)
+                else:
+                    raise
+            revive(g)
+            g.until(lambda g: game_over(g) or (g.room == 2 and not busy(g)), limit=3000)
+            if game_over(g):
+                raise Died(f'the retries ran out in the water (frame {g.frame})')
+            log(f'lost a life in the water ({error}); {retries(g)} retries left')
 
 
 if __name__ == '__main__':

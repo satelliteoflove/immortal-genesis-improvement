@@ -674,6 +674,23 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
   certificates. Rows 4, 5 and 8 had been overwritten that way; I put the certificates back
   and moved levels 5 and 8's words down to their rows unchanged. Match on the text after
   the "Where each level stands" heading.
+- 2026-11-19, level 7, **a death that `dead(g)` doesn't see**. Level 7's water monster
+  pulls the wizard under at full health: `FF090C` never goes to 0, so `dead`, `walk_to` and
+  `sail_to` raise nothing. His pose (`FF0920`) runs 0 to 30 for about 50 updates, then the
+  retries at `FF109A` drop, the "prepare to continue" box comes, and he is back two rooms
+  up (in room 2, not in the water's room; a retry doesn't always return to the room he
+  died in). What the route sees is some other `RouteError` (a `sail` that went `'busy'`).
+  `level7.py` notes `retries(g)` before the risky part, and on any `RouteError` waits up
+  to 600 frames for the count to drop before deciding it was a death; then `revive(g)` and
+  a wait for the room it expects. Do the same wherever something kills by its own
+  animation. Both deaths (drowned, caught) and two in a row were tried on purpose from
+  scratch scripts: the route went round again and finished, on both ROMs.
+- 2026-11-19, level 7, **the three delays can test nothing**. Level 7 opens by waiting for
+  the troll to walk over, so `--delay` 0, 3 and 11 give the very same game a few frames
+  later (the runs end 3 and 11 frames sooner). To find out whether a part is luck, put the
+  wait in the middle: `scratch/route/level7/t24.py` and `t25.py` wrap `fight` to stand idle
+  for up to 200 frames mid-fight, and `t23.py` moves the water's waypoints and starts. The
+  fights here don't use chance at all: the same presses give the same fight.
 
 ## Where each level stands
 
@@ -685,5 +702,5 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
 | 4 | `level4.py` plays rooms 6, 4, 0, 1 and 5: the troll, the carpet over both flame rooms, the straw bed, two trolls, two ladders | Those parts pass on both ROMs |
 | 5 | `level5.py` plays rooms 8, 0, 1, 2, 4 and 5 (egg, potion, hole, trolls, chest, lizards, key, worm room) to the door of the last room | Those parts pass on both ROMs |
 | 6 | `level6.py` plays the whole level: the spider hole, the big spider, the alcohol on the chest, the levitation spell down the corridor, the ladders | All six pass, with the walkthrough's certificate for level 7 |
-| 7 | `level7.py` plays the whole level: troll, ring, the fight below the ladder, the barrel, the water monster, the whirlpool | Patched and original pass with no delay; the six runs are next |
+| 7 | `level7.py` plays the whole level: troll, ring, the fight below the ladder, the barrel, the water monster, the whirlpool. Certificate `e011f730178c1`, no life lost | Yes, all six |
 | 8 | `level8.py` plays the whole level: chest, ladder, pit, the dragon, the teacher, the closing story | All six pass |
