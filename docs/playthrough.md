@@ -750,13 +750,26 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
   exploring: load a state kept just before it, idle N updates with `tick(g)` for 30
   values of N, and run that part of the route each time, on both ROMs. That gave 30
   different corridors and 30 different spider timings here, and all passed.
+- 2026-11-19, level 2, **slimes, enemies that can't be fought**. A slime kills when it
+  comes within about 4 of the wizard on both axes (`007520`: it posts action 2 to him,
+  then he melts over about 15 updates). It moves as fast as he walks, along no simple
+  line, and rests for 16 updates now and then: its animation step at `FF0984` + n runs
+  `0F` to `1F` through the rest and stays `1F` while it moves. Nothing in it is left to
+  chance. So don't steer round them by forecast (an earlier try at that failed five runs
+  in six): **wait for a RAM event that pins the room's clock**, such as a slime's first
+  rest beginning, and from that update on the room is the same game on both ROMs at any
+  delay, random numbers included (checked by hashing 60 updates of positions). Then find
+  a walk that works by trying waits and paths from a state kept at the event, and pick a
+  wait in the middle of a run of good ones. A wizard on the carpet (`FF0A1D` = 1) isn't
+  touched. Level 2's slime oil works as a budget: `FF0A1C` is 80 when it's put on and
+  drops 1 for each update a slime is touching him.
 
 ## Where each level stands
 
 | Level | Route | Passes six runs |
 |---|---|---|
 | 1 | `level1.py` plays rooms 6, 3 and 7 (body, three goblins, key, chest) to the door of room 1 | Those parts pass all six; the last four rooms aren't written |
-| 2 | not started | |
+| 2 | `level2.py` plays room 4 (past the slimes) to the door of room 1 | That part passes all six |
 | 3 | `level3.py` plays the whole level: scroll, troll and knife, the king, the gem, the knife thrown, three trolls beaten by hand, the beam, the last ladder. Certificate `573ff31000e60`, no life lost | Passes all six, at full health (rechecked by a second agent) |
 | 4 | `level4.py` plays rooms 6, 4, 0, 1 and 5: the troll, the carpet over both flame rooms, the straw bed, two trolls, two ladders | Those parts pass on both ROMs |
 | 5 | `level5.py` plays rooms 8, 0, 1, 2, 4 and 5 (egg, potion, hole, trolls, chest, lizards, key, worm room) to the door of the last room | Those parts pass on both ROMs |
