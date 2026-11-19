@@ -3,13 +3,16 @@
 
     tools/harness/route/level2.py [--original] [--delay N] [--quiet]
 
-Not finished: see the fail() at the end of play().
+The route: out of room 4 past its slimes; in room 1 the stone, the charm and the oil; room
+0's goblins and the dust; room 5's guards, the spores and the king's key; back to room 4
+with the oil on, where a slime turns the stone into a gem, and the other gem and the
+sword; room 3's dwarf and his gem; room 6's locked door; room 7's holes and the ladder.
 
 The rooms: 4 is the first (two slimes, a gem, a pile of bones), with doors to 1 (top left)
 and 3 (bottom). 1 is the big room of the will-o'-the-wisps, the merchant and the stone, with
 two doors to 0 (two goblins) at its top, one to 2 (a troll) at its bottom left and one to 4
 at its bottom. 0 leads to 5 (the goblin king and two guards). 3 is the dwarf's passage, with
-doors to 4, 2 and 6 (two slimes), and 6 leads on to the last room.
+doors to 4, 2 and 6 (two slimes), and 6 leads on to 7, the last room, through a locked door.
 
 Thing numbers on this level (indexes into the tables at FF0AEE): 0 to 6 what the
 certificate gives the wizard (0 gold, 1 the bottle of water, 5 the spores, 6 the charm
@@ -252,8 +255,63 @@ def dwarf(g, log):
     log(f"in the slimes' passage; oil left {oil_left(g)}")
 
 
+def locked_door(g, log):
+    """Room 6, a long passage with two slimes, oiled, to the locked door at its far right
+    end. The door is walked into from the left (RIGHT); the king's key opens it and the
+    wizard walks through by himself."""
+    go(g, (60, 64), (120, 86), (190, 86), (196, 76))
+    log(f'at the locked door; oil left {oil_left(g)}')
+    bump(g, 'RIGHT')
+    read(g, quiet=0)
+    g.until(lambda g: g.room == 7, limit=600)
+    tick(g)
+    for _ in range(30):
+        if not walking_in(g):
+            break
+        tick(g)
+    if has(g, KEY):
+        fail(g, LEVEL, 'the key was not used')
+    log('through the locked door')
+
+
+# Room 7's three symbols have four holes each, a corner at the top, the left and the right
+# and one in the middle. A table of their x and y is at 001EAD in the ROM, twelve pairs,
+# and its first three are the ones that open the floor: the first symbol's right hole, the
+# second's top one and the third's middle. A gem dropped within about 6 of a hole goes in.
+HOLES = [(91, 17), (109, 36), (144, 79)]
+
+
+def holes(g, log):
+    """Room 7. A gem is put in a hole by standing beside it and using the gem from the
+    inventory, which drops it with no question; within about 6 it settles in the hole. When
+    the third is in, a ladder hole opens in the floor left of the middle symbol, at (92,
+    64). It is safe from the right and from above, and kills from below. Climbing down it
+    ends the level."""
+    for gem, (x, y) in zip((GEM, STONE, DWARF_GEM), HOLES):
+        go(g, (x, y + 3))
+        use(g, gem)
+        g.until(lambda g: not busy(g) and not has(g, gem), limit=600)
+        if thing_xy(g, gem) != (x, y):
+            fail(g, LEVEL, f'gem {gem} lay at {thing_xy(g, gem)}, not in the hole at {(x, y)}')
+    log('put the three gems in the holes')
+    ticks(g, 4)
+    go(g, (110, 63))
+    for _ in range(300):
+        if g.byte(0x0934) == CLIMBING or busy(g):
+            break
+        if dead(g):
+            fail(g, LEVEL, 'fell down the ladder hole')
+        g.step(1, 'LEFT')
+    else:
+        fail(g, LEVEL, 'no ladder opened at (92, 64)')
+    log('climbing down')
+
+
+CLIMBING = 0x2B                         # the wizard's state at FF0934 on a ladder
+
+
 STEPS = [first_room, merchant, to_the_goblins, goblins, king, back_to_the_first_room,
-         gems_and_sword, dwarf]
+         gems_and_sword, dwarf, locked_door, holes]
 
 
 def play(g, log=print):
@@ -261,7 +319,6 @@ def play(g, log=print):
         fail(g, LEVEL, f'expected the first room of level 2, found level {g.level} room {g.room}')
     for step in STEPS:
         step(g, log)
-    fail(g, LEVEL, 'the route is not written past here')
     return end_of_level(g)
 
 
