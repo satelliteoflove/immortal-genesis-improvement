@@ -29,12 +29,16 @@ saves, retries, and things that are really bugs.
 - [ ] Play through a level's end and a Game Over by hand, to see the new screens in use.
 - [-] Fights that start with little warning. Out of scope.
 - [-] Fights that all play alike. Out of scope.
-- [ ] Ladders, which can kill when approached from the wrong angle. Treated as a bug: find out
-      why it happens.
+- [-] Ladders, which can kill when approached from the wrong angle. Not a bug: a ladder hole is
+      drawn with the ladder in one half and the other half open, and the game follows the
+      picture. Stepping onto the open half falls, and coming from the open side always meets
+      it first. Chris decided on 2026-11-19 to leave them as they are.
 
 ## Bugs
 
-- [ ] No list yet. Look for known ones, and note any found along the way.
+- [ ] No list yet. A web search on 2026-11-19 found almost nothing for the Genesis version:
+      one MobyGames review mentions a glitch that helps the player, without details. Note
+      any found along the way.
 
 ## Performance
 
