@@ -84,7 +84,9 @@ out would mean reading which kinds each level's data places, which hasn't been d
 - Creature actions: `6B4C` and `6CC4`.
 
 Inside routines that do run, many branches never ran too: deaths, wrong answers, Game Over and
-the like. Those weren't listed, since our play doesn't try to reach them.
+the like. Those weren't listed, since our play doesn't try to reach them. One of them can't
+run at all: the retry's reset for level 8 at `00820C`, 30 bytes, comes after the retry has
+already been skipped for level 8.
 
 ## How it was done
 

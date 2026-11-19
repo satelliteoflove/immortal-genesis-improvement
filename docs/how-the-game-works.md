@@ -56,7 +56,9 @@ Seen in the running game:
   both ROMs, measured on level 3), and after a lost fight for 6 to 8 seconds. A button
   doesn't shorten either.
 - With a retry left, it shows "Prepare to continue..." on a black screen and puts the
-  wizard back in the same room, at what looks like the room's entrance. The message ended
+  wizard back at a spot the game keeps for the room he died in (see below), with full
+  health. Everything else stays as it was: what he carries, what he has used up, the
+  creatures he has killed. The scroll or book he had armed is no longer armed. The message ended
   in three short pauses, about a second in all, so the black screen lasted about 1.5
   seconds. A fresh press of A or C ended whichever pause it fell in; in the original, any
   button held made the pauses' waits instant.
@@ -79,8 +81,37 @@ The retry handling is at `0081D6`. It skips the retry altogether on the last lev
 (`0081DE`): a death there brings Game Over about 50 updates later, with the retries left
 untouched. Winning the game ends the same way. After the closing story the wizard's routine
 runs into the last level's death code and the Game Over flag goes up, so the original
-follows its ending with "Game Over / Play again?". There's no congratulations screen. It also has special cases for levels 2, 4, 5,
-7 and 8 that reset particular things on a retry, and those haven't been worked through.
+follows its ending with "Game Over / Play again?". There's no congratulations screen.
+
+**Where a retry puts him.** `008318` works out an index, ten times the level (counting from
+0) plus the room, and `01119A` reads three tables of 80 bytes with it: the room at `0110AA`,
+then x at `0110FA` and y at `01114A`. Most rooms send him to where he came into the room
+before it; some, such as level 2's room 7, send him back to the room he died in. A spot of
+(0, 0) is a doorway he walks in by himself, as at the start of level 6's corridor.
+
+Ten entries a level is one too few for level 5, which has eleven rooms, 0 to 10. A death in
+room 10, the last one, reads level 6's first entry and puts him in level 5's room 0, at (97,
+64). By then the shrinking potion is gone, the hole from room 0 to room 2 only takes a
+shrunken wizard, and the merchant has nothing more to sell, so the level can't be finished.
+The retry test found it, and `scratch/retry/l5room10.py` shows the same on both ROMs. Room
+10 holds the straw bed and the ladder down, which kills from the wrong side.
+
+A death in level 5's first room, room 8, sends him into room 7, the slime's room near the
+end of the level. Nothing is known to kill him in room 8.
+
+The special cases, after the spot is chosen, by level:
+
+- Level 2: if `$71C(a4)` isn't FF, `00646C` is called with 50. Not worked out.
+- Level 4: a death in room 0 or 4, the two rooms flown over on the carpet, sets the
+  carpet's time back to 25 (`$D42(a4)`) and `$D43(a4)` to 16.
+- Level 5: rooms 4 and 5 call `00832E`, which does something to thing 47 and sets
+  `$8B2(a4)` to C3. Rooms 0, 1 and 7 clear `$D40(a4)`.
+- Level 7: `00834A` clears `$D44(a4)` to `$D46(a4)` and does something to thing 2C.
+- Level 8: `00820C` would set a few variables, but the retry has already been skipped for
+  level 8 by then, so it never runs.
+
+Nothing on level 6 is reset. Its levitation spell keeps running down. After a death in room 4,
+the route crossed the corridor again with 7 of the spell's units left, and arrived with 3.
 
 ## Fights
 

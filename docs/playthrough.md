@@ -899,6 +899,31 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
   the walkthrough's level 3 certificate `f47ef21000e10`; a run that lost 2 health to the
   wisps ended at `143ed21000e10`.
 
+## Dying on purpose
+
+    tools/harness/route/retry_test.py [--original] [--levels 1,2,...] [--jobs 3]
+
+plays each level's route once without dying, to choose a moment in each room: the one
+farthest from the doors he came in and went out by, when he is steered and nothing but a
+direction is held. Then, for each room, it plays the route again and sets his health to 0 at
+that moment. The game's death and retry follow. The test walks him back along the route's
+path, sets his health back to what it was, arms again what was armed, and lets the route
+carry on, with the time all that took hidden from the route's own waits.
+
+On 2026-11-19, 31 of the 43 deaths on levels 1 to 7 of the patched ROM ended with the
+level finished. On level 8 the test found no moment to die in its first two rooms, and the
+route never reached the moment chosen in the third; an earlier version of the test did die
+there, and got Game Over, as the game intends. The failures looked at were the test's own,
+but one: a death in level 5's room 10 leaves the level impossible to finish (see
+"Death and retries" in `docs/how-the-game-works.md`). Checked by hand with scripts in
+`scratch/retry/`:
+
+- Level 2, room 7: after a death with none, one or two of the gems in their holes, putting
+  in the rest still opens the ladder.
+- Level 4, room 1: a death doesn't spoil the straw bed. The route's wait for the dream had
+  timed out on the time the death took, which is why that time is now hidden.
+- Level 6, room 4: he comes back walking into the corridor, and the route crosses it again.
+
 ## The whole game
 
     tools/harness/route/whole_game.py [--original] [--delay N] [--quiet]

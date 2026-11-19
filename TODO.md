@@ -39,6 +39,13 @@ saves, retries, and things that are really bugs.
 - [ ] No list yet. A web search on 2026-11-19 found almost nothing for the Genesis version:
       one MobyGames review mentions a glitch that helps the player, without details. Note
       any found along the way.
+- [ ] A death in level 5's last room (room 10) puts the wizard back in room 0, past a hole
+      he can't go through again, so the level can't be finished. The retry table has ten
+      entries a level and level 5 has eleven rooms. Decide where he should go instead.
+      See "Death and retries" in `docs/how-the-game-works.md`.
+- [ ] Look into the retry test's other failures (`tools/harness/route/retry_test.py`). The
+      ones looked at so far were the test's own: walking back after flying, past traps, or
+      through rooms where the route does something special.
 
 ## Performance
 
