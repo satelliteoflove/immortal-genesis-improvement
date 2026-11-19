@@ -142,6 +142,8 @@ and `disasm/immortal.dis` is the whole disassembly (made by `tools/disasm.py`, n
 | `FF0BC2`, `FF0BC3` | Level 8's dragon: how many of its 24 moves it has begun, and the slot of the animation running (`FF` between moves) | Read from code (`00BE7A`), used |
 | `FF0BBD`, `FF0BBE`, `FF0BBC` | Level 8's teacher: moves begun, the move he is in, and its animation's slot | Read from code (`00BC1E`), used |
 | `FF0BC4` | Level 8: 0 while the dragon attacks, 1 once the amulet is held up, 2 once the teacher has come | Read from code, used |
+| `FF0B18` | 42 bytes in step with the things table: each thing's state bits. For a trap of plates (kind `37`), bit 1 is set while it has been set off | Seen, level 1 |
+| `FF0BAA` | Level 1: 1 while the amulet's reflection shows the ladder (it goes back to 0 afterward; the ladder stays) | Read from code (`009ADC`), seen |
 
 The x and y look like bytes in tables of 20, one entry for each moving thing, with the wizard
 first: `FF08BC` + n and `FF08D0` + n. That's a guess from one look.
@@ -777,12 +779,44 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
   same thing number with a new kind (`1D` to `1E`). With it, level 4 at full health makes
   exactly the walkthrough's level 5 certificate `d630f43000eb0`. Without it the seventh
   digit is 1, not 3. Look for other levels' optional deeds that set bits there.
+- 2026-11-19, level 1, **floor plates that set off a trap** (room 1's arrows). The trap is
+  a thing of kind `37` on the room's floor (thing 17), and bit 1 of its byte at `FF0B18`
+  goes up the moment it's set off, before any arrow flies, so check that byte after each
+  point of the walk rather than health. The plates are a list in the ROM: the trap's
+  byte at `FF0B6C` + thing is a message number n, and the data is at the address in the
+  message tables (`001684` + n low, `00177E` + n high): 8 bytes of header, then x, y
+  pairs (`scratch/route/level1/trapdata.py`). Level 1's plate (px, py) goes off with the
+  wizard's x from px-10 to px+2 and y from py-12 to py. Map it by poking his x and y
+  (`FF08BC`, `FF08D0`, `FF0A4C`, `FF0A4D`) to each spot from a kept state and standing 2
+  updates (`s2.py`), then walk 6 or more clear of the marks. No timing is needed.
+- 2026-11-19, level 1, **a door that only takes one x in three**. Walking LEFT down a
+  diagonal wall into room 1's door to room 2 worked from x 135 and not from 134, because
+  each step is 3 and the slide lands on the doorway or misses it. When a door works on one
+  run and not the next, poke a grid of spots in front of it and hold each direction (`t4.py`,
+  `t5.py`): here DOWN+LEFT from anywhere in the corner above it worked, a band 20 wide.
+- 2026-11-19, level 1, **the amulet and the ladder** (room 4, which on the Genesis is the
+  crater, the beam of light and the straw bed together; there's no goblin, and the route
+  never goes through a room 5). `use(g, 19); read(g, 'yn')`: hold it up, yes; read the runes, no (yes kills).
+  It can be held up anywhere, but on level 1 the ladder only shows if the wizard is within
+  16 of (151, 104) on both axes (code at `009ADC`); the game then moves him onto that spot,
+  which is the test that it worked. The ladder is a hole beside the crater, about x 90 to
+  111, y 56 to 76: DOWN onto it from above with x 100 to 108 ends the level, and LEFT from
+  the right works over y 62 to 68; the other ways are a fall.
+- 2026-11-19, level 1, **the straw bed decides the certificate**. Level 1 ended at health 13
+  makes `2f9fd10006f70`; after `rest(g)` on the bed (health 15) it makes the walkthrough's
+  `cddff10006f70`. Both start level 2 the same. Only the first four digits changed, so
+  the certificate carries the health, and a route that ends a level with the
+  walkthrough's certificate has most likely ended it at full health.
+- 2026-11-19, level 1, **the shades** in the dark room (creatures 5 and 6, 12 health, can't
+  be seen) attack in about half of runs. `fight(g, counter=True)` beat every one without a
+  hit, in 90 runs started 0 to 59 updates late on the patched ROM and 0 to 29 on the
+  original (`scratch/route/level1/idle0.py`).
 
 ## Where each level stands
 
 | Level | Route | Passes six runs |
 |---|---|---|
-| 1 | `level1.py` plays rooms 6, 3 and 7 (body, three goblins, key, chest) to the door of room 1 | Those parts pass all six; the last four rooms aren't written |
+| 1 | `level1.py` plays the whole level from a new game: body, three goblins, key, chest, the arrow room without touching a plate, the pits, the dark room's scroll and amulet, the straw bed, the amulet at the beam, the ladder. Certificate `cddff10006f70` (the walkthrough's), no life lost | All six pass at health 15; the arrow room at 30 starting waits on each ROM, and the dark room at 60 patched and 30 original, all passed |
 | 2 | `level2.py` plays room 4 (past the slimes) to the door of room 1 | That part passes all six |
 | 3 | `level3.py` plays the whole level: scroll, troll and knife, the king, the gem, the knife thrown, three trolls beaten by hand, the beam, the last ladder. Certificate `573ff31000e60`, no life lost | Passes all six, at full health (rechecked by a second agent) |
 | 4 | `level4.py` plays the whole level: the troll, the carpet over both flame rooms with the ring picked up on the way, the straw bed, two trolls, the girl's trade, the triangle. Certificate `d630f43000eb0` (the walkthrough's) when fireballs cost 2 health or less; they cost 0 to 6 by chance | All six pass (the six runs make `6210e43000eb0` patched and `f4ffd43000eb0` original, health 14 and 13); 20 runs with random waits passed |
