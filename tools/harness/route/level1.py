@@ -20,6 +20,29 @@ CERTIFICATE = None
 LEVEL = 1
 
 
+def shades(g, points, log):
+    """Walk through points in the dark room, fighting any shade that gets in the way.
+
+    A shade swings faster than the wizard slashes, so it is fought by counter-attack."""
+    for x, y in points:
+        for _ in range(8):
+            result = walk_to(g, x, y, stop=fighting)
+            if result == 'there':
+                break
+            if fighting(g):
+                log('a shade attacks')
+                log('shade: won with health', fight(g, counter=True))
+                read(g)
+            elif result == 'busy' and (x, y) == points[-1]:
+                return                          # the thing being walked to has spoken
+            elif result == 'busy':
+                read(g)
+            else:
+                fail(g, LEVEL, f'walking to ({x}, {y}) ended with {result}')
+        else:
+            fail(g, LEVEL, f'never reached ({x}, {y})')
+
+
 def play(g, log=print):
     if g.level != 0 or g.room != 6:
         fail(g, LEVEL, f'expected the first room of level 1, found level {g.level} room {g.room}')
@@ -79,7 +102,47 @@ def play(g, log=print):
     through_door(g, 'LEFT', 1)
     log('in the arrow room')
 
-    fail(g, LEVEL, 'the route is not written past the door into room 1')
+    # Room 1. Floor plates loose arrows that take 7 health each. This line keeps a step
+    # clear of every spot where room_map saw one land: along the bottom, then up the left
+    # wall of this half of the room to the corner at about (134, 64). From there LEFT
+    # slides down the wall into the door of room 2.
+    before = health(g)
+    go(g, (199, 94), (199, 102), (187, 102), (187, 90), (157, 90), (133, 64))
+    through_door(g, 'LEFT', 2)
+    if health(g) != before:
+        log('hit by arrows: health', before, 'to', health(g))
+    log('in the pit room')
+
+    # Room 2. Three pits lie across the middle (x 57 to 96, y 48 to 60). Keep to the left
+    # wall; the door is in the lower left wall and the walk along it runs into it.
+    go(g, (60, 16), (12, 62), (40, 88))
+    if walk_to(g, 66, 112) != 'room' or g.room != 0:
+        fail(g, LEVEL, 'did not find the door from the pit room to the dark room')
+    while walking_in(g):
+        tick(g)
+    log('in the dark room')
+
+    # Room 0. Five more pits, and shades that can't be seen. A scroll (thing 20) lies by the
+    # upper left wall and the amulet (thing 19) by the lower left; each asks before it's taken.
+    for thing, way in ((20, [(140, 30), (100, 70), (50, 70)]), (19, [(20, 100), (22, 122)])):
+        shades(g, way + [thing_xy(g, thing)], log)
+        search(g, 'y', thing)
+    log('have the scroll and the amulet, carrying', carried(g))
+
+    # The door in the lower right wall is locked, and the third goblin's key opens it.
+    shades(g, [(50, 122), (94, 124), (106, 124), (106, 125)], log)
+    bump(g, 'DOWN')
+    log('at the locked door: busy', busy(g), 'fighting', fighting(g))
+    read(g)
+    if g.room == 0:
+        through_door(g, 'DOWN', 4)
+    while walking_in(g):
+        tick(g)
+    if g.room != 4:
+        fail(g, LEVEL, f'expected room 4 behind the locked door, in room {g.room}')
+    log('in the last room')
+
+    fail(g, LEVEL, 'the route is not written past the door into room 4')
     return end_of_level(g)
 
 

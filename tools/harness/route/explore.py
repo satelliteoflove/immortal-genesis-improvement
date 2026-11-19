@@ -9,7 +9,7 @@ letter for each patch 3 wide and 4 high of the wizard's coordinates:
 
     .   he can stand here               @   where he started
     !   stepping here stopped the game: a text box, a trap, a fight
-    x   stepping here cost health or killed the wizard
+    x   stepping here cost health or killed the wizard, or he couldn't move off it (a pit)
     0-9, a-z   stepping here led into that room (a door)
 
 Enemies keep moving while it walks, so a '!' near one is probably the fight starting, and
@@ -54,11 +54,14 @@ def room_map(g, limit=4000, moves=('UP', 'DOWN', 'LEFT', 'RIGHT')):
             health = g.byte(0x090C) >> 4
             marks.setdefault(patch(spot), '.')
             found = len(queue)
+            held = True                         # no move goes anywhere: a pit, most likely
             for move in list(moves) + ['UP+LEFT', 'UP+RIGHT', 'DOWN+LEFT', 'DOWN+RIGHT']:
                 if '+' in move and len(queue) > found:
                     break                       # diagonals only where the straight moves fail
                 g.back(62)
                 moved = tick(g, move)
+                if xy(g) != spot or g.room != room:
+                    held = False
                 cell = None
                 if dead(g) or g.byte(0x090C) >> 4 < health:
                     mark = 'x'
@@ -69,7 +72,13 @@ def room_map(g, limit=4000, moves=('UP', 'DOWN', 'LEFT', 'RIGHT')):
                 else:
                     mark = None
                     there = xy(g)
-                    if patch(there) not in seen:
+                    across, down = abs(there[0] - spot[0]), abs(there[1] - spot[1])
+                    if across > 3 or down > 4 or ('+' not in move and (
+                            down > 2 if move in ('LEFT', 'RIGHT') else across > 2)):
+                        # dragged somewhere no step goes: a pit pulling him in
+                        marks[patch(spot)] = marks[patch(there)] = 'x'
+                        notes.setdefault('x', (spot, move))
+                    elif patch(there) not in seen:
                         seen.add(patch(there))
                         queue.append((there, remember(there)))
                 if mark:
@@ -79,6 +88,9 @@ def room_map(g, limit=4000, moves=('UP', 'DOWN', 'LEFT', 'RIGHT')):
                     if marks.get(cell, '.') == '.':
                         marks[cell] = mark
                     notes.setdefault(mark, (spot, move))
+            if held:
+                marks[patch(spot)] = 'x'
+                notes.setdefault('x', (spot, 'standing'))
     g.back(63)
     marks[(start[0] // WIDE, start[1] // HIGH)] = '@'
     xs = [c[0] for c in marks]
@@ -89,7 +101,7 @@ def room_map(g, limit=4000, moves=('UP', 'DOWN', 'LEFT', 'RIGHT')):
         lines.append(f'{row * HIGH:3d} ' + ''.join(marks.get((col, row), ' ')
                                                    for col in range(min(xs), max(xs) + 1)))
     for mark, (spot, move) in sorted(notes.items()):
-        what = ('stopped the game' if mark == '!' else 'hurt the wizard' if mark == 'x'
+        what = ('stopped the game' if mark == '!' else 'hurt or held the wizard' if mark == 'x'
                 else f'led to room {DIGITS.index(mark)}')
         lines.append(f'{mark}: {move} from {spot} {what}')
     return '\n'.join(lines)
