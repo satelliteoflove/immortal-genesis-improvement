@@ -910,7 +910,7 @@ that moment. The game's death and retry follow. The test walks him back along th
 path, sets his health back to what it was, arms again what was armed, and lets the route
 carry on, with the time all that took hidden from the route's own waits.
 
-On 2026-11-19, 31 of the 43 deaths on levels 1 to 7 of the patched ROM ended with the
+On 2026-11-19, 31 of the 45 deaths on levels 1 to 7 of the patched ROM ended with the
 level finished. On level 8 the test found no moment to die in its first two rooms, and the
 route never reached the moment chosen in the third; an earlier version of the test did die
 there, and got Game Over, as the game intends. The failures looked at were the test's own,
