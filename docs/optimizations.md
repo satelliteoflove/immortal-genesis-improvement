@@ -13,18 +13,19 @@ one late, and the game never catches up, so a late tick is lost time.
 | Level | Late: original | Late: object tiles | Late: background tiles | Late: now | Worst gap: original | Worst gap: now |
 |---|---|---|---|---|---|---|
 | 1 | 1% | 1% | 0% | 0% | 7 | 5 |
-| 2 | 23% | 22% | 12% | 12% | 9 | 8 |
+| 2 | 23% | 22% | 12% | 11% | 9 | 6 |
 | 3 | 10% | 11% | 0% | 0% | 9 | 6 |
 | 4 | 16% | 17% | 0% | 0% | 8 | 5 |
-| 5 | 41% | 24% | 0% | 0% | 11 | 6 |
+| 5 | 41% | 24% | 0% | 0% | 11 | 5 |
 | 6 | 58% | 20% | 5% | 4% | 11 | 6 |
 | 7 | 15% | 14% | 1% | 1% | 8 | 6 |
 | 8 | 19% | 19% | 0% | 0% | 6 | 5 |
-| **All** | **23.8%** | **16.4%** | **2.0%** | **1.8%** | | |
+| **All** | **23.8%** | **16.4%** | **2.0%** | **1.7%** | | |
 
-Each column adds one change to the one before it. Late ticks stopped being the useful measure
-after the background tile change, because nearly all that remain are deliberate waits. From
-there on the measure is headroom: how much of a tick's time its work needs.
+Each column adds one change to the one before it, and "now" has the sprite masking and camera
+step changes as well. Late ticks stopped being the useful measure after the background tile
+change, because nearly all that remain are deliberate waits. From there on the measure is
+headroom: how much of a tick's time its work needs.
 
 Gaps are in video frames, and 5 is on time. Gaps of 12 frames or more are left out, since those
 are messages and transitions. Once the timing changes, the walks go different ways, so small
@@ -168,6 +169,50 @@ yellow dot at the wizard's foot where he stands behind a floor edge. Because the
 now tables, the fix is one number in `tools/build_rom.py`. The routine is still proven against the
 original with the game's own shift, and the shipped tables use the corrected one.
 
+## Camera steps
+
+**What was slow.** After the changes above, the heaviest ticks were still the ones where the
+camera crosses an 8-pixel step. The three routines from the background tile section took about
+220k cycles between them on such a tick, a third of the tick.
+
+`013D34` rebuilds all 612 cells from the level's maps, which are made of blocks 8 cells wide and
+4 tall. For every row of every block it worked out the row's place in three buffers again with
+multiplies done as shifts and adds, and for every cell it tested for the screen's right edge.
+
+The sync routine at `02E480` still stepped through all 2,048 entries of the tile table. Measured
+during play, 15 to 235 entries are in use, 278 at most, and they sit in about a third of the
+table.
+
+**The change.** The new `013D34` works out how many columns and rows of a block are on screen
+before it copies, then copies each row through an unrolled run of moves with nothing else in the
+loop. It's 450 bytes against 554. Its two small tables sit just before the routine, and a map byte
+out of range would read past them into the old routine's code. So the new routine reads a copy of
+those bytes as they were, at `1EA000`, and such a byte still gives what it always gave.
+
+The tile table now has a count for each group of 32 entries, 64 bytes at `FF9660`, in RAM the old
+object decoder used as a buffer. The slot routine adds one when it gives a tile a slot, the sync
+takes one off when it frees a slot, and the room reset clears them. The sync skips any group whose
+count is zero. It still visits the entries in use in the original order, so slots are freed and
+handed out exactly as before. The slot routine moved to `02E540` to make room for the counting, and
+its loop keeps two constants in registers.
+
+**The result.** Cycles for each call, averaged over all camera steps in the walks:
+
+| Routine | Before | After |
+|---|---|---|
+| `013D34`, the cells | 96k | 41k |
+| The slot routine, `013B16` and now `02E540` | 56k | 58k |
+| The sync, `02E480` | 71k | 34k |
+| **Together** | **223k** | **133k** |
+
+The share of ticks needing more than 3 frames of work fell from 11.6% to 3.7%.
+
+**A quirk kept.** The original leaves part of the block's row number in the register it then uses
+as the block's graphics number. It makes no difference until the row reaches 64, and from there on
+it reads the cells from the wrong place. The test with random maps found this, because the first
+version of the new routine didn't do it. The new routine now does the same thing, so that nothing
+changes. Whether any level's map is tall enough to reach it hasn't been checked.
+
 ## How the changes were checked
 
 A frame-by-frame comparison with the original doesn't work once the game runs faster, because the
@@ -177,11 +222,14 @@ same input lands on different ticks. So each change has its own proof.
 |---|---|
 | Tile test ROM | Runs the game's own decoder, under emulation, on all 29,671 tile numbers. Every result matches the table, including the torch tile as the game decodes it |
 | Object routine test ROM | The new routine writes the right tiles, counts them correctly, and leaves all 15 registers as it found them |
-| Background test ROM | Old and new routines run on 24 passes of random screens, with identical RAM and video memory after every pass, and all registers kept. Deliberately breaking the patch makes this fail |
+| Background test ROM | Covers the slot routine and the sync, including the counts. Old and new routines run on 24 passes of random screens, with identical RAM and video memory after every pass, and all registers kept. Deliberately breaking the patch makes this fail |
 | In-play check | A test build compared every skipped tile with video memory during play, across all levels and walks that press buttons. All 685,562 matched |
 | Reading the code | Outside start-up code, one routine writes to the tile area: `0158EC` puts 7 status tiles in slots 0 to 6. Slots are handed out from 611 downward, so a screen would need over 600 different tiles to reach them, and the original had the same limit. A room reset (`015A7C`) empties the table |
 | Tile numbers | Walks from a clean boot never asked for a tile outside the table |
 | Masking test ROM | Old and new masking routines run on 400 passes of random sprites, depths and scenery, including sprites partly off the grid and the 10 shapes that aren't real data. The tiles and all registers come out the same. Six deliberate breaks, one in each path through the routine, all made it fail |
+| Cell test ROM | Old and new `013D34` run on 300 passes of random block maps, rooms and camera positions, on and off the map. The cells, the mask shapes and all registers come out the same. Six deliberate breaks all made it fail, one of them being to leave out the quirk described above |
+| Cells in play | A test build ran both routines on every camera step of 32 walks and compared their output. 3,941 steps agreed. A deliberately broken routine disagreed on all 3,941 |
+| Tile counts in play | A test build recounted the tile table after every sync and compared it with the running counts. 3,943 syncs, none wrong. With the "take one off" left out, 29,744 groups were wrong |
 | Masking in play | A test build ran both routines on the game's own sprites, in alternating order, on every tick of 32 walks. 30,886 calls agreed. Masking a tile twice changes nothing, so a second routine that disagrees shows up as a changed tile. A deliberately broken routine gave 6,436 disagreements |
 
 ## What's left
@@ -195,34 +243,48 @@ two. They look like deliberate animations, though we haven't identified them.
 
 | Level | Median | 90% | 99% | Most | Over 4 frames | Over 3 frames | Over 2 frames |
 |---|---|---|---|---|---|---|---|
-| 1 | 172 | 230 | 367 | 419 | 0.0% | 0.7% | 1.2% |
-| 2 | 265 | 522 | 558 | 611 | 11.2% | 13.8% | 74.6% |
-| 3 | 149 | 396 | 455 | 751 | 0.5% | 10.9% | 17.4% |
-| 4 | 238 | 426 | 522 | 560 | 1.3% | 15.7% | 41.0% |
-| 5 | 142 | 401 | 528 | 557 | 2.3% | 20.5% | 36.3% |
-| 6 | 235 | 416 | 435 | 750 | 0.0% | 14.5% | 25.7% |
-| 7 | 141 | 385 | 412 | 668 | 0.1% | 10.0% | 12.6% |
-| 8 | 138 | 374 | 394 | 414 | 0.0% | 3.0% | 20.1% |
-| **All** | **162** | **395** | **526** | **751** | **1.3%** | **11.6%** | **26.6%** |
+| 1 | 172 | 230 | 284 | 334 | 0.0% | 0.0% | 1.2% |
+| 2 | 263 | 414 | 473 | 539 | 0.1% | 13.5% | 68.6% |
+| 3 | 149 | 295 | 394 | 662 | 0.4% | 1.4% | 17.3% |
+| 4 | 237 | 345 | 421 | 469 | 0.0% | 4.3% | 40.7% |
+| 5 | 142 | 303 | 427 | 506 | 0.0% | 7.0% | 36.0% |
+| 6 | 235 | 353 | 397 | 665 | 0.0% | 6.3% | 25.7% |
+| 7 | 141 | 281 | 304 | 601 | 0.1% | 0.1% | 12.6% |
+| 8 | 138 | 276 | 295 | 301 | 0.0% | 0.0% | 19.9% |
+| **All** | **161** | **295** | **423** | **665** | **0.1%** | **3.7%** | **25.8%** |
 
-Before the masking change the median was 212 and 4.0% of ticks were over 4 frames. So 12 updates
-a second has room, 15 nearly fits, and 20 would need more work. This doesn't settle the question
-of changing the rate, because movement and timers are counted in ticks.
+How the "All" row has moved:
+
+| After | Median | 90% | 99% | Over 4 frames | Over 3 frames | Over 2 frames |
+|---|---|---|---|---|---|---|
+| Background tiles | 212 | 408 | 548 | 4.0% | 14.0% | 38.1% |
+| Sprite masking | 162 | 395 | 526 | 1.3% | 11.6% | 26.6% |
+| Camera steps | 161 | 295 | 423 | 0.1% | 3.7% | 25.8% |
+
+So 12 updates a second has plenty of room, and 15 fits nearly always. 20 would need a quarter of
+ticks to shrink, and the median tick is over half of that budget already. This doesn't settle the
+question of changing the rate, because movement and timers are counted in ticks.
 
 **Remaining costs**, as shares of the CPU time not spent waiting, over all levels:
 
 | Routine | Share | What it is |
 |---|---|---|
-| `02E3E4` | 7.8% | The new object tile copy |
-| `01621E` block | 7.7% | Mostly `01624E`, which copies 48 bytes each way through Z80 memory, one byte at a time. It looks like the link to the sound driver |
-| `01428C` | 7.1% | The new sprite masking. 16% on level 6 |
-| `015E9C` | 5.9% | Not read yet |
-| `0150E6` | 5.9% | Starts the sprite tile DMA, and its time includes the CPU being held during DMA |
-| `015466` | 5.8% | Turns the pad state into a direction. Called so often that it's probably polling at prompts, which isn't confirmed |
-| `013D34` | 4.8% | Works out the cells on a camera step |
-| `00D2C6` | 4.7% | Not read closely yet. Runs about as often as `015466` |
-| `02E480` | 3.5% | The new background tile sync |
-| `013B16` | 3.0% | Assigns tile slots on a camera step |
+| `02E3E4` | 9.4% | The new object tile copy |
+| `01621E` block | 9.2% | Mostly `01624E`, which copies 48 bytes each way through Z80 memory, one byte at a time. It looks like the link to the sound driver |
+| `01428C` | 8.5% | The new sprite masking. 17% on level 6 |
+| `015E9C` | 7.2% | Not read yet |
+| `0150E6` | 7.1% | Starts the sprite tile DMA, and its time includes the CPU being held during DMA |
+| `02E540` | 3.4% | Assigns tile slots on a camera step |
+| `0165AE` | 3.1% | Not read yet |
+| `009930` | 2.6% | Game logic, not read yet |
+| `013D34` | 2.6% | Works out the cells on a camera step |
+| `005B78` | 2.4% | Game logic, not read yet |
+| `01370A` | 2.3% | Not read yet |
+| `01467C` | 2.2% | Part of preparing the sprites |
+
+An earlier version of this table had `015466` and `00D2C6` near the top. They turned out to be the
+YES/NO prompt polling the pad until the choice changes, which is waiting, and `hotspots.py` counts
+it that way now. That's also why the other shares are higher than they were.
 
 ## Mistakes worth remembering
 

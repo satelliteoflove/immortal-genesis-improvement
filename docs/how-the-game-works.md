@@ -299,11 +299,25 @@ alone.
 ### Room to spare
 
 `tools/harness/tick_parts.py --headroom` measures the work in each tick without those waits. The
-median tick now needs about 212k cycles, 90% need under 408k and 99% under 548k, against 639k
-available. The heaviest are camera-step ticks, which still spend about 220k in the three map
-routines. A shorter tick would need more of this removed: 4.0% of ticks wouldn't fit in 4 frames
-and 14% wouldn't fit in 3. These are random walks, so a real route may differ.
+median tick now needs about 161k cycles, 90% need under 295k and 99% under 423k, against 639k
+available. The heaviest are still camera-step ticks, which spend about 133k in the three map
+routines where they spent 223k. Only 0.1% of ticks wouldn't fit in 4 frames and 3.7% wouldn't fit
+in 3, but 26% wouldn't fit in 2. These are random walks, so a real route may differ.
 
-The largest remaining costs, as shares of work outside waits, are the sprite masking at `01428C`
-(14%), what looks like the link to the sound driver at `01624E` (7%) and sprite tile uploads through `0150E6`
-(6%).
+The largest remaining costs, as shares of work outside waits, are the object tile copy at
+`02E3E4` (9%), what looks like the link to the sound driver at `01624E` (9%), the sprite masking
+at `01428C` (9%), `015E9C`, which hasn't been read (7%), and sprite tile uploads through `0150E6`
+(7%).
+
+### How the screen's cells are built
+
+`013D34` fills two buffers on a camera step: 612 words at `FF6C82`, one for each 8 by 8 cell on a
+34 by 18 screen, and 612 mask-shape bytes at `FF8ADE` for the sprite masking. A level is a grid of
+blocks 20 across and up to 128 down, each 8 cells wide and 4 tall. Three maps give each block its
+graphics number, the room it belongs to and its kind of mask. A block shows only if it belongs to
+the room the wizard is in, or to every room. Doorway blocks belong to two rooms, and six of them
+are swapped for a different block depending on which side the wizard is on. The graphics are 64
+bytes a block at `03ABF2`.
+
+The tile table at `FF7612` now has a companion at `FF9660`: 64 bytes counting the entries in use
+in each group of 32, which lets the sync skip empty groups.

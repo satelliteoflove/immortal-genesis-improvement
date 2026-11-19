@@ -30,7 +30,7 @@ WAITS = ((0x1349C, 0x134A7),     # the main loop, until the next tick is due
          (0xD2DE, 0xD317),       # the YES/NO prompt, polling until the choice changes
          (0x134BE, 0x134C3),     # which reads the pad through these two
          (0x15466, 0x15481))
-PATCH_ROUTINES = [0x2E480]      # the new tile routine, which sits inside the old 02E3E4
+PATCH_ROUTINES = [0x2E480, 0x2E540, 0x2E5C0]   # the patch's routines inside the old 02E3E4's space
 TOP = 12
 
 

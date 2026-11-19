@@ -14,7 +14,9 @@ nothing of the game is stored here. What it changes:
     takes the top off the flame. The unpacked table holds the right tile.
   * Background tiles. Each time the camera crosses an 8-pixel step, the game sent every
     tile on screen to video memory again. Now only tiles new to the screen are sent, and
-    the scan of the 2,048-entry tile table is much cheaper.
+    the scan of the 2,048-entry tile table skips the parts that are empty.
+  * Screen cells. The routine that works out what's on screen after a camera step is
+    rewritten to do the same thing with far less work per row.
   * Sprite masking. Hiding the parts of a sprite behind scenery shifted eight mask rows
     a bit at a time for every tile. The shifted masks are now worked out here, and tiles
     with nothing in front of them are skipped early.
@@ -27,7 +29,8 @@ unmodified decoder on every tile number and compares the result with this script
 unpacking. One calls the new object routine and checks its output, and that it leaves
 every register as it found it. One feeds random screens to the background routines, old
 and new, and requires the same RAM and the same video memory from both. One does the same
-for sprite masking, with random sprites and scenery. They need the BlastEm fork
+for sprite masking, with random sprites and scenery, and one for the screen cells, with
+random maps. They need the BlastEm fork
 (tools/harness/build_blastem_fork.sh).
 """
 import bisect
@@ -46,6 +49,7 @@ CHECK_ROM = os.path.join(BUILD, 'tile-check.md')
 ROUTINE_CHECK_ROM = os.path.join(BUILD, 'routine-check.md')
 BACKGROUND_CHECK_ROM = os.path.join(BUILD, 'background-check.md')
 MASK_CHECK_ROM = os.path.join(BUILD, 'mask-check.md')
+CELL_CHECK_ROM = os.path.join(BUILD, 'cell-check.md')
 BLASTEM = os.path.join(BUILD, 'blastem-fork', 'blastem')
 
 ROM_SIZE = 0x200000             # 2 MB, which leaves 200000 free for save RAM later
@@ -63,11 +67,24 @@ BOOT_CHECK_BRANCH = 0xFFFD0     # the branch taken when the boot check fails
 OUTPUT_TILES = 0xFF2000         # where the routine puts its tiles
 TABLE_RESET = 0x13AE2           # empties the background tile table
 MAP_TILES = 0x13B16             # gives each cell on screen a slot in video memory
-MAP_TILES_SIZE = 0x62
+MAP_TILES_NEW = 0x2E540         # the new MAP_TILES, also in that space
+TABLE_RESET_TAIL = 0x13B10      # TABLE_RESET's last two instructions
+TABLE_RESET_NEW = 0x2E5C0       # their replacement
+TILE_COUNTS = 0x9660            # 64 bytes: how many of each 32 table entries are in use
 TILE_SYNC = 0x13B78             # frees unused slots and sends tiles to video memory
 BACKGROUND_TILES = 0x3D9B2      # the background tile graphics
 TILE_TABLE = 0xFFFF7612         # one word per background tile: its slot, plus two flags
 TILE_SYNC_NEW = 0x2E480         # the new TILE_SYNC, in space the old object code left free
+CELLS = 0x13D34                 # works out the 612 cells on screen from the level's block maps
+CELLS_END = 0x13F5E
+CELL_DATA = 0x13C80             # five 8 by 4 blocks of mask shapes, then a table choosing between them
+CELL_DATA_COPY = 0x1EA000       # those bytes as they were, for the new routine to read
+CELL_DATA_SIZE = 0x1C0
+BLOCKS = 0x3ABF2                # 64 bytes of cells for each kind of block
+CELL_PASSES = 300               # for --check: passes of random maps and cameras
+CELL_RECORDS = 0x100000
+CELL_MAPS = 0x110000
+CELL_MAP_SETS = 8
 MASK = 0x1428C                  # hides the parts of sprites that are behind scenery
 MASK_END = 0x14508              # the first byte after its rts
 MASK_SHAPES = 0x141CC           # 16 shapes of 32 bytes; only the first 6 are data
@@ -211,14 +228,21 @@ def object_graphics():
 
 
 def map_tiles():
-    """As the original, except that only a newly allocated tile is marked to be sent."""
-    c = Code(MAP_TILES)
-    c.words(0x48E7, 0xFFF0)                         # movem.l d0-d7/a0-a3,-(sp)
+    """As the original, except that only a newly allocated tile is marked to be sent.
+
+    It also counts the allocation in TILE_COUNTS, so that tile_sync can skip the parts of
+    the table that are empty.
+    """
+    c = Code(MAP_TILES_NEW)
+    c.words(0x48E7, 0xFFF4)                         # movem.l d0-d7/a0-a3/a5,-(sp)
     c.words(0x363C, 0x3FFF, 0x3C3C, 0x07FF)         # move.w #$3FFF,d3 / move.w #$7FF,d6
     c.words(0x41F9, 0xFFFF, 0x6C82)                 # lea     $FFFF6C82,a0      cells wanted
     c.words(0x43F9, 0xFFFF, 0x7612)                 # lea     TILE_TABLE,a1
     c.words(0x2478, 0x8ADA)                         # movea.l $8ADA.w,a2        free slots
     c.words(0x47F9, 0xFFFF, 0x714A)                 # lea     $FFFF714A,a3      cells out
+    c.words(0x4BF8, TILE_COUNTS)                    # lea     TILE_COUNTS.w,a5
+    c.words(0x3E3C, 0xF800)                         # move.w  #$F800,d7         a cell's flip bits
+    c.words(0x3A3C, 0x8000)                         # move.w  #$8000,d5         seen this pass
     c.words(0x303C, 0x0263)                         # move.w  #611,d0
     c.label('cell')
     c.words(0x3218, 0x3401, 0xC246, 0xD241)         # move.w (a0)+,d1 / d1,d2 / and d6,d1 / add d1,d1
@@ -226,34 +250,45 @@ def map_tiles():
     c.short(0x6B00, 'marked')                       # bmi.s   marked            seen this pass
     c.words(0xB644)                                 # cmp.w   d4,d3
     c.short(0x6600, 'has_slot')                     # bne.s   has_slot
+    c.words(0x3801, 0xEC4C, 0x5235, 0x4000)         # one more in use in this entry's group of 32
     c.words(0x3822, 0x0044, 0x4000)                 # move.w -(a2),d4 / ori.w #$4000,d4
     c.label('has_slot')
-    c.words(0x0044, 0x8000, 0x3384, 0x1000)         # ori.w #$8000,d4 / move.w d4,(a1,d1.w)
+    c.words(0x8845, 0x3384, 0x1000)                 # or.w d5,d4 / move.w d4,(a1,d1.w)
     c.label('marked')
-    c.words(0xC843, 0x0242, 0xF800, 0x8444, 0x36C2)  # slot, plus the cell's flip bits, out
+    c.words(0xC843, 0xC447, 0x8444, 0x36C2)         # slot, plus the cell's flip bits, out
     c.long(0x51C8, 'cell')                          # dbra    d0,cell
-    c.words(0x21CA, 0x8ADA, 0x4CDF, 0x0FFF, 0x4E75)  # save a2, restore, rts
-    code = c.finish()
-    assert len(code) <= MAP_TILES_SIZE
-    return code
+    c.words(0x21CA, 0x8ADA, 0x4CDF, 0x2FFF, 0x4E75)  # save a2, restore, rts
+    return c.finish()
 
 
 def tile_sync():
-    """Walk the table in the original's order, sending only tiles marked as new."""
+    """Walk the table in the original's order, sending only tiles marked as new.
+
+    The table is taken 32 entries at a time, and a group with nothing in use is skipped.
+    """
     c = Code(TILE_SYNC_NEW)
-    c.words(0x48E7, 0xE0F8, 0x40E7, 0x007C, 0x0700)  # movem.l d0-d2/a0-a4,-(sp), mask interrupts
+    c.words(0x48E7, 0xF0FC, 0x40E7, 0x007C, 0x0700)  # movem.l d0-d3/a0-a5,-(sp), mask interrupts
     c.words(0x323C, 0x3FFF, 0x2878, 0x8ADA)         # move.w #$3FFF,d1 / movea.l $8ADA.w,a4
     c.words(0x41F9, TILE_TABLE >> 16, TILE_TABLE & 0xFFFF)  # lea TILE_TABLE,a0
     c.words(0x247C, 0x00C0, 0x0004)                 # movea.l #$C00004,a2
     c.words(0x267C, 0x00C0, 0x0000)                 # movea.l #$C00000,a3
-    c.words(0x303C, 0x07FF)                         # move.w  #2047,d0
+    c.words(0x4BF8, TILE_COUNTS, 0x763F)            # lea TILE_COUNTS.w,a5 / moveq #63,d3
+    c.label('group')
+    c.words(0x4A1D)                                 # tst.b   (a5)+
+    c.short(0x6600, 'in_use')                       # bne.s   in_use
+    c.words(0x41E8, 0x0040)                         # lea     64(a0),a0         nothing here
+    c.long(0x51CB, 'group')                         # dbra    d3,group
+    c.short(0x6000, 'done')
+    c.label('in_use')
+    c.words(0x701F)                                 # moveq   #31,d0
     c.label('scan')
     c.words(0x3418, 0xB441)                         # move.w (a0)+,d2 / cmp.w d1,d2
     c.long(0x56C8, 'scan')                          # dbne    d0,scan           skip empty entries
-    c.short(0x6700, 'done')                         # beq.s   done
+    c.short(0x6700, 'group_done')                   # beq.s   group_done
     c.words(0x4A42)                                 # tst.w   d2
     c.short(0x6B00, 'used')                         # bmi.s   used
     c.words(0xC441, 0x38C2, 0x3141, 0xFFFE)         # not used: push its slot, mark it empty
+    c.words(0x532D, 0xFFFF)                         # subq.b  #1,-1(a5)         one fewer in this group
     c.short(0x6000, 'next')                         # bra.s   next
     c.label('used')
     c.words(0xC368, 0xFFFE, 0x0802, 0x000E)         # and.w d1,-2(a0) / btst #14,d2
@@ -265,8 +300,23 @@ def tile_sync():
     c.words(*[0x2699] * 8)                          # move.l  (a1)+,(a3) eight times
     c.label('next')
     c.long(0x51C8, 'scan')                          # dbra    d0,scan
+    c.label('group_done')
+    c.long(0x51CB, 'group')                         # dbra    d3,group
     c.label('done')
-    c.words(0x21CC, 0x8ADA, 0x46DF, 0x4CDF, 0x1F07, 0x4E75)  # save a4, restore all, rts
+    c.words(0x21CC, 0x8ADA, 0x46DF, 0x4CDF, 0x3F0F, 0x4E75)  # save a4, restore all, rts
+    code = c.finish()
+    assert TILE_SYNC_NEW + len(code) <= MAP_TILES_NEW
+    return code
+
+
+def table_reset_tail():
+    """The end of TABLE_RESET, which now also zeroes TILE_COUNTS."""
+    c = Code(TABLE_RESET_NEW)
+    c.words(0x41F8, TILE_COUNTS, 0x720F)            # lea TILE_COUNTS.w,a0 / moveq #15,d1
+    c.label('clear')
+    c.words(0x4298)                                 # clr.l   (a0)+
+    c.long(0x51C9, 'clear')                         # dbra    d1,clear
+    c.words(0x4CDF, 0x0103, 0x4E75)                 # movem.l (sp)+,d0-d1/a0 / rts, as before
     return c.finish()
 
 
@@ -327,6 +377,167 @@ def background_check():
     c.words(0x23C7, 0xFFFF, 0x0200)                 # move.l  d7,$FFFF0200
     c.words(0x23FC, 0x600D, 0xF00D, 0xFFFF, 0x000C, 0x60FE)
     return c.origin, c.finish(), pattern_at, pattern
+
+
+def cells(origin=CELLS):
+    """Work out the screen's cells and mask shapes from the level's block maps. Same results."""
+    c = Code(origin)
+    w, s, l = c.words, c.short, c.long
+    table = CELL_DATA_COPY + 0xA0
+    w(0x48E7, 0xFFFE)                               # movem.l d0-d7/a0-a6,-(sp)
+    w(0x2C6C, 0x1164, 0x246C, 0x1168, 0x266C, 0x1170)  # a6, a2, a3 = the level's three block maps
+    w(0x21CB, 0x8D4E)                               # move.l  a3,$8D4E.w
+    w(0x1E38, 0x8D44, 0xE90F, 0x8E38, 0x8D42, 0x11C7, 0x8D52)  # $8D52 = the room the wizard is in
+    w(0xE641, 0xE642, 0x31C1, 0x8D46, 0x31C2, 0x8D48)  # $8D46, $8D48 = the camera, in cells
+    w(0x7400)                                       # moveq   #0,d2             row on screen
+    c.label('band')
+    w(0x7200)                                       # moveq   #0,d1             column on screen
+    c.label('block')
+    w(0x3601, 0xD678, 0x8D46, 0x3A03, 0xE643)       # d3 = block column, d5 = column in the level
+    w(0x3802, 0xD878, 0x8D48, 0x3C04, 0xE444)       # d4 = block row, d6 = row in the level
+    w(0x0245, 0x0007, 0x0246, 0x0003)               # d5, d6 = column and row within the block
+    w(0x7E00, 0x7000)                               # moveq #0,d7 / moveq #0,d0
+    w(0x0C43, 0x0014); l(0x6400, 'have')            # off the map: an empty block
+    w(0x0C44, 0x0080); l(0x6400, 'have')
+    w(0x3004, 0xE548, 0x3E00, 0xD044, 0xE548, 0xD043)  # d0 = block row * 20 + block column
+    w(0x1E32, 0x0000)                               # move.b  (a2,d0.w),d7      which block
+    # d7 still holds block row * 4 above its low byte, as in the game, where it only
+    # matters from block row 64 down: there it sends the cells astray.
+    w(0x1633, 0x0000)                               # move.b  (a3,d0.w),d3      which room it belongs to
+    w(0x0C03, 0x00FF); s(0x6700, 'keep')            # $FF: every room
+    w(0x4A03); s(0x6A00, 'plain')
+    w(0x1833, 0x0014, 0x0203, 0x007F)               # a doorway: d4 = the room below it
+    w(0xB638, 0x8D52); s(0x6700, 'door')
+    w(0xB838, 0x8D52); s(0x6600, 'blank')
+    c.label('door')                                 # d3 = its block seen from below, and from above
+    for block, pair in ((0x1D, 0x0506), (0x27, 0x0504), (0x25, 0x0708), (0x4A, 0x0702), (0x2F, 0x0501)):
+        w(0x363C, pair, 0x0C07, block); s(0x6700, 'pick')
+    w(0x363C, 0x0703)
+    c.label('pick')
+    w(0xB838, 0x8D52); s(0x6600, 'other')
+    w(0xE04B)                                       # lsr.w   #8,d3
+    c.label('other')
+    w(0x7E00, 0x1E03); s(0x6000, 'keep')            # moveq #0,d7 / move.b d3,d7
+    c.label('plain')
+    w(0x0C03, 0x0062); s(0x6600, 'plain2')
+    w(0x0C38, 0x004A, 0x8D52); s(0x6700, 'keep')
+    c.label('plain2')
+    w(0xB638, 0x8D52); s(0x6700, 'keep')
+    c.label('blank')
+    w(0x7E00)                                       # another room's: an empty block
+    c.label('keep')
+    w(0x1036, 0x0000, 0x0240, 0x00FF)               # d0 = its mask kind, from the third map
+    w(0xED8F)                                       # lsl.l   #6,d7
+    c.label('have')
+    w(0x4A47); s(0x6600, 'kind')
+    w(0x7002)                                       # an empty block has mask kind 2
+    c.label('kind')
+    w(0x41F9, table >> 16, table & 0xFFFF, 0x1030, 0x0000)  # move.b (table,d0.w),d0
+    w(0x43F9, CELL_DATA_COPY >> 16, CELL_DATA_COPY & 0xFFFF, 0xD2C0)  # a1 = its block of mask shapes
+    w(0x41F9, BLOCKS >> 16, BLOCKS & 0xFFFF, 0xD1C7)  # a0 = its block of cells
+    w(0x3006, 0xE748, 0xD045)                       # d0 = row in block * 8 + column in block
+    w(0xD2C0, 0xD0C0, 0xD0C0)                       # start there in both
+    w(0x3002, 0xEB48, 0xD042, 0xD042, 0xD041)       # d0 = row * 34 + column
+    w(0x49F8, 0x8ADE, 0xD8C0)                       # a4 = where its mask shapes go
+    w(0x4BF9, 0xFFFF, 0x6C82, 0xDAC0, 0xDAC0)       # a5 = where its cells go
+    w(0x4445, 0x5045, 0x7022, 0x9041, 0xBA40); s(0x6F00, 'wide')
+    w(0x3A00)                                       # d5 = columns to copy: to the block's or the screen's edge
+    c.label('wide')
+    w(0x4446, 0x5846, 0x7012, 0x9042, 0xBC40); s(0x6F00, 'tall')
+    w(0x3C00)                                       # d6 = rows to copy, likewise
+    c.label('tall')
+    w(0x5346)                                       # subq.w  #1,d6
+    w(0x7608, 0x9645, 0x7822, 0x9845)               # d3 = 8 - columns, d4 = 34 - columns
+    w(0x3003, 0xE548)                               # d0 = how far into the copies below to start
+    c.label('row')
+    w(0x4EFB, 0x0002)                               # jmp     2(pc,d0.w)
+    w(*[0x3AD8, 0x18D9] * 8)                        # move.w (a0)+,(a5)+ / move.b (a1)+,(a4)+
+    w(0xD2C3, 0xD0C3, 0xD0C3, 0xD8C4, 0xDAC4, 0xDAC4)  # on to the next row in all four
+    l(0x51CE, 'row')
+    w(0xD245, 0x0C41, 0x0022); l(0x6D00, 'block')   # next block across
+    w(0x3002, 0xD078, 0x8D48, 0x0240, 0x0003, 0x5842, 0x9440)  # next band of blocks down
+    w(0x0C42, 0x0012); l(0x6D00, 'band')
+    w(0x4CDF, 0x7FFF, 0x4E75)
+    code = c.finish()
+    assert origin != CELLS or len(code) <= CELLS_END - CELLS, len(code)
+    return code
+
+def cell_test_data():
+    """Random block maps, rooms and camera positions, on and off the map."""
+    rnd = random.Random(1334)
+    rooms = [rnd.randint(0, 0x7F) for _ in range(6)] + [0x4A, 0x62, 0x64]
+    special = [0x1D, 0x27, 0x25, 0x4A, 0x2F]
+    maps = bytearray()
+    for _ in range(CELL_MAP_SETS):
+        kinds = bytes(rnd.randint(0, 19) if rnd.random() < .97 else rnd.randint(20, 255) for _ in range(3072))
+        blocks = bytes(rnd.choice(special) if rnd.random() < .2 else rnd.randint(0, 182) if rnd.random() < .97
+                       else rnd.randint(183, 255) for _ in range(3072))
+        owner = bytearray()
+        for _ in range(3072):
+            r = rnd.random()
+            owner.append(0xFF if r < .15 else rnd.choice(rooms) | (0x80 if r < .45 else 0) if r < .95 else rnd.randint(0, 255))
+        maps += kinds + blocks + owner
+    records = bytearray()
+    for _ in range(CELL_PASSES):
+        x = rnd.randint(-300, 1500) if rnd.random() < .8 else rnd.randint(-32768, 32767)
+        y = rnd.randint(-200, 4300) if rnd.random() < .8 else rnd.randint(-32768, 32767)
+        room = rnd.choice(rooms)
+        at = CELL_MAPS + rnd.randrange(CELL_MAP_SETS) * 9216
+        records += (x & 0xFFFF).to_bytes(2, 'big') + (y & 0xFFFF).to_bytes(2, 'big') + bytes([room >> 4, room & 15])
+        records += at.to_bytes(4, 'big') + (at + 3072).to_bytes(4, 'big') + (at + 6144).to_bytes(4, 'big')
+    return bytes(records), bytes(maps)
+
+def cell_test(pattern_at):
+    """Run the cell routine on every record, adding its output and registers to a checksum."""
+    c = Code(0x1F0000)
+    w, l = c.words, c.long
+    w(0x41F9, 0xFFFF, 0x0000, 0x303C, 0x3EFF)
+    c.label('clear'); w(0x4298); l(0x51C8, 'clear')
+    w(0x23FC, CELL_RECORDS >> 16, CELL_RECORDS & 0xFFFF, 0xFFFF, 0x0208)
+    c.label('pass')
+    w(0x2079, 0xFFFF, 0x0208)
+    w(0x33D8, 0xFFFF, 0x0210, 0x33D8, 0xFFFF, 0x0212)   # camera x, y
+    w(0x11D8, 0x8D44, 0x11D8, 0x8D42)                   # the room, in two halves
+    w(0x23D8, 0xFFFF, 0x1464, 0x23D8, 0xFFFF, 0x1468, 0x23D8, 0xFFFF, 0x1470)  # the three maps
+    w(0x23C8, 0xFFFF, 0x0208)
+    w(0x41F9, pattern_at >> 16, pattern_at & 0xFFFF, 0x4CD0, 0x7FFF)
+    w(0x3239, 0xFFFF, 0x0210, 0x3439, 0xFFFF, 0x0212)
+    w(0x4EB9, CELLS >> 16, CELLS & 0xFFFF)
+    w(0x48F9, 0x7FFF, 0xFFFF, 0x0100)
+    w(0x2E39, 0xFFFF, 0x0200)
+    for area, longs in ((0xFFFF0100, 15), (0xFFFF6C82, 306), (0xFFFF8ADE, 153), (0xFFFF8D4E, 1)):
+        name = f'sum{area:x}'
+        w(0x41F9, area >> 16, area & 0xFFFF, 0x303C, longs - 1)
+        c.label(name); w(0xE39F, 0xDE98); l(0x51C8, name)
+    w(0x7000, 0x1038, 0x8D52, 0xDE80)                   # and the room byte
+    w(0x23C7, 0xFFFF, 0x0200)
+    w(0x5279, 0xFFFF, 0x0204, 0x0C79, CELL_PASSES, 0xFFFF, 0x0204)
+    l(0x6600, 'pass')
+    w(0x23FC, 0x600D, 0xF00D, 0xFFFF, 0x000C, 0x60FE)
+    return c.finish()
+
+def check_cells(rom, patched):
+    pattern_at = 0x1F0400
+    registers = [0xA1B2C300 + i for i in range(15)]
+    registers[12] = 0xFFFF0300                      # a4, the game's base for its variables
+    records, maps = cell_test_data()
+    code = cell_test(pattern_at)
+    results = []
+    for source in (with_tiles(rom, b''), patched):
+        test = bytearray(source)
+        for at, data in ((CELL_RECORDS, records), (CELL_MAPS, maps),
+                         (pattern_at, b''.join(r.to_bytes(4, 'big') for r in registers))):
+            test[at:at + len(data)] = data
+        boot_into(test, 0x1F0000, code, CELL_CHECK_ROM)
+        got = peek(CELL_CHECK_ROM, [*range(0xFF0200, 0xFF0206), *range(0xFF000C, 0xFF0010)], 1500)
+        if int.from_bytes(got[4:6], 'big') != CELL_PASSES or got[6:] != bytes.fromhex('600DF00D'):
+            sys.exit('screen cell check did not finish')
+        results.append(got[:4])
+    same = results[0] == results[1]
+    print(f'screen cells, old against new on {CELL_PASSES} random maps: same cells, shapes and registers: '
+          f'{"yes" if same else "NO"}')
+    if not same:
+        sys.exit('screen cell check FAILED')
 
 
 def mask_tables(rom, as_game=False):
@@ -701,11 +912,14 @@ def main():
     out = with_tiles(rom, b''.join(table))
     code = object_graphics()
     out[ROUTINE:ROUTINE + len(code)] = code
-    code = map_tiles()
-    out[MAP_TILES:MAP_TILES + len(code)] = code
-    code = tile_sync()
-    out[TILE_SYNC_NEW:TILE_SYNC_NEW + len(code)] = code
-    out[TILE_SYNC:TILE_SYNC + 6] = b'\x4e\xf9' + TILE_SYNC_NEW.to_bytes(4, 'big')  # jmp
+    for old, new, code in ((MAP_TILES, MAP_TILES_NEW, map_tiles()), (TILE_SYNC, TILE_SYNC_NEW, tile_sync()),
+                           (TABLE_RESET_TAIL, TABLE_RESET_NEW, table_reset_tail())):
+        out[new:new + len(code)] = code
+        out[old:old + 6] = b'\x4e\xf9' + new.to_bytes(4, 'big')    # jmp
+    assert rom[TABLE_RESET_TAIL:TABLE_RESET_TAIL + 6] == bytes.fromhex('4CDF01034E75')
+    out[CELL_DATA_COPY:CELL_DATA_COPY + CELL_DATA_SIZE] = rom[CELL_DATA:CELL_DATA + CELL_DATA_SIZE]
+    code = cells()
+    out[CELLS:CELLS + len(code)] = code
     tables = mask_tables(rom)
     out[MASK_TABLES:MASK_TABLES + len(tables)] = tables
     code = sprite_mask()
@@ -717,6 +931,7 @@ def main():
         check_routine(out, b''.join(table))
         check_background(rom, out)
         check_mask(rom, out)
+        check_cells(rom, out)
     print(f'{count} tiles unpacked, {len(fixed)} corrected {fixed}')
     print(f'wrote {os.path.relpath(OUTPUT, ROOT)}')
 

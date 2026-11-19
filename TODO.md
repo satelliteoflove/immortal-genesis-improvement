@@ -43,8 +43,11 @@ the optimized game really runs.
 - [ ] Slowdown that's left: 2.0% of ticks, mostly deliberate waits in animations on levels 2, 6
       and 7. Find out what those animations are.
 - [x] Sprite masking reads shifted masks from tables. It costs about half what it did.
-- [ ] More headroom: the map routines on camera steps (`013D34`, `013B16`, `013B78`), and sending
-      sprite tiles during vertical blank.
+- [x] Camera steps: the cell routine is rewritten and the tile sync skips empty parts of its
+      table. A step costs about 133k cycles where it cost 223k, and ticks needing over 3 frames
+      of work went from 11.6% to 3.7%.
+- [ ] More headroom: sending sprite tiles during vertical blank, then the routines not read yet
+      (`015E9C`, `0165AE`, `009930`, `005B78`).
 - [ ] Release the patch as tools that build it from the player's own ROM, for now. The
       unpacked tiles are the game's graphics, so an ordinary IPS or BPS file would contain them.
 - [ ] Try the patched ROM on real hardware.
