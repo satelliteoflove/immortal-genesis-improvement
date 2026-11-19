@@ -46,6 +46,12 @@ CERTIFICATE = 0x108C
 SHRINK_TIMER, SIZE = 0x0A1C, 0x0A1D      # see shrunk()
 CREATURE_FLAGS = 0x0970                 # a byte for each creature; bit 6 is poisoned()
 
+ACTION = 0x09FC                         # a byte for each creature: see action()
+THING_FRAME = 0x0AC4                    # 42 bytes: the picture each thing is showing
+ARMED = 0x0A17                          # the spell A casts: its thing number, FF for none
+ANIM_POSITION, ANIM_ID = 0x0E68, 0x0E88 # 32 slots of running animations: see animation()
+TEXT_ADDRESS = 0x0600                   # where the text in the box is in the ROM, low byte first
+
 CARRIED = 0x40                          # a thing's place when the wizard has it
 
 
@@ -109,6 +115,49 @@ def poisoned(g):
     walking (not in text boxes or fights): level 5's potion does, from when he has grown
     back until he drinks the water."""
     return g.byte(CREATURE_FLAGS) & 0x40 != 0
+
+
+def action(g, creature=0):
+    """What a creature is in the middle of having done to it, the wizard by default: 0 when
+    he is free, otherwise the number of the thing happening (landing from a fall, a spell
+    he has cast on himself, a blow that is killing him). The game posts a number here and
+    the creature's own routine takes it up when it is next free, then clears it at the end.
+    While it isn't 0 the wizard can't walk and C doesn't open the inventory."""
+    return g.byte(ACTION + creature)
+
+
+def armed(g):
+    """The thing number of the spell a press of A will cast (a fireball scroll or a spell
+    book that has been used from the inventory), or None."""
+    thing = g.byte(ARMED)
+    return None if thing == 0xFF else thing
+
+
+def thing_frame(g, thing):
+    """The picture a thing is showing. An enemy that is a thing (see "people are things
+    too") steps through these as it moves, so this is how far through a move it is."""
+    return g.byte(THING_FRAME + thing)
+
+
+def animation(g, slot):
+    """The scripted animation running in a slot: (which one, how far through), or None.
+
+    An enemy's routine starts an animation, keeps the slot's number in a byte of its own
+    (FF for none) and steps it once an update, so `slot` is that byte's value:
+    animation(g, g.byte(0x0BC3)) for level 8's dragon. The position starts at 3 and goes up
+    by one each update until the animation is over, whatever the ROM's speed, which makes
+    it the thing to time a dodge by."""
+    if slot > 31 or g.byte(ANIM_POSITION + slot) == 0xFF:
+        return None
+    return g.byte(ANIM_ID + slot), g.byte(ANIM_POSITION + slot)
+
+
+def text_address(g):
+    """While a text box is up, the ROM address its text began at (the same on both ROMs for
+    the game's own messages). It tells one message from another; None when no box is up."""
+    if not busy(g):
+        return None
+    return g.byte(TEXT_ADDRESS) | g.byte(TEXT_ADDRESS + 1) << 8
 
 
 def tick(g, buttons='', limit=40):
@@ -196,6 +245,50 @@ def _press_c(g, held='', limit=40):
             return True
     g.step(1, held)
     return False
+
+
+def press_a(g, limit=40):
+    """A fresh press of A while walking: fire, or cast the armed spell. A is held until the
+    game has seen it, then let go. True if it was seen.
+
+    The game looks at the pad once an update, so the cast begins up to an update later."""
+    for _ in range(12):
+        if not g.byte(PRESSED) & 4:
+            break
+        g.step(1)
+    for _ in range(limit):
+        g.step(1, 'A')
+        if g.byte(PRESSED) & 4:
+            return True
+    return False
+
+
+def shots(g):
+    """Fireballs left in the scroll that has been armed, 0 if none is armed. The count is
+    the scroll's byte in the table at FF0B6C (which for a chest or body is its list)."""
+    scroll = armed(g)
+    return 0 if scroll is None else g.byte(0x0B6C + scroll)
+
+
+def fire(g, buttons):
+    """Throw a fireball the way `buttons` points: one update of walking that way to turn the
+    wizard, then a fresh press of A. Raises unless a shot left the scroll.
+
+    The fireball flies straight on from the wizard, and the first creature in its way is
+    killed outright, so stand where the target is the nearest thing in the line."""
+    before = shots(g)
+    if not before:
+        raise RouteError(f'fire: no scroll is armed, or it is empty (frame {g.frame})')
+    if not tick(g, buttons):
+        raise RouteError(f'fire: the game is busy at frame {g.frame}')
+    for _ in range(3):
+        press_a(g)
+        for _ in range(20):
+            if shots(g) < before:
+                return
+            g.step(1)
+    raise RouteError(f'fire({buttons}): no shot was fired at {xy(g)} in room {g.room}, '
+                     f'frame {g.frame}')
 
 
 def read(g, answers='', limit=6000, quiet=24):
@@ -376,7 +469,135 @@ def through_door(g, buttons, room=None, limit=80):
     return g.room
 
 
+# --- flying ---
+
+FLYING = 0x0A1D                         # 1 while the wizard rides the carpet
+FLY_VX, FLY_VY = 0x0A3E, 0x0A3F         # the carpet's speed across and down, signed, 5 at most
+FLY_TIME = 0x1042                       # the carpet's life left: 25 new, 1 less every 16 updates
+FLY_TOP = 5
+
+
+def flying(g):
+    return g.byte(FLYING) == 1
+
+
+def fly_speed(g):
+    """The carpet's speed as (across, down), each -5 to 5, in the wizard's coordinates."""
+    vx, vy = g.byte(FLY_VX), g.byte(FLY_VY)
+    return (vx - 256 if vx > 127 else vx), (vy - 256 if vy > 127 else vy)
+
+
+def fly_time(g):
+    """What is left of the carpet's life. It only runs down while he is on it."""
+    return g.byte(FLY_TIME)
+
+
+def _steer(d, v, near, top):
+    """One axis of the carpet: 1 to press toward the bigger coordinate, -1 toward the
+    smaller, 0 to leave it. d is how far the target is and v the speed now. A press changes
+    the speed by 1 an update and the carpet never slows by itself, so the speed chosen is
+    the highest that can still be braked to nothing by the time the target is reached."""
+    if abs(d) <= near and v == 0:
+        return 0
+    if d < 0:
+        return -_steer(-d, -v, near, top)
+    for press in (1, 0, -1):
+        speed = v + press
+        if speed <= top and (speed <= 0 or speed * (speed + 1) // 2 <= d):
+            return press
+    return -1
+
+
+def fly_to(g, x, y, near=2, rest=True, top=FLY_TOP, limit=200):
+    """On the carpet, steer to (x, y) in the wizard's coordinates.
+
+    With rest (the default) it returns 'there' once the carpet is within `near` and standing
+    still. With rest=False it returns as soon as it is within `near`, whatever its speed (it
+    has been braking for the point all the same, so it is slow by then).
+    Also returns 'room' if the room changed, 'busy' if the game stopped, and 'down' if the
+    wizard is no longer on the carpet (its life ran out). Raises Died if he dies and Stuck
+    if he isn't there after `limit` updates. `top` caps the speed (5 is the carpet's own).
+
+    The carpet keeps its speed when the pad is let go, and each direction held changes
+    that axis by 1 an update, so this brakes in good time. Straight lines only, and a wall
+    turns the carpet aside, so give it points clear of walls."""
+    room = g.room
+    for _ in range(limit):
+        if dead(g):
+            raise Died(f'fly_to({x}, {y}): the wizard died at {xy(g)} in room {g.room}, '
+                       f'frame {g.frame}')
+        if not flying(g):
+            return 'down'
+        (wx, wy), (vx, vy) = xy(g), fly_speed(g)
+        dx, dy = x - wx, y - wy
+        if abs(dx) <= near and abs(dy) <= near and (not rest or (vx, vy) == (0, 0)):
+            return 'there'
+        across, down = _steer(dx, vx, near, top), _steer(dy, vy, near, top)
+        buttons = [('UP', '', 'DOWN')[down + 1], ('LEFT', '', 'RIGHT')[across + 1]]
+        if not tick(g, '+'.join(b for b in buttons if b)):
+            return 'busy'
+        if g.room != room:
+            return 'room'
+    raise Stuck(f'fly_to({x}, {y}): not there after {limit} updates, at {xy(g)} speed '
+                f'{fly_speed(g)} in room {g.room}, frame {g.frame}')
+
+
+def fly(g, *points, near=2, top=FLY_TOP):
+    """Fly to each (x, y) in turn, coming to rest at each. Raises RouteError unless every
+    one is reached."""
+    for x, y in points:
+        result = fly_to(g, x, y, near=near, top=top)
+        if result != 'there':
+            raise RouteError(f'fly({x}, {y}): {result} at {xy(g)} in room {g.room}, '
+                             f'frame {g.frame}')
+
+
+def mount(g, thing, on=True, limit=60):
+    """Get on the carpet (thing is its number in the things table), or off it with on=False,
+    by using it from the inventory. Getting off stops the carpet dead where it is."""
+    if flying(g) == on:
+        raise RouteError(f'mount: the wizard is already {"on" if on else "off"} the carpet')
+    use(g, thing)
+    for _ in range(limit):
+        if flying(g) == on and not busy(g):
+            return
+        g.step(1)
+    raise RouteError(f'mount: the wizard did not get {"on" if on else "off"} the carpet '
+                     f'(frame {g.frame})')
+
+
 # --- the inventory ---
+
+def ladder(g, buttons, room=None, limit=1500):
+    """Climb a ladder, up or down: hold buttons (the direction that walks onto it) until the
+    room changes, then wait until the wizard has climbed off at the other end and can be
+    steered. Returns the new room.
+
+    The climb starts the moment he touches the ladder and takes about 38 updates in the old
+    room and up to 45 in the new one, deaf to the pad, with his x and y standing still; then
+    he steps off by himself. The room's loading in the middle can take over 40 frames with
+    no update, which tick() and through_door() take for the game going busy."""
+    before = g.room
+    start = g.frame
+    while g.room == before:
+        if dead(g):
+            raise Died(f'ladder({buttons}): the wizard died at {xy(g)} in room {g.room}, '
+                       f'frame {g.frame}')
+        if g.frame - start > limit:
+            raise RouteError(f'ladder({buttons}): still in room {before} at {xy(g)}, '
+                             f'frame {g.frame}')
+        g.step(1, buttons)
+    if room is not None and g.room != room:
+        raise RouteError(f'ladder: in room {g.room}, expected {room}')
+    arrived = xy(g)
+    start = g.frame
+    while xy(g) == arrived or walking_in(g):
+        if g.frame - start > limit:
+            raise RouteError(f'ladder: the wizard never stepped off it in room {g.room}, '
+                             f'at {xy(g)}, frame {g.frame}')
+        g.step(1)
+    return g.room
+
 
 SLOT_DIRECTION = ['', 'LEFT', 'RIGHT', 'DOWN+LEFT', 'DOWN', 'DOWN+RIGHT']
 

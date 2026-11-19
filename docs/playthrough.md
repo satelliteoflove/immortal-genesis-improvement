@@ -110,6 +110,9 @@ and `disasm/immortal.dis` is the whole disassembly (made by `tools/disasm.py`, n
 | `FF0A17` | The thing number of the fireball scroll once it has been used, `FF` before | Seen |
 | `FF0A4C`, `FF0A4D` | The game's own copy of the wizard's x and y. It stops following `FF08BC`/`FF08D0` while he walks through a doorway by himself | Seen, level 1 |
 | `FF090C` + n, `FF0920` + n | Creature n's health (high four bits) and pose (low seven bits); the wizard is n 0 | Seen, level 4 |
+| `FF090C` + n, low four bits | The room creature n is in | Seen, level 3 |
+| `FF0B6C` + a scroll's thing number | The fireballs left in it | Seen, level 3 |
+| `FF0F62`, `FF0F68`, `FF0BCC` | Level 3's spike room: the x and y of the spike that is up, and its step in a round of 15 | Seen, level 3 |
 | `FF10AE` | Not zero while a fight is on | Seen |
 | `FF10A7`, `FF10A8` | In a fight, the enemy's health and the wizard's. A hit takes 1 | Seen |
 | `FF10B0`, `FF10B2` | In a fight, the wizard's move and the enemy's (see "Fights" below) | Read from code, used |
@@ -350,6 +353,51 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
 - 2026-11-19, level 5, **a thing lying on the floor** (the egg) asks its question only when
   the wizard is within about 2 of its x and y: walking past 4 away does nothing.
   `walk_to(g, x, y, near=1)` got there; `room_map` shows the spot as `!`.
+- 2026-11-19, level 3, **ladders: `ladder(g, buttons, room)`**. A ladder hole has two
+  halves: one is the ladder and the other is a drop that kills, and which one the wizard
+  touches first decides. Either way he snaps to the hole's middle, so his x and y don't
+  tell them apart; health goes to 0 six updates after a drop. Level 3's room 4: the hole
+  spans x 57 to 72, walking DOWN onto it is the ladder from x 64 to 72 and death from 58
+  to 62, and RIGHT onto it from its left is death. Room 0's: LEFT onto it is the ladder
+  with y 28 to 36 and death at y 40. Find the halves by standing the wizard on a grid of
+  spots with pokes and walking each way (`scratch/route/level3/scan.py` is one way to do
+  it), then aim for the middle of the ladder half. `ladder()` holds the direction until
+  the room changes and then waits for him to climb off: going UP a ladder he stands on
+  the rungs for about 38 updates more in the new room before stepping off, and
+  `through_door` gives up waiting before that. The new room's loading can also take more
+  than 40 frames with no update, which `tick` and `through_door` report as the game going
+  busy; `ladder()` steps by frames. Don't steer back toward the hole on arriving: he
+  stands right beside it.
+- 2026-11-19, level 3, **which room a creature is in**: the low four bits of `FF090C` + n
+  (the high four are its health). `creature_xy` alone can't tell a creature in this room
+  from one with the same numbers three rooms away.
+- 2026-11-19, level 3, **flamethrowers** (rooms 6 and 5). The nozzles are in the floor's
+  picture, small pale marks. One thing of kind `16` on the room's floor is the flame, and
+  its x and y jump to whichever nozzle fired last, so watching `thing_xy` for a few
+  hundred frames lists the nozzles. A flame kills outright, but only a wizard standing on
+  the nozzle (6 away to any side was safe through 1,500 frames). So nothing needs timing:
+  keep the walk 8 clear of each nozzle.
+- 2026-11-19, level 3, **floor that kills (the spike room, room 0)**. Most of that floor
+  kills the moment it is stepped on, with nothing to see first. `room_map` does not mark
+  it `x`: the health goes a few updates after the step, so the first deadly patch shows
+  as `.` and the patches beyond it as blank, like a wall. Where a map has blank floor
+  that the picture shows as open, treat the map's outer ring of `.` as deadly and keep 4
+  inside it. The one spike that pops up around the room is only a show: its x and y are
+  `FF0F62` and `FF0F68`, its place in a 15-step round is `FF0BCC`, 16 updates a step, and
+  the spots it visits are all on deadly floor. No timing is needed, only the path.
+- 2026-11-19, level 3, **fireballs: `fire(g, buttons)` and `shots(g)`**. `fire` turns the
+  wizard with one update of walking, presses A, and checks that the scroll's count (its
+  byte at `FF0B6C`) went down. The ball flies straight and kills the first creature it
+  meets, a full-health troll included, within about 40 frames. Two creatures fighting
+  each other stand about 10 apart, so stand in line with them on the target's side.
+- 2026-11-19, level 3, **creatures fighting each other** (the troll and goblin of room 6)
+  trade blows on a fixed timetable that starts when the wizard enters the room: each
+  blow takes 2 from `creature_health`, and the goblin was dead about 3,600 frames in on
+  every run. If one of them has to live, that is the time there is. When the troll died
+  the goblin walked to the locked door and it was open after that; nothing to press.
+- 2026-11-19, level 3, **someone who speaks before a ladder**: the goblin king is thing 23
+  beside the ladder up in room 7. Pushing at the ladder first brings his words
+  (`bump(g, 'RIGHT'); read(g)`), and the same push afterward climbs.
 
 ## Where each level stands
 
@@ -357,7 +405,7 @@ Put how to use it, not how you found it. If it's a helper, say its name in `comm
 |---|---|---|
 | 1 | `level1.py` plays rooms 6, 3 and 7 (body, three goblins, key, chest) to the door of room 1 | Those parts pass all six; the last four rooms aren't written |
 | 2 | not started | |
-| 3 | not started | |
+| 3 | `level3.py` takes the scroll, kills the troll for the knife, passes the king, takes the gem and climbs down to room 8 | Those parts pass all six |
 | 4 | `level4.py` gets past the troll at the start and takes the carpet | Those parts pass all six |
 | 5 | `level5.py` takes the egg, buys the potion, goes through the hole, beats both trolls, empties the chest and drinks the water | Those parts pass on both ROMs |
 | 6 | not started | |
