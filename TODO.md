@@ -42,8 +42,11 @@ the optimized game really runs.
       levels went from 16.4% to 2.0%, and the game no longer misses vertical blanks.
 - [ ] Slowdown that's left: 2.0% of ticks, mostly deliberate waits in animations on levels 2, 6
       and 7. Find out what those animations are.
-- [ ] More headroom, if we want a faster tick: sprite masking (`01428C`), then the map routines
-      on camera steps (`013D34`, `013B16`, `013B78`).
+- [x] Sprite masking reads shifted masks from tables. It costs about half what it did.
+- [ ] Look at the mask's one-bit shift (see `docs/optimizations.md`): is it visible, and should
+      it be corrected?
+- [ ] More headroom: the map routines on camera steps (`013D34`, `013B16`, `013B78`), and sending
+      sprite tiles during vertical blank.
 - [ ] Release the patch as tools that build it from the player's own ROM, for now. The
       unpacked tiles are the game's graphics, so an ordinary IPS or BPS file would contain them.
 - [ ] Try the patched ROM on real hardware.

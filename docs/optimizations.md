@@ -10,17 +10,21 @@ on real hardware or judged by someone playing it.
 The game runs one update, or tick, every 5 video frames. A tick that takes longer starts the next
 one late, and the game never catches up, so a late tick is lost time.
 
-| Level | Late: original | Late: object tiles | Late: now | Worst gap: original | Worst gap: object tiles | Worst gap: now |
+| Level | Late: original | Late: object tiles | Late: background tiles | Late: now | Worst gap: original | Worst gap: now |
 |---|---|---|---|---|---|---|
-| 1 | 1% | 1% | 0% | 7 | 7 | 5 |
-| 2 | 23% | 22% | 12% | 9 | 10 | 8 |
-| 3 | 10% | 11% | 0% | 9 | 7 | 6 |
-| 4 | 16% | 17% | 0% | 8 | 7 | 5 |
-| 5 | 41% | 24% | 0% | 11 | 7 | 6 |
-| 6 | 58% | 20% | 5% | 11 | 7 | 6 |
-| 7 | 15% | 14% | 1% | 8 | 7 | 6 |
-| 8 | 19% | 19% | 0% | 6 | 6 | 5 |
-| **All** | **23.8%** | **16.4%** | **2.0%** | | | |
+| 1 | 1% | 1% | 0% | 0% | 7 | 5 |
+| 2 | 23% | 22% | 12% | 12% | 9 | 8 |
+| 3 | 10% | 11% | 0% | 0% | 9 | 6 |
+| 4 | 16% | 17% | 0% | 0% | 8 | 5 |
+| 5 | 41% | 24% | 0% | 0% | 11 | 6 |
+| 6 | 58% | 20% | 5% | 4% | 11 | 6 |
+| 7 | 15% | 14% | 1% | 1% | 8 | 6 |
+| 8 | 19% | 19% | 0% | 0% | 6 | 5 |
+| **All** | **23.8%** | **16.4%** | **2.0%** | **1.8%** | | |
+
+Each column adds one change to the one before it. Late ticks stopped being the useful measure
+after the background tile change, because nearly all that remain are deliberate waits. From
+there on the measure is headroom: how much of a tick's time its work needs.
 
 Gaps are in video frames, and 5 is on time. Gaps of 12 frames or more are left out, since those
 are messages and transitions. Once the timing changes, the walks go different ways, so small
@@ -128,6 +132,40 @@ entries in a tight loop, about 22 cycles each by instruction timings, and sends 
 It visits entries in the original order, so slots are freed and handed out exactly as before. It's
 144 bytes, so it sits at `02E480`, in space the old object code left free, with a jump at `013B78`.
 
+## Sprite masking
+
+**What was slow.** `01428C` hides the parts of sprites that are behind scenery. For every 8 by 8
+sprite tile it looks up the four scenery cells under it, picks a mask shape for each by comparing
+depths, and ANDs the result into the tile. It built the mask the long way: 16 rows for the left
+pair of cells, shifted left a bit at a time, then 16 rows for the right pair shifted right, 32
+variable shifts in all, and then used only 8 of the 16 rows. A masked tile cost about 2,900
+cycles. The 75% of tiles with nothing in front of them still cost about 470 each, because the
+depth comparison came before the test for empty cells.
+
+**The change.** There are 16 shapes and 8 possible shifts, so every shifted shape fits in 8 KB of
+tables, built from the player's ROM and placed at `1E8000`. The new routine reads the 8 rows it
+needs straight from them. It also tests the four cells for "all empty" first, and works out
+per-column values once per column. It's 536 bytes and replaces the old 636 in place.
+
+Only 6 of the 16 shapes are real data. Numbers 6 to 15 run on into the old routine's own code. No
+cell seems to use them, but the tables are built from the original bytes so that they'd still
+behave as before.
+
+**The result.** Cycles in `01428C` per on-time tick:
+
+| Level | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|
+| Before | 67k | 32k | 24k | 52k | 46k | 77k | 33k | 37k |
+| After | 27k | 14k | 12k | 22k | 21k | 38k | 14k | 15k |
+
+Over all the walks the routine went from 515 million cycles to 233 million.
+
+**A possible bug, left alone for now.** The right-hand cells' mask is shifted by 31 minus the
+offset, where 32 minus the offset would line it up. That puts it one bit out, which is a quarter
+of a pixel's colour number, so sprite pixels along some mask edges could come out in the wrong
+colour. The tables reproduce this exactly. Whether it's visible, and whether to correct it, is
+still to be looked at.
+
 ## How the changes were checked
 
 A frame-by-frame comparison with the original doesn't work once the game runs faster, because the
@@ -141,6 +179,8 @@ same input lands on different ticks. So each change has its own proof.
 | In-play check | A test build compared every skipped tile with video memory during play, across all levels and walks that press buttons. All 685,562 matched |
 | Reading the code | Outside start-up code, one routine writes to the tile area: `0158EC` puts 7 status tiles in slots 0 to 6. Slots are handed out from 611 downward, so a screen would need over 600 different tiles to reach them, and the original had the same limit. A room reset (`015A7C`) empties the table |
 | Tile numbers | Walks from a clean boot never asked for a tile outside the table |
+| Masking test ROM | Old and new masking routines run on 400 passes of random sprites, depths and scenery, including sprites partly off the grid and the 10 shapes that aren't real data. The tiles and all registers come out the same. Six deliberate breaks, one in each path through the routine, all made it fail |
+| Masking in play | A test build ran both routines on the game's own sprites, in alternating order, on every tick of 32 walks. 30,886 calls agreed. Masking a tile twice changes nothing, so a second routine that disagrees shows up as a changed tile. A deliberately broken routine gave 6,436 disagreements |
 
 ## What's left
 
@@ -153,33 +193,34 @@ two. They look like deliberate animations, though we haven't identified them.
 
 | Level | Median | 90% | 99% | Most | Over 4 frames | Over 3 frames | Over 2 frames |
 |---|---|---|---|---|---|---|---|
-| 1 | 221 | 267 | 395 | 449 | 0.0% | 1.1% | 25.0% |
-| 2 | 270 | 537 | 566 | 650 | 13.2% | 13.9% | 85.3% |
-| 3 | 186 | 405 | 527 | 779 | 1.6% | 11.1% | 21.8% |
-| 4 | 262 | 457 | 560 | 635 | 4.0% | 19.1% | 57.7% |
-| 5 | 191 | 421 | 559 | 650 | 7.3% | 22.7% | 36.6% |
-| 6 | 261 | 471 | 532 | 781 | 7.8% | 14.5% | 55.6% |
-| 7 | 156 | 402 | 431 | 672 | 0.1% | 11.6% | 15.1% |
-| 8 | 168 | 394 | 417 | 431 | 0.0% | 14.9% | 20.1% |
-| **All** | **212** | **408** | **548** | **781** | **4.0%** | **14.0%** | **38.1%** |
+| 1 | 172 | 230 | 367 | 419 | 0.0% | 0.7% | 1.2% |
+| 2 | 265 | 522 | 558 | 611 | 11.2% | 13.8% | 74.6% |
+| 3 | 149 | 396 | 455 | 751 | 0.5% | 10.9% | 17.4% |
+| 4 | 238 | 426 | 522 | 560 | 1.3% | 15.7% | 41.0% |
+| 5 | 142 | 401 | 528 | 557 | 2.3% | 20.5% | 36.3% |
+| 6 | 235 | 416 | 435 | 750 | 0.0% | 14.5% | 25.7% |
+| 7 | 141 | 385 | 412 | 668 | 0.1% | 10.0% | 12.6% |
+| 8 | 138 | 374 | 394 | 414 | 0.0% | 3.0% | 20.1% |
+| **All** | **162** | **395** | **526** | **751** | **1.3%** | **11.6%** | **26.6%** |
 
-So 12 updates a second now has room, 15 would nearly fit, and 20 would need more work. This doesn't
-settle the question of changing the rate, because movement and timers are counted in ticks.
+Before the masking change the median was 212 and 4.0% of ticks were over 4 frames. So 12 updates
+a second has room, 15 nearly fits, and 20 would need more work. This doesn't settle the question
+of changing the rate, because movement and timers are counted in ticks.
 
 **Remaining costs**, as shares of the CPU time not spent waiting, over all levels:
 
 | Routine | Share | What it is |
 |---|---|---|
-| `01428C` | 14.4% | Masks sprites against the background, tile by tile. 28% on level 6. The next target |
-| `02E3E4` | 7.2% | The new object tile copy |
-| `01621E` block | 7.1% | Mostly `01624E`, which copies 48 bytes each way through Z80 memory, one byte at a time. It looks like the link to the sound driver |
-| `015E9C` | 5.5% | Not read yet |
-| `0150E6` | 5.5% | Starts the sprite tile DMA, and its time includes the CPU being held during DMA |
-| `015466` | 5.3% | Turns the pad state into a direction. Called so often that it's probably polling at prompts, which isn't confirmed |
-| `013D34` | 4.4% | Works out the cells on a camera step |
-| `00D2C6` | 4.3% | Not read closely yet. Runs about as often as `015466` |
-| `02E480` | 3.2% | The new background tile sync |
-| `013B16` | 2.7% | Assigns tile slots on a camera step |
+| `02E3E4` | 7.8% | The new object tile copy |
+| `01621E` block | 7.7% | Mostly `01624E`, which copies 48 bytes each way through Z80 memory, one byte at a time. It looks like the link to the sound driver |
+| `01428C` | 7.1% | The new sprite masking. 16% on level 6 |
+| `015E9C` | 5.9% | Not read yet |
+| `0150E6` | 5.9% | Starts the sprite tile DMA, and its time includes the CPU being held during DMA |
+| `015466` | 5.8% | Turns the pad state into a direction. Called so often that it's probably polling at prompts, which isn't confirmed |
+| `013D34` | 4.8% | Works out the cells on a camera step |
+| `00D2C6` | 4.7% | Not read closely yet. Runs about as often as `015466` |
+| `02E480` | 3.5% | The new background tile sync |
+| `013B16` | 3.0% | Assigns tile slots on a camera step |
 
 ## Mistakes worth remembering
 

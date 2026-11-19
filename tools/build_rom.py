@@ -15,17 +15,22 @@ nothing of the game is stored here. What it changes:
   * Background tiles. Each time the camera crosses an 8-pixel step, the game sent every
     tile on screen to video memory again. Now only tiles new to the screen are sent, and
     the scan of the 2,048-entry tile table is much cheaper.
+  * Sprite masking. Hiding the parts of a sprite behind scenery shifted eight mask rows
+    a bit at a time for every tile. The shifted masks are now worked out here, and tiles
+    with nothing in front of them are skipped early.
   * The boot check at 0FFFB0, which halts the game if the first megabyte has changed.
 
 --check builds test ROMs that boot straight into a small test. One runs the game's own,
 unmodified decoder on every tile number and compares the result with this script's
 unpacking. One calls the new object routine and checks its output, and that it leaves
 every register as it found it. One feeds random screens to the background routines, old
-and new, and requires the same RAM and the same video memory from both. They need the
-BlastEm fork (tools/harness/build_blastem_fork.sh).
+and new, and requires the same RAM and the same video memory from both. One does the same
+for sprite masking, with random sprites and scenery. They need the BlastEm fork
+(tools/harness/build_blastem_fork.sh).
 """
 import bisect
 import os
+import random
 import subprocess
 import sys
 
@@ -38,6 +43,7 @@ OUTPUT = os.path.join(BUILD, 'immortal-patched.md')
 CHECK_ROM = os.path.join(BUILD, 'tile-check.md')
 ROUTINE_CHECK_ROM = os.path.join(BUILD, 'routine-check.md')
 BACKGROUND_CHECK_ROM = os.path.join(BUILD, 'background-check.md')
+MASK_CHECK_ROM = os.path.join(BUILD, 'mask-check.md')
 BLASTEM = os.path.join(BUILD, 'blastem-fork', 'blastem')
 
 ROM_SIZE = 0x200000             # 2 MB, which leaves 200000 free for save RAM later
@@ -60,6 +66,14 @@ TILE_SYNC = 0x13B78             # frees unused slots and sends tiles to video me
 BACKGROUND_TILES = 0x3D9B2      # the background tile graphics
 TILE_TABLE = 0xFFFF7612         # one word per background tile: its slot, plus two flags
 TILE_SYNC_NEW = 0x2E480         # the new TILE_SYNC, in space the old object code left free
+MASK = 0x1428C                  # hides the parts of sprites that are behind scenery
+MASK_END = 0x14508              # the first byte after its rts
+MASK_SHAPES = 0x141CC           # 16 shapes of 32 bytes; only the first 6 are data
+MASK_TABLES = 0x1E8000          # the shapes shifted ahead of time: left parts, right parts at +$1000
+MASK_PASSES = 400               # for --check: passes of random sprites and scenery
+MASK_RECORDS = 0x100000         # and where a test ROM keeps them
+MASK_EXTRA = 0x180000
+MASK_TILES = 0x190000
 
 
 def word(rom, at):
@@ -313,6 +327,212 @@ def background_check():
     return c.origin, c.finish(), pattern_at, pattern
 
 
+def mask_tables(rom):
+    """Every mask shape at every horizontal shift, as the game would have shifted it.
+
+    Shapes 6 to 15 are whatever bytes follow the six real ones, which is the old routine's
+    own code. They're kept as they were, in case a cell ever names one.
+    """
+    left, right = bytearray(), bytearray()
+    for shape in range(16):
+        rows = [int.from_bytes(rom[MASK_SHAPES + shape * 32 + 4 * r:][:4], 'big') for r in range(8)]
+        for shift in range(0, 32, 4):
+            for row in rows:
+                left += ((row << shift) & 0xFFFFFFFF).to_bytes(4, 'big')
+                right += (row >> (31 - shift)).to_bytes(4, 'big')     # 31, as the game does
+    return bytes(left + right)
+
+def sprite_mask(origin=MASK):
+    """The masking routine, reading shifted shapes from MASK_TABLES. Same inputs and output."""
+    c = Code(origin)
+    w, s, l = c.words, c.short, c.long
+    w(0x48E7, 0xFFFE)                               # movem.l d0-d7/a0-a6,-(sp)
+    w(0x3E38, 0x92F4)                               # move.w  $92F4.w,d7        sprites
+    l(0x6700, 'exit')                               # beq.w   exit
+    w(0x5347)                                       # subq.w  #1,d7
+    w(0x41F8, 0x8D54)                               # lea     $8D54.w,a0        sprite list
+    w(0x43F9, 0xFFFF, 0x2000)                       # lea     $FFFF2000,a1      their tiles
+    w(0x45F9, MASK_TABLES >> 16, MASK_TABLES & 0xFFFF)  # lea MASK_TABLES,a2
+    w(0x47F8, 0x8ADE)                               # lea     $8ADE.w,a3        shape of each cell
+    w(0x7007, 0xC06C, 0x1160)                       # moveq #7,d0 / and.w $1160(a4),d0
+    w(0x363C, 0x0098, 0x9640, 0x31C3, 0x95E6)       # $95E6 = $98 - (camera x & 7)
+    w(0x362C, 0x1162)                               # move.w  $1162(a4),d3      camera y
+    w(0x31C3, 0x95EA)                               # move.w  d3,$95EA.w
+    w(0x7007, 0xC043)                               # moveq #7,d0 / and.w d3,d0
+    w(0x383C, 0x0098, 0x9840, 0x31C4, 0x95E8)       # $95E8 = $98 - (camera y & 7)
+    w(0x9640, 0x0643, 0x0020, 0x31C3, 0x95A4)       # $95A4 = camera y - (camera y & 7) + $20
+    w(0x49F8, 0x9254)                               # lea     $9254.w,a4        depth of each sprite
+    c.label('sprite')
+    w(0x4847)                                       # swap    d7
+    w(0x301C)                                       # move.w  (a4)+,d0
+    w(0x1C28, 0x0002, 0x3E06)                       # move.b 2(a0),d6 / move.w d6,d7
+    w(0x0246, 0x0003, 0x31C6, 0x95E4)               # andi.w #3,d6 / move.w d6,$95E4.w   rows - 1
+    w(0xE44F, 0x0247, 0x0003)                       # lsr.w #2,d7 / andi.w #3,d7         columns - 1
+    w(0x4A40)                                       # tst.w   d0
+    s(0x6A00, 'masked')                             # bpl.s   masked
+    w(0x5246, 0x5247, 0xCCC7, 0xEB4E, 0xD2C6)       # not masked: step over its tiles
+    l(0x6000, 'next_sprite')
+    c.label('masked')
+    w(0xD078, 0x95EA, 0x31C0, 0x95A6)               # $95A6 = depth + camera y
+    w(0x3228, 0x0006, 0x9278, 0x95E6)               # d1 = x within the cell grid
+    w(0x3410, 0x9478, 0x95E8)                       # d2 = y within the cell grid
+    c.label('column')
+    w(0x3F02)                                       # move.w  d2,-(sp)
+    w(0x3C38, 0x95E4)                               # move.w  $95E4.w,d6
+    w(0x7007, 0xC041, 0xEB48, 0x31C0, 0x95A8)       # $95A8 = (x & 7) * 32, the shift's tables
+    w(0x3001, 0xE648, 0x31C0, 0x95AA)               # $95AA = x / 8, the cell column
+    c.label('tile')
+    w(0x3002, 0xE648, 0x3600, 0xEB48, 0xD043, 0xD043)  # d0 = (y / 8) * 34
+    w(0xD078, 0x95AA)                               # add.w   $95AA.w,d0
+    w(0x4BF3, 0x0000)                               # lea     (a3,d0.w),a5      the four cells under it
+    w(0x1015, 0x802D, 0x0001, 0x802D, 0x0022, 0x802D, 0x0023)  # or the four together
+    l(0x6700, 'no_mask')                            # beq.w   no_mask
+    w(0x1815, 0xE14C, 0x182D, 0x0001)               # d4 = top left, top right
+    w(0x1A2D, 0x0022, 0xE14D, 0x1A2D, 0x0023)       # d5 = bottom left, bottom right
+    w(0x3602, 0xD678, 0x95A4, 0x3003)               # d3 = y + $95A4, kept in d0
+    w(0x0243, 0xFFE0, 0x0643, 0x0018, 0xB678, 0x95A6)  # the top cells' depth against the sprite's
+    s(0x6E00, 'top_low')                            # bgt.s   top_low
+    w(0xE84C)                                       # lsr.w   #4,d4             use their high halves
+    c.label('top_low')
+    w(0x5040, 0x0240, 0xFFE0, 0x0640, 0x0018, 0xB078, 0x95A6)  # and the row below
+    s(0x6E00, 'bottom_low')
+    w(0xE84D)                                       # lsr.w   #4,d5
+    c.label('bottom_low')
+    w(0x0244, 0x0F0F, 0x0245, 0x0F0F)               # andi.w #$0F0F,d4 / andi.w #$0F0F,d5
+    w(0x3004, 0x8045)                               # move.w d4,d0 / or.w d5,d0
+    l(0x6700, 'no_mask')
+    w(0x0C44, 0x0505)                               # cmpi.w  #$0505,d4
+    s(0x6600, 'shape')
+    w(0x0C45, 0x0505)
+    s(0x6600, 'shape')
+    w(0x7000, *[0x22C0] * 8)                        # all hidden: clear the tile
+    l(0x6000, 'next')
+    c.label('shape')
+    w(0x7607, 0xC642)                               # d3 = y & 7
+    w(0x3003, 0xD040, 0xD040, 0xD078, 0x95A8)       # d0 = (y & 7) * 4 + the shift's tables
+    w(0x4DF2, 0x0000)                               # lea     (a2,d0.w),a6
+    w(0x3004, 0x4200, 0x4BF6, 0x0000)               # a5 = left part of the top left shape
+    w(0xE14C, 0x4DEE, 0x1000, 0xDCC4)               # a6 = right part of the top right shape
+    w(0xD643, 0x3003, 0xD643, 0xD640)               # d3 = (y & 7) * 6
+    w(0x4EFB, 0x3002)                               # jmp     2(pc,d3.w)        rows from the top cells
+    w(*[0x201D, 0x809E, 0xC199] * 8)                # move.l (a5)+,d0 / or.l (a6)+,d0 / and.l d0,(a1)+
+    w(0x4443)                                       # neg.w   d3
+    s(0x6700, 'next')                               # beq.s   next              no rows from below
+    w(0x0643, 0x0030)                               # addi.w  #48,d3
+    w(0x3038, 0x95A8, 0x4DF2, 0x0000)               # the same for the bottom cells
+    w(0x3005, 0x4200, 0x4BF6, 0x0000)
+    w(0xE14D, 0x4DEE, 0x1000, 0xDCC5)
+    w(0x4EFB, 0x3002)
+    w(*[0x201D, 0x809E, 0xC199] * 8)
+    c.label('next')
+    w(0x5042)                                       # addq.w  #8,d2
+    l(0x51CE, 'tile')                               # dbra    d6,tile
+    w(0x341F, 0x5041)                               # move.w (sp)+,d2 / addq.w #8,d1
+    l(0x51CF, 'column')                             # dbra    d7,column
+    c.label('next_sprite')
+    w(0x5048, 0x4847)                               # addq.w #8,a0 / swap d7
+    l(0x51CF, 'sprite')                             # dbra    d7,sprite
+    c.label('exit')
+    w(0x4CDF, 0x7FFF, 0x4E75)                       # movem.l (sp)+,d0-d7/a0-a6 / rts
+    c.label('no_mask')
+    w(0x43E9, 0x0020)                               # lea     32(a1),a1
+    l(0x6000, 'next')
+    code = c.finish()
+    assert origin != MASK or len(code) <= MASK_END - MASK, len(code)
+    return code
+
+def random_cell_half(rnd, mode):
+    r = rnd.random()
+    if mode == 0: return 0 if r < .9 else rnd.randint(1, 5)
+    if mode == 1: return 5 if r < .7 else rnd.randint(0, 5)
+    if r < .45: return 0
+    return rnd.randint(1, 5) if r < .95 else rnd.randint(6, 15)
+
+def random_cells(rnd, n, mode):
+    return bytes(random_cell_half(rnd, mode) << 4 | random_cell_half(rnd, mode) for _ in range(n))
+
+def mask_test_data():
+    """Random sprites, depths and scenery for each pass, plus cells for sprites off the grid."""
+    rnd = random.Random(1428)
+    records = bytearray()
+    for i in range(MASK_PASSES):
+        mode = i % 4 if i % 4 < 2 else 2
+        count = rnd.randint(1, 16)
+        camera_y = rnd.randint(0, 1023)
+        records += count.to_bytes(2, 'big') + rnd.randint(0, 1023).to_bytes(2, 'big') + camera_y.to_bytes(2, 'big')
+        sprites, depths = bytearray(), bytearray()
+        for _ in range(16):
+            if rnd.random() < .7:
+                y, x = rnd.randint(152, 152 + 143), rnd.randint(152, 152 + 271)
+            else:
+                y, x = rnd.randint(0x60, 0x25F), rnd.randint(0x60, 0x25F)
+            depth = min(max(y - 96 + rnd.randint(-64, 64), 0), 0x7FFF) | (0x8000 if rnd.random() < .15 else 0)
+            sprites += y.to_bytes(2, 'big') + bytes([rnd.randint(0, 255), rnd.randint(0, 255)]) + \
+                rnd.randbytes(2) + x.to_bytes(2, 'big')
+            depths += depth.to_bytes(2, 'big')
+        records += depths + sprites + random_cells(rnd, 612, mode)
+    return bytes(records), random_cells(rnd, 0x5000, 2), rnd.randbytes(0x2000)
+
+def mask_test(pattern_at):
+    """Run the masking routine on every record, adding its tiles and registers to a checksum.
+
+    FF0200 holds the checksum, FF0204 the passes done, and FF000C becomes 600DF00D at the end.
+    """
+    c = Code(0x1F0000)
+    w, l = c.words, c.long
+    w(0x41F9, 0xFFFF, 0x0000, 0x303C, 0x3EFF)       # clear RAM below the stack
+    c.label('clear'); w(0x4298); l(0x51C8, 'clear')
+    w(0x41F9, MASK_EXTRA >> 16, MASK_EXTRA & 0xFFFF, 0x43F9, 0xFFFF, 0xA000, 0x303C, 0x13FF)
+    c.label('extra'); w(0x22D8); l(0x51C8, 'extra')  # random cells at $A000-$EFFF
+    w(0x23FC, MASK_RECORDS >> 16, MASK_RECORDS & 0xFFFF, 0xFFFF, 0x0208)
+    c.label('pass')
+    w(0x2079, 0xFFFF, 0x0208)                       # movea.l $FFFF0208,a0      this pass's record
+    w(0x31D8, 0x92F4, 0x33D8, 0xFFFF, 0x1460, 0x33D8, 0xFFFF, 0x1462)  # count, camera x, camera y
+    for dest, words in ((0x9254, 16), (0x8D54, 64), (0x8ADE, 306)):
+        name = f'copy{dest:x}'
+        w(0x43F8, dest, 0x303C, words - 1)
+        c.label(name); w(0x32D8); l(0x51C8, name)
+    w(0x23C8, 0xFFFF, 0x0208)
+    w(0x41F9, MASK_TILES >> 16, MASK_TILES & 0xFFFF, 0x43F9, 0xFFFF, 0x2000, 0x303C, 0x07FF)
+    c.label('tiles'); w(0x22D8); l(0x51C8, 'tiles')
+    w(0x41F9, pattern_at >> 16, pattern_at & 0xFFFF, 0x4CD0, 0x7FFF)   # known registers
+    w(0x4EB9, MASK >> 16, MASK & 0xFFFF)            # jsr     the routine
+    w(0x48F9, 0x7FFF, 0xFFFF, 0x0100)               # movem.l d0-d7/a0-a6,$FFFF0100
+    w(0x2E39, 0xFFFF, 0x0200)                       # move.l  $FFFF0200,d7      running checksum
+    w(0x41F9, 0xFFFF, 0x0100, 0x700E)
+    c.label('sum_regs'); w(0xE39F, 0xDE98); l(0x51C8, 'sum_regs')
+    w(0x41F9, 0xFFFF, 0x2000, 0x303C, 0x07FF)
+    c.label('sum_tiles'); w(0xE39F, 0xDE98); l(0x51C8, 'sum_tiles')
+    w(0x23C7, 0xFFFF, 0x0200)
+    w(0x5279, 0xFFFF, 0x0204, 0x0C79, MASK_PASSES, 0xFFFF, 0x0204)
+    l(0x6600, 'pass')
+    w(0x23FC, 0x600D, 0xF00D, 0xFFFF, 0x000C, 0x60FE)
+    return c.finish()
+
+def check_mask(rom, patched):
+    pattern_at = 0x1F0400
+    registers = [0xA1B2C300 + i for i in range(15)]
+    registers[12] = 0xFFFF0300                      # a4, the game's base for its variables
+    records, extra, tiles = mask_test_data()
+    code = mask_test(pattern_at)
+    results = []
+    for source in (with_tiles(rom, b''), patched):
+        test = bytearray(source)
+        for at, data in ((MASK_RECORDS, records), (MASK_EXTRA, extra), (MASK_TILES, tiles),
+                         (pattern_at, b''.join(r.to_bytes(4, 'big') for r in registers))):
+            test[at:at + len(data)] = data
+        boot_into(test, 0x1F0000, code, MASK_CHECK_ROM)
+        got = peek(MASK_CHECK_ROM, [*range(0xFF0200, 0xFF0206), *range(0xFF000C, 0xFF0010)], 4000)
+        if int.from_bytes(got[4:6], 'big') != MASK_PASSES or got[6:] != bytes.fromhex('600DF00D'):
+            sys.exit('sprite masking check did not finish')
+        results.append(got[:4])
+    same = results[0] == results[1]
+    print(f'sprite masking, old against new on {MASK_PASSES} random scenes: same tiles and registers: '
+          f'{"yes" if same else "NO"}')
+    if not same:
+        sys.exit('sprite masking check FAILED')
+
+
 def tile_check(count):
     """Run the game's decoder on tiles 1 to count-1, comparing with the table.
 
@@ -477,12 +697,17 @@ def main():
     code = tile_sync()
     out[TILE_SYNC_NEW:TILE_SYNC_NEW + len(code)] = code
     out[TILE_SYNC:TILE_SYNC + 6] = b'\x4e\xf9' + TILE_SYNC_NEW.to_bytes(4, 'big')  # jmp
+    tables = mask_tables(rom)
+    out[MASK_TABLES:MASK_TABLES + len(tables)] = tables
+    code = sprite_mask()
+    out[MASK:MASK + len(code)] = code
     out[BOOT_CHECK_BRANCH:BOOT_CHECK_BRANCH + 2] = b'\x4e\x71'      # nop
     os.makedirs(BUILD, exist_ok=True)
     finish_rom(out, OUTPUT)
     if check:
         check_routine(out, b''.join(table))
         check_background(rom, out)
+        check_mask(rom, out)
     print(f'{count} tiles unpacked, {len(fixed)} corrected {fixed}')
     print(f'wrote {os.path.relpath(OUTPUT, ROOT)}')
 
