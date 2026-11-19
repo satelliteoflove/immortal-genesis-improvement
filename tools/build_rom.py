@@ -47,6 +47,7 @@ import romcheck
 ROOT = romcheck.ROOT
 BUILD = os.path.join(ROOT, 'build')
 OUTPUT = os.path.join(BUILD, 'immortal-patched.md')
+SMOOTH_OUTPUT = os.path.join(BUILD, 'immortal-smooth.md')
 CHECK_ROM = os.path.join(BUILD, 'tile-check.md')
 ROUTINE_CHECK_ROM = os.path.join(BUILD, 'routine-check.md')
 BACKGROUND_CHECK_ROM = os.path.join(BUILD, 'background-check.md')
@@ -93,6 +94,9 @@ SOUND_LINK_END = 0x16304
 SOUND_LINK_NEW = 0x2E600
 SOUND_PASSES = 1792             # for --check: 256 frames of each of six songs, then 256 of silence
 SOUND_RECORDS = 0x100000
+DRAW_CALLS = 0x1348C            # the main loop's two calls that draw an update's picture
+IN_BETWEEN = 0x2E800            # the routine that draws two pictures for each update
+SMOOTH_RAM = 0xA000             # FFA000 on: the previous update's draw list, and working values
 MASK = 0x1428C                  # hides the parts of sprites that are behind scenery
 MASK_END = 0x14508              # the first byte after its rts
 MASK_SHAPES = 0x141CC           # 16 shapes of 32 bytes; only the first 6 are data
@@ -666,6 +670,110 @@ def check_sound(rom, patched):
         sys.exit('sound link check FAILED')
 
 
+def in_between():
+    """Draw two pictures for each update: one part of the way from the last update, then the real one.
+
+    The game logic leaves a list of things to draw: up to 32 entries of position, pose, depth
+    and sprite set, in arrays from $E62(a4), with a count at $FE2(a4). The camera is at
+    $1160(a4) and $1162(a4). This keeps the previous update's list and camera. Each update it
+    moves every position and the camera 3/8 of the way back toward the previous ones, draws
+    that at frame 2, puts the real values back and draws again at frame 4. An entry counts as
+    the same thing as last time if it's in the same place in the list with the same sprite
+    set and hasn't moved more than 32 pixels. Anything else is drawn where it really is.
+
+    There's no in-between picture when message text is on screen (text is drawn outside the
+    list), when the camera has jumped, when the last update was too long ago, or when the
+    game logic has already used two frames.
+    """
+    ram = SMOOTH_RAM
+    prev, save = ram, ram + 0x140               # prev: x, y, depth (64 bytes each), sprite sets (128)
+    prev_count, prev_cam_x, prev_cam_y, stamp = ram + 0x200, ram + 0x202, ram + 0x204, ram + 0x206
+    target, cam_x, cam_y, shown = ram + 0x20A, ram + 0x20E, ram + 0x210, ram + 0x212
+    back_x, back_y, drawn, skipped = ram + 0x216, ram + 0x218, ram + 0x21A, ram + 0x21C
+    c = Code(IN_BETWEEN)
+    w, s, l = c.words, c.short, c.long
+    w(0x48E7, 0xFFFE)                               # movem.l d0-d7/a0-a6,-(sp)
+    w(0x4A78, 0x92F4); l(0x6600, 'single')          # sprites already there: message text
+    w(0x3E2C, 0x0FE2); l(0x6700, 'single')          # d7 = entries; none
+    w(0x2038, 0x9624, 0x222C, 0x0FE6, 0x5781, 0xB081); l(0x6C00, 'single')  # already at frame 2
+    w(0x90B8, stamp, 0x7208, 0xB081); l(0x6200, 'single')   # the last update drawn was long ago
+    for now, kept, old, back in ((0x1160, cam_x, prev_cam_x, back_x), (0x1162, cam_y, prev_cam_y, back_y)):
+        w(0x302C, now, 0x31C0, kept, 0x9078, old)   # d0 = how far the camera moved
+        l(0x6100, 'part')
+        w(0x0C41, 0x0010); l(0x6200, 'single')      # more than 16 pixels: a jump
+        w(0x31C0, back)
+    w(0x41EC, 0x0E62, 0x43EC, 0x0EA2, 0x45EC, 0x0EE2, 0x47EC, 0x0F22)   # a0-a3 = x, y, depth, sprite sets
+    # a5 and a6 point into the middle of their areas, because an indexed address reaches 128 bytes
+    w(0x4BF8, prev + 0x80, 0x4DF8, save + 0x40)     # a5 = last update's, a6 = where this one's are kept
+    w(0x7C00, 0x3A38, prev_count, 0xDA45, 0xDE47)   # d6 = entry * 2, d5 and d7 = counts * 2
+    c.label('entry')
+    w(0x3630, 0x6000, 0x3831, 0x6000)               # d3 = x, d4 = y
+    w(0x3D83, 0x60C0, 0x3D84, 0x6000, 0x3DB2, 0x6000, 0x6040)   # keep x, y and depth
+    w(0xBC45); l(0x6400, 'new')                     # past the end of last update's list
+    w(0x3406, 0xD442, 0x2033, 0x2000, 0xB0B5, 0x2040); l(0x6600, 'new')  # a different sprite set
+    w(0x3003, 0x9075, 0x6080); l(0x6100, 'part')
+    w(0x0C41, 0x0020); l(0x6200, 'new')
+    w(0x4843, 0x3600, 0x4843)                       # x's share in d3's top half
+    w(0x3004, 0x9075, 0x60C0); l(0x6100, 'part')
+    w(0x0C41, 0x0020); l(0x6200, 'new')
+    w(0x9840, 0x2003, 0x4840, 0x9640)               # y and x, part of the way back
+    w(0x3032, 0x6000, 0x9075, 0x6000); l(0x6100, 'part')
+    w(0x9172, 0x6000)                               # and the depth
+    s(0x6000, 'put')
+    c.label('new')                                  # stays where it is in the room
+    w(0xD678, back_x, 0xD878, back_y, 0x3038, back_y, 0x9172, 0x6000)
+    c.label('put')
+    w(0x3183, 0x6000, 0x3384, 0x6000)
+    w(0x5446, 0xBC47); l(0x6600, 'entry')
+    w(0x3038, back_x, 0x916C, 0x1160, 0x3038, back_y, 0x916C, 0x1162)   # the camera, part of the way back
+    w(0x202C, 0x0FE6, 0x5780, 0x21C0, target)       # show it at frame 2
+    w(0x4EB9, 0x0001, 0x5334, 0x4EB9, 0x0001, 0x3682); l(0x6100, 'draw')
+    w(0x21F8, 0x9624, shown)
+    w(0x0C38, 0x0064, 0x8D52); s(0x6600, 'colours')  # room $64's colour cycle stepped: step it back
+    w(0x5378, 0x963E); s(0x6A00, 'colours')
+    w(0x31FC, 0x000B, 0x963E)
+    c.label('colours')
+    w(0x41EC, 0x0E62, 0x43EC, 0x0EA2, 0x45EC, 0x0EE2, 0x4DF8, save)
+    w(0x3007, 0xE248, 0x5340)                       # the real values back
+    c.label('back')
+    w(0x32EE, 0x0040, 0x34EE, 0x0080, 0x30DE); l(0x51C8, 'back')
+    w(0x3978, cam_x, 0x1160, 0x3978, cam_y, 0x1162)
+    w(0x4EB9, 0x0001, 0x4624)                       # forget the in-between picture's sprites
+    w(0x5278, drawn)
+    w(0x202C, 0x0FE6, 0x2400, 0x5380)               # the real picture at frame 4,
+    w(0x2238, shown, 0x5481, 0xB280); s(0x6F00, 'late')   # or 2 frames after the in-between one,
+    w(0x2001)
+    c.label('late')
+    w(0xB082); s(0x6F00, 'timed')                   # but no later than the update's end
+    w(0x2002)
+    c.label('timed')
+    w(0x21C0, target); s(0x6000, 'real')
+    c.label('single')
+    w(0x5278, skipped, 0x202C, 0x0FE6, 0x5380, 0x21C0, target)
+    c.label('real')
+    w(0x4EB9, 0x0001, 0x5334, 0x4EB9, 0x0001, 0x3682); l(0x6100, 'draw')
+    w(0x41EC, 0x0E62, 0x4BF8, prev, 0x704F)         # remember this update: 320 bytes of list,
+    c.label('keep')
+    w(0x2AD8); l(0x51C8, 'keep')
+    w(0x31EC, 0x0FE2, prev_count, 0x31EC, 0x1160, prev_cam_x, 0x31EC, 0x1162, prev_cam_y)
+    w(0x21F8, 0x9624, stamp)
+    w(0x4CDF, 0x7FFF, 0x4E75)
+    c.label('part')                                 # d0 = 3/8 of d0, rounded to nearest; d1 = its size
+    w(0x3200); s(0x6A00, 'positive'); w(0x4441)
+    c.label('positive')
+    w(0x3401, 0xD442, 0xD441, 0x5842, 0xE642, 0x4A40); s(0x6A00, 'signed'); w(0x4442)
+    c.label('signed')
+    w(0x3002, 0x4E75)
+    c.label('draw')                                 # as 01564E, but not before the frame in target
+    w(0x48E7, 0xF080, 0x4EB9, 0x0001, 0x428C, 0x4EB9, 0x0001, 0x4A34)
+    c.label('wait')
+    w(0x2038, 0x9624, 0xB0B8, target); s(0x6D00, 'wait')
+    w(0x4EF9, 0x0001, 0x565A)
+    code = c.finish()
+    assert IN_BETWEEN + len(code) <= ROUTINE_RTS
+    return code
+
+
 def mask_tables(rom, as_game=False):
     """Every mask shape at every horizontal shift.
 
@@ -1056,6 +1164,14 @@ def main():
     out[BOOT_CHECK_BRANCH:BOOT_CHECK_BRANCH + 2] = b'\x4e\x71'      # nop
     os.makedirs(BUILD, exist_ok=True)
     finish_rom(out, OUTPUT)
+    if '--smooth' in sys.argv[1:]:
+        assert rom[DRAW_CALLS:DRAW_CALLS + 8] == bytes.fromhex('4EBA00264EBA21BC')
+        code = in_between()
+        smooth = bytearray(out)
+        smooth[IN_BETWEEN:IN_BETWEEN + len(code)] = code
+        smooth[DRAW_CALLS:DRAW_CALLS + 8] = b'\x4e\xb9' + IN_BETWEEN.to_bytes(4, 'big') + b'\x4e\x71'  # jsr, nop
+        finish_rom(smooth, SMOOTH_OUTPUT)
+        print(f'wrote {os.path.relpath(SMOOTH_OUTPUT, ROOT)}, the trial with in-between pictures')
     if check:
         check_routine(out, b''.join(table))
         check_background(rom, out)

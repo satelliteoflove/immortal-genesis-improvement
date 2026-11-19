@@ -5,6 +5,7 @@
  * -4   plug the EA 4-Way Play into port 1 (otherwise two 3-button pads)
  * -t   plug the Sega Team Player into port 1
  * -v   write every second frame, raw RGB, to a file (for ffmpeg)
+ * -V   the same, but every frame
  * -r   netplay check: every frame, save state, run, load, run again, and
  *      compare the two pictures. RetroArch's rollback needs these to match.
  * -c   write the CRC of the saved state before every frame to a file, one a
@@ -75,6 +76,7 @@ static uint16_t pads[4];            /* bit per RETRO_DEVICE_ID_JOYPAD_* */
 static int quiet;
 static long audio_frames;
 static FILE *audio_out, *video_out;
+static int video_all;
 
 static void logcb(enum retro_log_level lvl, const char *f, ...)
 {
@@ -330,6 +332,7 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "-a")) audio_path = argv[++i];
         else if (!strcmp(argv[i], "-m")) ram_path = argv[++i];     /* the 68000's RAM at the end, for debugging */
         else if (!strcmp(argv[i], "-v")) { video_out = fopen(argv[++i], "wb"); video_from = atoi(argv[++i]); }
+        else if (!strcmp(argv[i], "-V")) { video_out = fopen(argv[++i], "wb"); video_from = atoi(argv[++i]); video_all = 1; }
         else if (!strcmp(argv[i], "-x")) scale = atoi(argv[++i]);
         /* The multitap is chosen by controller type in newer PicoDrive and by
          * a core option in the build RetroArch's updater hands out: do both. */
@@ -494,7 +497,7 @@ int main(int argc, char **argv)
         }
         for (int i = 0; i < nshots; i++)
             if (shots[i].frame == f && frame) save_png(shots[i].path, scale);
-        if (video_out && frame && f >= video_from && (f & 1) == 0) fwrite(frame, 3, fw * fh, video_out);
+        if (video_out && frame && f >= video_from && (video_all || (f & 1) == 0)) fwrite(frame, 3, fw * fh, video_out);
     }
     if (rollback)
         printf("rollback check: %d mismatching frames of %d (state %zu bytes)\n", mismatches, nframes - 31, sn);
