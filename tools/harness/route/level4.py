@@ -109,8 +109,46 @@ def two_trolls(g, log):
     log('down the second ladder')
 
 
+def past_the_girl(g, log):
+    """Room 2: a girl (thing 18) stands in the top corner and asks after a ring when walked
+    up to. The route doesn't go for the ring and leaves her be. The hole at x 24 to 45, y 40
+    to 60 is the ladder when walked LEFT onto with y 46 to 50; lower down it is a drop."""
+    go(g, (56, 48))
+    ladder(g, 'LEFT', 3)
+    log('down the third ladder')
+
+
+TURNS = 0x0612                          # quarter turns made round the triangle, 0 to 11
+SIGN = 8                                # the thing at the middle of the triangle's circle
+
+
+def triangle(g, log):
+    """Room 3: a triangle in a circle on the floor, its middle at thing 8. Three times round
+    it clockwise opens a trapdoor. The game counts quarter turns at FF0612 (a walk through
+    the points above, right of, below and left of the middle adds 1 at each) and at the
+    twelfth the count goes back to 0 and the hole is there.
+
+    The ladder back up is just right of where the wizard lands, so the first steps go left
+    of it. The hole opens at x 24 to 42, y 36 to 56; LEFT onto it with y 42 to 46 is the
+    ladder, and that ends the level."""
+    cx, cy = thing_xy(g, SIGN)
+    go(g, (62, 24))
+    round_it = [(cx, cy - 24), (cx + 20, cy), (cx, cy + 24), (cx - 20, cy)]
+    turns = None
+    for step in range(20):
+        go(g, round_it[step % 4])
+        was, turns = turns, g.byte(TURNS)
+        if was and turns < was:
+            break
+    else:
+        fail(g, LEVEL, f'the trapdoor did not open; the count of turns is {turns}')
+    log(f'the trapdoor is open after {step} quarter turns')
+    go(g, (54, 44))
+    bump(g, 'LEFT', limit=1200)
+
+
 STAGES = [first_troll, get_carpet, first_flame_room, second_flame_room, bed_and_ladder,
-          two_trolls]
+          two_trolls, past_the_girl, triangle]
 
 
 def play(g, log=print, stages=None):
@@ -121,7 +159,6 @@ def play(g, log=print, stages=None):
         stage(g, log)
     if stages is not None:
         return None
-    fail(g, LEVEL, 'the route is not written past the second ladder')
     return end_of_level(g)
 
 
