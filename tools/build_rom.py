@@ -167,6 +167,10 @@ SAVE_MESSAGES = {'over': 'Game Over&&Try this level again?%',
                  'continue': 'Continue a saved game?%',
                  'pick': 'Up or Down selects a level.&Press Start or A when done.&&         Level $=',
                  'saved': '&Game saved.@'}
+RETRY_CALL = 0x82D4             # where a retry works out its spot: jsr $8318(pc), jsr -$6E66(a6)
+RETRY_TABLE = 0x1119A           # reads the spot from three tables, at ten times the level plus the room
+RETRY_SPOT = 0xFFB56            # the new routine, in front of TILE_MEMORY
+ROOM_10_SPOT = (164, 13)        # level 5, room 10: the foot of the ladder down into it
 RETRY_MESSAGE = 0x81F4          # after a death with a retry left: "Prepare to continue..."
 PREPARE_TEXT = 0x42F9           # its text, which ended in three short pauses
 DEATH_PAUSE = TILE_SYNC + 6     # the new routine, in the old tile sync's body, never run now
@@ -1099,6 +1103,29 @@ def text_wait():
     return c.finish()
 
 
+def retry_spot():
+    """Choose where a retry puts the wizard, as the game did, except after a death in level 5's
+    room 10.
+
+    The game keeps ten entries a level, and level 5 has eleven rooms. A death in room 10 read
+    level 6's first entry, which put him in level 5's room 0, past the hole only a shrunken
+    wizard goes through, with the potion used up: the level couldn't be finished, and nothing
+    in rooms 0, 1 and 8 could kill him to end it. Now he comes back at the foot of the ladder
+    he came down into room 10."""
+    c = Code(RETRY_SPOT)
+    w, s = c.words, c.short
+    w(0x4EB9, 0x0000, 0x8318)                                   # jsr $8318: d2 = 10 * level + room
+    w(0x0C2C, 0x0004, 0x0D70); s(0x6600, 'table')               # level 5 (4 counting from 0)?
+    w(0x0C2C, 0x000A, 0x0D51); s(0x6600, 'table')               # room 10?
+    w(0x197C, ROOM_10_SPOT[0], 0x0304)                          # move.b #x,$304(a4)
+    w(0x197C, ROOM_10_SPOT[1], 0x0306)                          # move.b #y,$306(a4)
+    w(0x103C, 0x000A)                                           # move.b #10,d0: the room
+    w(0x4E75)
+    c.label('table')
+    w(0x4EF9, RETRY_TABLE >> 16, RETRY_TABLE & 0xFFFF)          # jmp: the game's own tables
+    return c.finish()
+
+
 def death_pause():
     """Show "Prepare to continue..." for 3 seconds, or until a button is pressed.
 
@@ -1670,6 +1697,9 @@ def main():
     code = death_pause()                            # in the old tile sync's body, after its jmp
     assert DEATH_PAUSE + len(code) <= DEATH_PAUSE_END and out[DEATH_PAUSE:DEATH_PAUSE_END] == rom[DEATH_PAUSE:DEATH_PAUSE_END]
     out[DEATH_PAUSE:DEATH_PAUSE + len(code)] = code
+    add(RETRY_SPOT, retry_spot())
+    assert rom[RETRY_CALL:RETRY_CALL + 8] == bytes.fromhex('4EBA00424EAE919A')
+    out[RETRY_CALL:RETRY_CALL + 8] = b'\x4e\xb9' + RETRY_SPOT.to_bytes(4, 'big') + b'\x4e\x71'      # jsr, nop
     assert rom[RETRY_MESSAGE:RETRY_MESSAGE + 8] == bytes.fromhex('123C009E4EBA4B5C')
     out[RETRY_MESSAGE:RETRY_MESSAGE + 8] = b'\x4e\xb9' + DEATH_PAUSE.to_bytes(4, 'big') + b'\x4e\x71'   # jsr, nop
     assert rom[PREPARE_TEXT:PREPARE_TEXT + 26] == b'Prepare to continue...]]]='

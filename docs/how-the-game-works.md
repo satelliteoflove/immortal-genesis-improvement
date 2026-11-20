@@ -94,7 +94,15 @@ room 10, the last one, reads level 6's first entry and puts him in level 5's roo
 64). By then the shrinking potion is gone, the hole from room 0 to room 2 only takes a
 shrunken wizard, and the merchant has nothing more to sell, so the level can't be finished.
 The retry test found it, and `scratch/retry/l5room10.py` shows the same on both ROMs. Room
-10 holds the straw bed and the ladder down, which kills from the wrong side.
+10 holds the straw bed and the ladder down, which kills from the wrong side. A search that
+walked from every spot it reached in every direction (`scratch/retry/flood.py`) found about
+1,900 spots in rooms 0, 1 and 8, doors only between those three, and nothing that could kill
+him, so the player couldn't even reach Game Over. Only a reset got out of it.
+
+**The change.** The call at `0082D4` now goes to a routine at `0FFB56` that asks the game's
+own tables, except for level 5's room 10: a death there puts him back at the foot of the
+ladder he came down into room 10, at (164, 13), beside the straw bed. The route finishes
+the level from there.
 
 A death in level 5's first room, room 8, sends him into room 7, the slime's room near the
 end of the level. Nothing is known to kill him in room 8.
