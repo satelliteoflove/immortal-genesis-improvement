@@ -64,12 +64,12 @@ Stretches of the game's code or data pasted into notes are not.
 ## The test harness
 
 It runs the game headless through libretro cores. Most of it uses BlastEm's core, or our
-build of the BlastEm fork. The older PicoDrive tools (`make`'s default core, `run.sh`,
-`build_trace_core.sh`, `compare_cores.py`) expect the PicoDrive core and source from the
-32xKarts repository, checked out beside this one; set `CORE` or `PICODRIVE_SRC` to use
-your own instead.
+build of the BlastEm fork; the older tools use PicoDrive. Each core has a script that
+fetches or builds it under `build/`, and nothing outside this repository is needed. Set
+`CORE` or `PICODRIVE_SRC` to use your own instead.
 
     make                                   # build/runner
+    tools/harness/get_picodrive.sh         # PicoDrive's source and its libretro core, into build/
     tools/harness/build_trace_core.sh      # PicoDrive with a profile of the 68000
     tools/harness/run.sh -n 600 -s 599:scratch/shot.png
     tools/harness/sheet.py scratch/sheet.png 840 90 12 -i tools/harness/input/new_game.txt

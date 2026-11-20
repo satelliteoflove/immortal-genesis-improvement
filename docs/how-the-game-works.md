@@ -249,7 +249,7 @@ another without converting it.
 
 A direction or C still held when the certificate screen comes up after NO to "New game?"
 types a 0 there. The original does it too. On PicoDrive the patched ROM's screen comes up
-about 4 frames sooner than the original's, so the window is a little wider.
+about 2 frames sooner than the original's, so the window is a little wider.
 
 **When a level ends** (`011266`), the new routine makes the certificate, writes it, shows
 the game's "End of level! Here is your certificate:" and the letters, reads the save back,

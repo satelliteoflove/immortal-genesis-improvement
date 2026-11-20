@@ -1,8 +1,8 @@
 # Test harness for the unmodified game. The ROM goes in rom/ (see README.md).
 B := build
 ROM := $(firstword $(wildcard rom/*))
-# PicoDrive's libretro core, as fetched by 32xKarts' tools/setup.sh.
-CORE ?= ../32xKarts/tools/core/picodrive_libretro.so
+# PicoDrive's libretro core, as tools/harness/get_picodrive.sh builds it.
+CORE ?= build/cores/picodrive/picodrive_libretro.so
 
 all: $(B)/runner
 

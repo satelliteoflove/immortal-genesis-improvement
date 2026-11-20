@@ -44,7 +44,7 @@ import romcheck
 CORES = {   # path, runner options, how battery RAM is kept, its file's size
     'blastem': (os.path.join(cc.ROOT, 'build', 'cores', 'blastem', 'blastem_libretro.so'),
                 ['-b', '0,8,11'], 'packed', 256),
-    'picodrive': (os.path.join(cc.ROOT, 'build', 'picodrive', 'picodrive_libretro.so'), [], 'odd', 512),
+    'picodrive': (os.path.join(cc.ROOT, 'build', 'cores', 'picodrive', 'picodrive_libretro.so'), [], 'odd', 512),
     'genesis_plus_gx': (os.path.join(cc.ROOT, 'build', 'cores', 'genesis_plus_gx', 'genesis_plus_gx_libretro.so'),
                         [], 'odd', 65536),
 }
@@ -64,7 +64,7 @@ def answer(frame, yes):
     """The game's YES and NO: hold a direction and press a button, then let go of both.
 
     A direction still held when the certificate screen comes up after NO types a 0 there, in
-    the original too. On PicoDrive the patched ROM's screen comes up about 4 frames sooner,
+    the original too. On PicoDrive the patched ROM's screen comes up about 2 frames sooner,
     and holding LEFT 12 frames past the C was enough for it."""
     way = 'RIGHT' if yes else 'LEFT'
     return [f'{frame} 0 {way}', f'{frame + 12} 0 {way}+C', f'{frame + 18} 0 -']

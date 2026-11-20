@@ -23,7 +23,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 OUT = os.path.join(ROOT, 'scratch', 'cores')
 CORES = {
-    'picodrive': (os.path.join(ROOT, '..', '32xKarts', 'tools', 'core', 'picodrive_libretro.so'), []),
+    'picodrive': (os.path.join(ROOT, 'build', 'cores', 'picodrive', 'picodrive_libretro.so'), []),
     'blastem': (os.path.join(ROOT, 'build', 'cores', 'blastem', 'blastem_libretro.so'), ['-b', '0,8,11']),
 }
 DEADLINE = 'ff12e6'
