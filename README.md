@@ -70,6 +70,8 @@ It runs the game headless in PicoDrive, using the core and source that 32xKarts 
     tools/harness/fight_pace.py            # the pace of fights, original against patched
     tools/harness/text_pace.py             # typing speed of messages, with and without a button held
     tools/harness/save_check.py            # battery saves, the level picker and Game Over's second try
+                                           #   (--core picodrive or genesis_plus_gx for those emulators)
+    tools/harness/get_genesis_plus_gx.sh   # Genesis Plus GX's libretro core, into build/cores/
     tools/harness/route/whole_game.py      # play the whole game by script (docs/playthrough.md)
     tools/harness/build_coverage_core.sh   # a BlastEm core that counts the instructions run (docs/dead-code.md)
     tools/disasm.py                        # writes disasm/, which git ignores

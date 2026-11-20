@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """Check the battery saves, the level picker and the second try at Game Over.
 
-    tools/harness/save_check.py
+    tools/harness/save_check.py [--core blastem|picodrive|genesis_plus_gx]
 
-Plays short scripted runs on BlastEm's libretro core, keeping the cartridge's battery RAM
-in a file between them (the runner's -B), and reads the 68000's RAM at the end of each.
+Plays short scripted runs on a libretro core, BlastEm's unless --core names another,
+keeping the cartridge's battery RAM in a file between them (the runner's -B), and reads the
+68000's RAM at the end of each. The cores keep battery RAM differently: BlastEm packs the
+odd bytes the game uses into a 256-byte file, PicoDrive keeps a byte for each address in
+512 bytes, and Genesis Plus GX keeps 64 KB, filled with FF when new. The checks read and
+write it as the game sees it, the odd bytes in order, and every run that starts without a
+save starts from zeros.
 A level is ended by setting the game's own "level over" byte, and Game Over is reached by
 setting its "out of retries" byte, so nothing here depends on playing well.
 
@@ -24,6 +29,7 @@ What is checked:
 
 Everything is written under scratch/save-check, which git ignores.
 """
+import argparse
 import os
 import subprocess
 import sys
@@ -35,7 +41,15 @@ sys.path.insert(0, os.path.join(cc.ROOT, 'tools'))
 import build_rom as B
 import romcheck
 
-OUT = os.path.join(cc.ROOT, 'scratch', 'save-check')
+CORES = {   # path, runner options, how battery RAM is kept, its file's size
+    'blastem': (os.path.join(cc.ROOT, 'build', 'cores', 'blastem', 'blastem_libretro.so'),
+                ['-b', '0,8,11'], 'packed', 256),
+    'picodrive': (os.path.join(cc.ROOT, 'build', 'picodrive', 'picodrive_libretro.so'), [], 'odd', 512),
+    'genesis_plus_gx': (os.path.join(cc.ROOT, 'build', 'cores', 'genesis_plus_gx', 'genesis_plus_gx_libretro.so'),
+                        [], 'odd', 65536),
+}
+CORE = 'blastem'                        # set from --core
+OUT = os.path.join(cc.ROOT, 'scratch', 'save-check')    # a directory for each core is made under it
 PATCHED = os.path.join(cc.ROOT, 'build', 'immortal-patched.md')
 A4 = 0x300                              # the game's variables are addressed from here
 LEVEL, ITEMS, ITEM_COUNT = A4 + 0xD70, A4 + 0x7EE, 42
@@ -47,9 +61,13 @@ FIRST = 800                             # the first prompt after the title is up
 
 
 def answer(frame, yes):
-    """The game's YES and NO: hold a direction and press a button."""
+    """The game's YES and NO: hold a direction and press a button, then let go of both.
+
+    A direction still held when the certificate screen comes up after NO types a 0 there, in
+    the original too. On PicoDrive the patched ROM's screen comes up about 4 frames sooner,
+    and holding LEFT 12 frames past the C was enough for it."""
     way = 'RIGHT' if yes else 'LEFT'
-    return [f'{frame} 0 {way}', f'{frame + 12} 0 {way}+C', f'{frame + 24} 0 {way}', f'{frame + 30} 0 -']
+    return [f'{frame} 0 {way}', f'{frame + 12} 0 {way}+C', f'{frame + 18} 0 -']
 
 
 def tap(frame, button, hold=6):
@@ -71,6 +89,20 @@ def typed(certificate, frame):
     return events + tap(frame + 40, 'START'), frame + 46
 
 
+def to_file(data):
+    """Battery RAM as the game sees it, in the core's own layout."""
+    _, _, layout, size = CORES[CORE]
+    if layout == 'packed':
+        return bytes(data) + bytes(size - len(data))
+    raw = bytearray(size)
+    raw[1:2 * len(data):2] = data
+    return bytes(raw)
+
+
+def from_file(raw):
+    return raw if CORES[CORE][2] == 'packed' else raw[1::2]
+
+
 class Run:
     def __init__(self, name, frames, events, pokes=(), battery=None, rom=PATCHED):
         self.name, self.frames, self.events, self.pokes, self.rom = name, frames, events, pokes, rom
@@ -78,13 +110,16 @@ class Run:
         self.ram_path = os.path.join(OUT, name + '.ram')
 
     def go(self):
-        core, extra = cc.CORES['blastem']
+        core, extra, _, _ = CORES[CORE]
         script = os.path.join(OUT, self.name + '.txt')
         with open(script, 'w') as f:
             f.write('\n'.join(sorted(TITLE + self.events, key=lambda e: int(e.split()[0]))) + '\n')
         command = [os.path.join(cc.ROOT, 'build', 'runner'), core, self.rom, '-q', '-n', str(self.frames), *extra,
                    '-i', script, '-m', self.ram_path]
         if self.rom == PATCHED:
+            if not os.path.exists(self.battery):
+                with open(self.battery, 'wb') as f:
+                    f.write(to_file(b''))
             command += ['-B', self.battery]
         for poke in self.pokes:
             command += ['-p', poke]
@@ -102,7 +137,7 @@ class Run:
 
     def saves(self):
         with open(self.battery, 'rb') as f:
-            return f.read()
+            return from_file(f.read())
 
 
 def together(*runs):
@@ -112,10 +147,16 @@ def together(*runs):
 
 def battery(name, data):
     with open(os.path.join(OUT, name + '.srm'), 'wb') as f:
-        f.write(data)
+        f.write(to_file(data))
 
 
 def main():
+    global CORE, OUT
+    parser = argparse.ArgumentParser(description='Check the battery saves, the level picker and Game Over.')
+    parser.add_argument('--core', choices=CORES, default='blastem')
+    CORE = parser.parse_args().core
+    OUT = os.path.join(OUT, CORE)
+    print('core:', CORE)
     os.makedirs(OUT, exist_ok=True)
     for name in os.listdir(OUT):
         if name.endswith('.srm'):

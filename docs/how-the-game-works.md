@@ -241,6 +241,16 @@ emulator's save file has level 2 at offset 16 and level 8 at 112. A save is beli
 all 13 bytes are digits, its level digit matches its place and the game's check (`012804`)
 gives its first four digits. Empty RAM, whether zeros or `FF`, fails that.
 
+**Emulators.** `save_check.py --core` runs every check on BlastEm, PicoDrive or Genesis Plus
+GX, and all three pass (2026-11-20). They keep battery RAM in different files: BlastEm packs
+the odd bytes into 256 bytes, PicoDrive keeps a byte for each address in 512, and Genesis
+Plus GX keeps 64 KB, filled with `FF` when new. So a save file from one won't load in
+another without converting it.
+
+A direction or C still held when the certificate screen comes up after NO to "New game?"
+types a 0 there. The original does it too. On PicoDrive the patched ROM's screen comes up
+about 4 frames sooner than the original's, so the window is a little wider.
+
 **When a level ends** (`011266`), the new routine makes the certificate, writes it, shows
 the game's "End of level! Here is your certificate:" and the letters, reads the save back,
 and adds "Game saved." under the letters if it reads back right. If it doesn't, as on a

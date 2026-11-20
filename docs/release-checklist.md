@@ -31,10 +31,10 @@ the retry test. Almost none of it has been seen or heard by a person playing.
 2. **Patchers.** Apply the BPS with Flips and at least one other common patcher (the
    browser-based ones people use, such as RomPatcher.js), and check the result's hash
    against our build.
-3. **Battery saves in BlastEm and PicoDrive**, which Chris takes to be the most common, and in
-   Kega Fusion if it can be managed. Only the BlastEm fork has run the saves so far. The
-   header declares battery RAM on odd bytes at `200001`, the usual layout, but emulators
-   differ on how they read it.
+3. **Battery saves.** Done 2026-11-20 for BlastEm, PicoDrive and Genesis Plus GX, which
+   guides call the most used Genesis core: `save_check.py --core` passes all 18 checks on
+   each. Kega Fusion is still to try. It's a closed Windows program the harness can't drive,
+   so it's a hand test: end a level, quit, start again and load the save.
 4. **Release notes and package.** RHDN wants a readme in the archive and the ROM's details
    on the page. Needed:
    - the readme: what the patch changes, what it doesn't, the required ROM (name, CRC32,
