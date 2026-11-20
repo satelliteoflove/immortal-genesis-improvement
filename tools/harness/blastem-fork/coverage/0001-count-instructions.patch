@@ -15,7 +15,7 @@
  	tern_delete(&context->breakpoints, tern_int_key(address, buf), NULL);
  }
 +
-+/* Coverage for the immortal-32x harness: executions of each instruction address. */
++/* Coverage for The Immortal patch's harness: executions of each instruction address. */
 +unsigned retro_trace_hits[0x800000];
 +unsigned retro_trace_cycles[0x800000];
 +void m68k_cov(m68k_context *context, uint32_t pc)

@@ -2,14 +2,23 @@
 
 A patch for the Genesis version of The Immortal. It's meant to make the game fairer, fix
 its bugs, and smooth out its performance where that can be done, while leaving it the same
-game. It started as an idea for a 32X port (hence the folder's name), but the problems
-people raised with the game aren't ones the 32X would fix, so this is a straight patch for
-the Genesis.
+game. It started as an idea for a 32X port, but the problems people raised with the game
+aren't ones the 32X would fix, so this is a straight patch for the Genesis.
 
-So far the patch speeds up object graphics and background scrolling, restores the wall
-torch's flame, saves each level reached to battery RAM, and offers the level again at Game
-Over. `TODO.md` has
-what we're looking into and `docs/progress/index.html` is the running record.
+So far the patch:
+
+- draws objects, sprites and the scrolling background much faster, while keeping the
+  game's own pace, fights included;
+- saves each level reached to battery RAM, offers the saved levels at start, and offers
+  the level again at Game Over;
+- holds "Prepare to continue..." for 3 seconds after a death, unless a button is pressed;
+- types messages faster while a button is held, without skipping their pauses;
+- fixes the wall torch's flame, stray pixels behind scenery, the level's song starting
+  over, and a soft-lock after a death in level 5's last room.
+
+`TODO.md` has what we're looking into, `docs/release-checklist.md` what's left before a
+release, and `docs/progress/index.html` is the running record. Its pictures and clips are
+kept out of git, so they only show on the machine that made them.
 
 ## The ROM
 
@@ -54,7 +63,11 @@ Stretches of the game's code or data pasted into notes are not.
 
 ## The test harness
 
-It runs the game headless in PicoDrive, using the core and source that 32xKarts fetches:
+It runs the game headless through libretro cores. Most of it uses BlastEm's core, or our
+build of the BlastEm fork. The older PicoDrive tools (`make`'s default core, `run.sh`,
+`build_trace_core.sh`, `compare_cores.py`) expect the PicoDrive core and source from the
+32xKarts repository, checked out beside this one; set `CORE` or `PICODRIVE_SRC` to use
+your own instead.
 
     make                                   # build/runner
     tools/harness/build_trace_core.sh      # PicoDrive with a profile of the 68000
