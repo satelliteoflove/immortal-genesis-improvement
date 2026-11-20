@@ -914,8 +914,9 @@ On 2026-11-19, 31 of the 45 deaths on levels 1 to 7 of the patched ROM ended wit
 level finished. On level 8 the test found no moment to die in its first two rooms, and the
 route never reached the moment chosen in the third; an earlier version of the test did die
 there, and got Game Over, as the game intends. The failures looked at were the test's own,
-but one: a death in level 5's room 10 leaves the level impossible to finish (see
-"Death and retries" in `docs/how-the-game-works.md`). Checked by hand with scripts in
+but one: a death in level 5's room 10 left the level impossible to finish (see
+"Death and retries" in `docs/how-the-game-works.md`). That's fixed, and the test finishes
+level 5 after a death there now. Checked by hand with scripts in
 `scratch/retry/`:
 
 - Level 2, room 7: after a death with none, one or two of the gems in their holes, putting
