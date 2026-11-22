@@ -2,7 +2,7 @@
 """Make a BPS patch file from the original ROM and the patched one.
 
     tools/build_rom.py
-    tools/make_patch.py          writes build/immortal-patch.bps
+    tools/make_patch.py          writes build/Immortal-Genesis-Improvement-v1.0.bps
 
 A BPS file carries checksums of the ROM it's for and of the result, so a patcher refuses the
 wrong dump. The patch is then applied to the original by a patcher written here, and the
@@ -18,7 +18,7 @@ import romcheck
 
 BUILD = os.path.join(romcheck.ROOT, 'build')
 PATCHED = os.path.join(BUILD, 'immortal-patched.md')
-PATCH = os.path.join(BUILD, 'immortal-patch.bps')
+PATCH = os.path.join(BUILD, 'Immortal-Genesis-Improvement-v1.0.bps')
 JOIN = 8                        # changed stretches this close together go in one record
 
 

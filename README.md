@@ -41,7 +41,7 @@ Put your own copy in `rom/` and check it:
 
 ## Making the patch file
 
-    tools/make_patch.py           # writes build/immortal-patch.bps
+    tools/make_patch.py           # writes build/Immortal-Genesis-Improvement-v1.0.bps
 
 A BPS file checks that it's being applied to the right ROM. It's applied to the original as
 it's made, and has to give back the patched ROM exactly. It isn't tracked here; it will go out

@@ -37,9 +37,10 @@ the retry test. Almost none of it has been seen or heard by a person playing.
    supports emulators maintained in roughly the last five years.
 4. **Release notes and package.** RHDN wants a readme in the archive and the ROM's details
    on the page. Needed:
-   - the readme: what the patch changes, what it doesn't, the required ROM (name, CRC32,
-     SHA-1), how to apply it, the save and retry behavior, credits, version;
-   - a name for the BPS file;
+   - the readme (`docs/release/readme.txt`): done 2026-11-22. Its patched-ROM hashes are
+     from main on that day; if the ROM changes again before release, update them from
+     `tools/make_patch.py`'s output (it prints the CRC32);
+   - a name for the BPS file: `Immortal-Genesis-Improvement-v1.0.bps`, done;
    - screenshots for the page (title, the save picker, play);
    - the RHDN page text.
 5. **Update `README.md`.** It still says the harness runs PicoDrive, and its list of what the

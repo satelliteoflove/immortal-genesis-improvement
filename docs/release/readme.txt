@@ -2,8 +2,6 @@ The Immortal (Genesis) Improvement Patch
 Version 1.0
 by Christopher Childress (satelliteoflove)
 
-[DRAFT. Items in square brackets are still to be decided or filled in.]
-
 
 ABOUT
 -----
@@ -99,16 +97,17 @@ REQUIRED ROM
   the same ROM.
 
   After patching:
-  CRC32:   [9BED8A95, to be confirmed against the release build]
-  SHA-1:   [CE53765F6935AE25CB78BBCC1451CB1971CE5BF3, likewise]
+  CRC32:   4E217FBF
+  SHA-1:   F80E77D5CAD820C9D9917D62FDDFC6C93D3D7D29
 
 
 HOW TO APPLY
 ------------
 
-  The patch is a BPS file, [file name]. Apply it with Flips, or in a browser
-  with Rom Patcher JS (https://www.marcrobledo.com/RomPatcher.js/). Both check
-  that you've given them the right ROM.
+  The patch is a BPS file, Immortal-Genesis-Improvement-v1.0.bps. Apply it
+  with Flips, or in a browser with Rom Patcher JS
+  (https://www.marcrobledo.com/RomPatcher.js/). Both check that you've given
+  them the right ROM.
 
   Keep a copy of your original ROM. The patch is applied to the original, not
   to an already patched copy.
@@ -140,10 +139,11 @@ CREDITS
   Thanks to the authors of BlastEm, PicoDrive, Genesis Plus GX, Flips and
   Rom Patcher JS, all of which were a big help in making and testing this.
 
-  [Source and notes: link to the GitHub repository once it's public.]
+  The source and notes are at
+  https://github.com/satelliteoflove/immortal-genesis-improvement
 
 
 VERSION HISTORY
 ---------------
 
-  1.0 ([date])  First release.
+  1.0 (2026-11-22)  First release.
