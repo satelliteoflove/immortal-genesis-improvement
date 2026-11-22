@@ -134,7 +134,9 @@ TEXT_HELD = 0x97AC              # the buttons down at the last wait, for telling
 TEXT_SKIP = 0x97AD              # set when a fresh press has ended the pause going on
 TEXT_LETTER_UNITS = 5           # the wait after a letter, in units
 TEXT_TYPING_UNITS = 0x0D        # waits of up to this many units are typing; longer ones are pauses
-TEXT_TURN = 0x97A9              # flips each time a held button meets a letter's wait
+TEXT_TURN = 0x97A9              # goes up by 256 / TEXT_PUNCTUATION_EVERY each time a held button meets
+                                #   punctuation's wait; RAM is cleared at power-on, so it starts at 0
+TEXT_PUNCTUATION_EVERY = 2      # with a button held, punctuation's waits are a frame this often (a power of 2)
 LEVEL_END = 0x11266             # a level is over: the calls that make its certificate and show it
 GAME_OVER_TEXT = 0x12646        # the end of the Game Over routine: its message, then rts
 LOADER = 0x12A74                # starts a game: from a certificate's fields, a typed certificate or nothing
@@ -1052,7 +1054,7 @@ def saves():
 
 
 def text_wait():
-    """Message text with a button held: twice the typing speed, and pauses at full length.
+    """Message text with a button held: about three times the typing speed, and pauses at full length.
 
     The game types a letter, then waits some units: 5 after a letter, more after punctuation,
     40 or 140 at the end of a page. Every fourth unit is a real wait of two frames. In the
@@ -1061,9 +1063,11 @@ def text_wait():
     they could be worked out and the pause at the end of a page was gone too.
 
     Now a held button shortens the waits while typing and makes no difference to a pause.
-    After a letter the wait is one frame, every other time it comes around. After punctuation
-    it's one frame every time. With the frame it takes to draw each letter, that comes to
-    twice the usual typing speed. Every letter is drawn.
+    After a letter there's no wait; drawing the letter takes about a frame. After punctuation
+    each of its waits is one frame, every other time it comes around. That comes to about
+    three times the usual typing speed. Every letter is drawn. (Until 2026-11-22 a letter
+    waited a frame every other time and punctuation every time, about twice the usual speed;
+    Chris found that barely different from not holding a button.)
 
     A fresh press of A, B, C or Start ends a pause, and the rest of a run of pauses, until
     the typing starts again. In the original any button did that, by making every wait
@@ -1083,8 +1087,9 @@ def text_wait():
     w(0x0C2C, TEXT_TYPING_UNITS, 0x094C); s(0x6200, 'pause')               # a pause, not typing
     w(0x4238, TEXT_SKIP)                                                   # typing: a new pause can come
     w(0x1238, PAD, 0x0201, 0x00F0); s(0x6700, 'full')                      # no button held
-    w(0x0C2C, TEXT_LETTER_UNITS, 0x094C); s(0x6200, 'frame')               # after punctuation
-    w(0x0878, 0x0000, TEXT_TURN); s(0x6700, 'done')                        # after a letter: every other time
+    w(0x0C2C, TEXT_LETTER_UNITS, 0x094C); s(0x6300, 'done')               # after a letter: no wait
+    w(0x0638, 0x100 // TEXT_PUNCTUATION_EVERY, TEXT_TURN); s(0x6600, 'done')  # after punctuation: a frame when
+                                                                           #   the count comes round to 0
     c.label('frame')
     w(0x4EB9, FRAME_WAIT >> 16, FRAME_WAIT & 0xFFFF); s(0x6000, 'done')    # one frame
     c.label('pause')
