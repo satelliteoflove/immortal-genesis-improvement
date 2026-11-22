@@ -47,11 +47,9 @@ the retry test. Almost none of it has been seen or heard by a person playing.
 
 ## Worth doing first, if time allows
 
-6. **50 Hz.** The dump is "USA, Europe", so some players will run it as a PAL machine, and
-   every test so far ran at 60 Hz. Chris counts it a quality addition, not a requirement:
-   with the original frame rate and update rate restored, it should matter less. Play a
-   level or two and a fight at 50 Hz on both ROMs. The patch's own waits count frames, so
-   the death pause is 3.6 seconds there.
+6. **50 Hz.** Tested by script on 2026-11-21; see "At 50 Hz" in `docs/how-the-game-works.md`.
+   Late ticks, fight pace and saves are fine, and every level plays through by itself. The
+   whole game in one run doesn't finish yet, for reasons in the routes, not the patch.
 7. **Retry spots the test never reached.** By Chris's measure, the only bug that matters
    here is a soft-lock. The test covered every room the routes pass through; it didn't try
    the retry spots of rooms they skip (level 1's room 5, several on levels 3, 4 and 7). Each

@@ -146,8 +146,10 @@ def play(g, log=print, until=None):
             break
         tick(g)
     if not busy(g):
+        # Come at it from the open floor below: along the back wall, a corner of the wall
+        # stops him short of a lizard that fell there, at (181, 29) in one 50 Hz run.
         where = creature_xy(g, carrier)
-        if walk_to(g, *where) != 'busy':
+        if walk_to(g, where[0], max(where[1], 40)) != 'busy' and walk_to(g, *where) != 'busy':
             fail(g, LEVEL, f'no question at the dead lizard at {where}')
     search(g, 'yy', KEY)
     log('took the key, carrying', carried(g))

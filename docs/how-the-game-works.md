@@ -83,6 +83,15 @@ sometimes drew in 4.
 The patch's own waits count frames, so at 50 Hz "Prepare to continue..." stays up for 3.6
 seconds. `save_check.py --pal` passes all 18 checks on BlastEm, PicoDrive and Genesis Plus GX.
 
+The routes (`PLAY_PAL=1`) play every level by itself at 50 Hz on the patched ROM. Two fixes to
+the routes were needed for that, both to situations the 60 Hz runs never met: a lizard on level
+5 shot down beside the wizard, so that his next step asked to search it, and the lizard with the
+key falling where a corner of the wall is in the way. On the original, every level but 3 passes;
+on level 3 the route can't get the troll away from the door. The whole game in one run doesn't
+yet finish at 50 Hz: the wizard reaches level 5 with different health, and the route dies to the
+creature in room 7. Fights and creatures go differently at 50 Hz because they run on their own
+timing against the 5-frame ticks, and the routes were written against 60 Hz play.
+
 ## Death and retries
 
 Seen in the running game:
