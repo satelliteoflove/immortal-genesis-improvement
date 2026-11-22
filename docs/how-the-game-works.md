@@ -417,6 +417,18 @@ comparable. On BlastEm two of its four walks ended at Game Over.
 PicoDrive shows a few ticks 4 frames apart (1.9%). BlastEm shows none, so those look like a
 PicoDrive artifact, and the game's tick never runs early.
 
+On 2026-11-22 `pal_check.py --core` ran the same walks on all three cores, both ROMs, 60 Hz:
+
+| Ticks late | BlastEm | PicoDrive | Genesis Plus GX |
+|---|---|---|---|
+| Original | 23.0% | 23.0% | 23.3% |
+| Patched | 1.2% | 1.7% | 1.2% |
+
+PicoDrive's extra half a point on the patched ROM is mostly level 6 (6.5% against 4.2%), where
+the walks wander differently. At 50 Hz the patched ROM had 0.8% to 0.9% late on all three. The
+original's 50 Hz walks on PicoDrive never started: the fixed-frame opening landed a press in the
+inventory and stayed there.
+
 PicoDrive stays the tool for finding where time goes, since only its profiling build counts
 cycles per instruction. BlastEm is the check on whether a change really helps.
 
