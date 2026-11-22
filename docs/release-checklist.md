@@ -33,8 +33,8 @@ the retry test. Almost none of it has been seen or heard by a person playing.
    against our build.
 3. **Battery saves.** Done 2026-11-20 for BlastEm, PicoDrive and Genesis Plus GX, which
    guides call the most used Genesis core: `save_check.py --core` passes all 18 checks on
-   each. Kega Fusion is still to try. It's a closed Windows program the harness can't drive,
-   so it's a hand test: end a level, quit, start again and load the save.
+   each. Kega Fusion was dropped: it hasn't been updated since about 2010, and Chris only
+   supports emulators maintained in roughly the last five years.
 4. **Release notes and package.** RHDN wants a readme in the archive and the ROM's details
    on the page. Needed:
    - the readme: what the patch changes, what it doesn't, the required ROM (name, CRC32,

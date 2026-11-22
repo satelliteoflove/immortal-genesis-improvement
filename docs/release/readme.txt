@@ -118,8 +118,8 @@ SAVES AND EMULATORS
 -------------------
 
   Saves need an emulator or cartridge with battery RAM. The patch has been
-  tested in BlastEm, PicoDrive and Genesis Plus GX. [Kega Fusion still to
-  try.] It hasn't been tried on a real console or a flash cartridge.
+  tested in BlastEm, PicoDrive and Genesis Plus GX. It hasn't been tried on
+  a real console or a flash cartridge.
 
   Emulators keep battery RAM in different file formats, so a save file from
   one emulator usually won't load in another.
