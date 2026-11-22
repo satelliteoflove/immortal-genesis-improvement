@@ -124,7 +124,9 @@ SAVES AND EMULATORS
   Emulators keep battery RAM in different file formats, so a save file from
   one emulator usually won't load in another.
 
-  [The patch has only been tested at 60 Hz so far.]
+  The patch works on a 50 Hz (PAL) console or emulator setting too. There
+  the game runs about a sixth slower than at 60 Hz, as the original always
+  did.
 
 
 CREDITS
