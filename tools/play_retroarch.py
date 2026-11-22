@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Play the patched ROM in RetroArch, and log what the game is doing for later study.
 
-    tools/play_retroarch.py [genesis_plus_gx|picodrive|blastem] [--original] [--port N]
+    tools/play_retroarch.py [genesis_plus_gx|picodrive|blastem] [--no-fight-deaths] [--original] [--port N]
 
 Starts RetroArch on build/immortal-patched.md (or the original ROM with --original) with the
 named core, Genesis Plus GX if none is named. The core is taken from RetroArch's own cores
@@ -15,6 +15,11 @@ While the game runs, the script reads the game's RAM through RetroArch's READ_CO
 command about 30 times a second and logs the level, room, position, health, retries, fights,
 text boxes, deaths and late ticks. A tick is late when it starts more than 5 frames after the
 one before; gaps of 12 or more are pauses (a text box, a fight, a death), not lateness.
+
+--no-fight-deaths keeps the wizard from losing a fight. While one is on, his strength in it
+(FF10A8) is put back to what it started at whenever a blow lowers it, so he still has to win
+the fight, but can't lose it. Traps and everything else can still kill him. The log notes each
+top-up.
 
 Type a note in this terminal and press Enter at any moment. It goes in the log with the game's
 state at that moment, and RetroArch takes a screenshot. An empty Enter just takes the
@@ -174,9 +179,10 @@ class Rooms:
                      lost=self.lost, worst=self.worst)
 
 
-def watch(ra, log, notes, proc):
+def watch(ra, log, notes, proc, no_fight_deaths=False):
     last = None
     rooms = Rooms(log)
+    strength = None                     # the wizard's strength when the fight began
     while proc.poll() is None:
         time.sleep(POLL)
         s = read_state(ra)
@@ -187,6 +193,17 @@ def watch(ra, log, notes, proc):
             log('note', f'NOTE: {note or "(screenshot)"} -- {at}', note=note, state=s)
         if s is None:
             continue
+
+        if no_fight_deaths:
+            if not s['opponent']:
+                strength = None
+            elif s['fight_health']:
+                strength = max(strength or 0, s['fight_health'])
+                if s['fight_health'] < strength:
+                    # one byte; RetroArch's addresses have each word's two bytes swapped
+                    ra.tell(f'WRITE_CORE_RAM {FIGHT_HEALTH ^ 1:x} {strength:02x}')
+                    log('cheat', f'  fight strength {s["fight_health"]} put back to {strength}',
+                        quiet=True, state=s)
 
         if last is None:
             log('start', f'game running: {where(s)}', state=s)
@@ -242,6 +259,7 @@ def main():
     parser.add_argument('core', nargs='?', default='genesis_plus_gx',
                         choices=['genesis_plus_gx', 'picodrive', 'blastem'])
     parser.add_argument('--original', action='store_true', help='play the original ROM instead')
+    parser.add_argument('--no-fight-deaths', action='store_true', help="the wizard can't lose a fight")
     parser.add_argument('--port', type=int, default=55399, help='RetroArch network command port')
     parser.add_argument('--extra-config', help='more RetroArch settings to add, for testing')
     args = parser.parse_args()
@@ -263,8 +281,9 @@ def main():
             f.write(open(args.extra_config).read())
 
     log = Log(directory)
-    log('session', f'core {args.core}, ROM {os.path.basename(rom)}, log in {directory}',
-        core=args.core, rom=rom)
+    log('session', f'core {args.core}, ROM {os.path.basename(rom)}, log in {directory}'
+        + (', no deaths in fights' if args.no_fight_deaths else ''),
+        core=args.core, rom=rom, no_fight_deaths=args.no_fight_deaths)
     print('Type a note and press Enter at any time; Enter alone takes a screenshot.\n', flush=True)
 
     proc = subprocess.Popen(['retroarch', '--appendconfig', config, '-L', core, rom],
@@ -292,7 +311,7 @@ def main():
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, stop)
     try:
-        watch(ra, log, notes, proc)
+        watch(ra, log, notes, proc, args.no_fight_deaths)
     except KeyboardInterrupt:
         log('session', 'stopped from the terminal')
         proc.terminate()

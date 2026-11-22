@@ -101,6 +101,7 @@ in `docs/dead-code.md`.
 
     tools/play_retroarch.py                # RetroArch with Genesis Plus GX, logging as you play
     tools/play_retroarch.py picodrive      # or PicoDrive, or blastem; --original for the original ROM
+    tools/play_retroarch.py --no-fight-deaths   # the wizard can still be hurt, but can't lose a fight
 
 It uses the cores in RetroArch's own directory, as players have them, and leaves
 `retroarch.cfg` alone. Type a note in its terminal and press Enter to log it with where the
