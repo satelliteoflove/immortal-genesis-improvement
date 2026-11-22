@@ -327,6 +327,13 @@ def hunt(g, creatures, limit=900, log=None, inside=None):
         if dead(g):
             raise Died(f'hunt: the wizard died in room {g.room} after {fired} shots, '
                        f'frame {g.frame}')
+        if busy(g) and not fighting(g):
+            # A creature shot down beside him leaves a body, and a step onto it asks
+            # "He's dead. Look for possessions?". Seen at 50 Hz on level 5.
+            read(g, 'n', quiet=0)
+            if log:
+                log('stepped onto a body and left it')
+            continue
         wx, wy = xy(g)
         shot = walk = None
         for n in alive:
