@@ -46,6 +46,43 @@ Raising the rate wouldn't make the game smoother by itself, because movement and
 counted in ticks and everything would run faster. A higher rate would need the game's
 movement and timers changed to match.
 
+### At 50 Hz
+
+The game never asks what kind of console it's on. There's no read of the version register at
+`A10001`, and the video chip's PAL bit isn't looked at. So a European console at 50 Hz gets
+10 ticks a second, and ordinary play is about 17% slower than at 60 Hz, on the original and the
+patched ROM alike. The header's region field says only `U`, so an emulator left on its own picks
+60 Hz; each core in the harness has to be told to run as a European console (`pal_check.py`
+has the options, and the runner reports the rate the core settled on).
+
+Measured on 2026-11-21, BlastEm's libretro core, the walks from `compare_cores.py`
+(`tools/harness/pal_check.py`):
+
+| | Original 60 Hz | Original 50 Hz | Patched 60 Hz | Patched 50 Hz |
+|---|---|---|---|---|
+| Ticks late | 23.0% | 15.4% | 1.2% | 0.9% |
+
+A 50 Hz frame is longer, so the original runs late less often there, but still often. The walks
+go differently at the two rates once anything is late, so single levels don't compare closely.
+
+Fights have no clock of their own (see "Fights"), so they don't slow down with the ticks.
+`fight_pace.py --pal` on the fork:
+
+| Frames from one picture to the next | Main loop, 60 Hz | Main loop, 50 Hz | Animation, 60 Hz | Animation, 50 Hz |
+|---|---|---|---|---|
+| Original | 6.08 | 4.77 | 8.49 | 7.17 |
+| Patched | 6.00 | 5.00 | 8.46 | 7.29 |
+
+In time, that's about 100 ms a picture in the main loop at either rate. The patch waits until 5
+frames after the last picture (7 in the animation) and then draws. At 60 Hz the drawing runs
+into the next frame, which makes 6 and 8; a 50 Hz frame is long enough for it to finish inside
+the frame, which makes 5 and 7. Those happen to be the original's commonest gaps at 50 Hz. The
+main loop comes out about 5% slower than the original's average at 50 Hz, since the original
+sometimes drew in 4.
+
+The patch's own waits count frames, so at 50 Hz "Prepare to continue..." stays up for 3.6
+seconds. `save_check.py --pal` passes all 18 checks on BlastEm, PicoDrive and Genesis Plus GX.
+
 ## Death and retries
 
 Seen in the running game:

@@ -76,16 +76,19 @@ fetches or builds it under `build/`, and nothing outside this repository is need
     tools/harness/levels.py                # reach every level, measure its timing
     tools/harness/get_blastem.sh           # BlastEm's libretro core, into build/cores/
     tools/harness/compare_cores.py         # the same timing run on PicoDrive and BlastEm
+    tools/harness/pal_check.py             # late ticks on both ROMs at 60 Hz and 50 Hz
     tools/harness/build_blastem_fork.sh    # our patched build of the BlastEm fork (needs SDL2, GLEW)
     tools/harness/fork_timing.py           # timing and cycle counts on that build
     tools/harness/tick_parts.py            # which part of a tick is taking the time
     tools/harness/hotspots.py              # the busiest routines on each level
-    tools/harness/fight_pace.py            # the pace of fights, original against patched
+    tools/harness/fight_pace.py            # the pace of fights, original against patched (--pal for 50 Hz)
     tools/harness/text_pace.py             # typing speed of messages, with and without a button held
     tools/harness/save_check.py            # battery saves, the level picker and Game Over's second try
+                                           #   (--pal to run at 50 Hz)
                                            #   (--core picodrive or genesis_plus_gx for those emulators)
     tools/harness/get_genesis_plus_gx.sh   # Genesis Plus GX's libretro core, into build/cores/
     tools/harness/route/whole_game.py      # play the whole game by script (docs/playthrough.md)
+                                           #   (PLAY_PAL=1 in the environment to run at 50 Hz)
     tools/harness/build_coverage_core.sh   # a BlastEm core that counts the instructions run (docs/dead-code.md)
     tools/disasm.py                        # writes disasm/, which git ignores
 
