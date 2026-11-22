@@ -97,6 +97,15 @@ fetches or builds it under `build/`, and nothing outside this repository is need
 fixes made to the emulator are in `docs/blastem-fork-fixes.md`. Code the game never runs is listed
 in `docs/dead-code.md`.
 
+## Playing it by hand
+
+    tools/play_retroarch.py                # RetroArch with Genesis Plus GX, logging as you play
+    tools/play_retroarch.py picodrive      # or PicoDrive, or blastem; --original for the original ROM
+
+It uses the cores in RetroArch's own directory, as players have them, and leaves
+`retroarch.cfg` alone. Type a note in its terminal and press Enter to log it with where the
+game is, and a screenshot. The log goes in `scratch/sessions/`.
+
 ## The progress page
 
     tools/progress.py "Title" "What changed, what to look at." shot.png clip.mp4
