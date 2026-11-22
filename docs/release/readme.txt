@@ -1,4 +1,4 @@
-The Immortal: Genesis Improvement Patch
+The Immortal (Genesis) Improvement Patch
 Version 1.0
 by Christopher Childress (satelliteoflove)
 
