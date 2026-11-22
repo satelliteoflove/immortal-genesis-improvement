@@ -14,6 +14,9 @@ After every step the 68000's whole RAM is here to read, so a script can decide e
 from where things are, not from a frame count. That is what lets one script play the
 original and the patched ROM alike, though they run at different speeds.
 
+PLAY_PAL=1 in the environment runs it as a European console at 50 Hz; Game.fps() says
+which rate the core settled on.
+
 `docs/playthrough.md` has what's known about the game's memory and how routes are written.
 """
 import os
@@ -28,6 +31,7 @@ import romcheck
 RUNNER = os.path.join(ROOT, 'build', 'runner')
 CORE = os.environ.get('PLAY_CORE') or os.path.join(ROOT, 'build', 'cores', 'blastem', 'blastem_libretro.so')
 PATCHED = os.path.join(ROOT, 'build', 'immortal-patched.md')
+REGION = 'E' if os.environ.get('PLAY_PAL') else 'U'    # BlastEm's region; the header names only the US
 A4 = 0x300                              # the game's variables are addressed from FF0300
 
 
@@ -37,7 +41,8 @@ def original():
 
 class Game:
     def __init__(self, rom=PATCHED, battery=None):
-        command = [RUNNER, CORE, rom, '-q', '-b', '0,8,11', '-I']
+        command = [RUNNER, CORE, rom, '-q', '-b', '0,8,11', '-I',
+                   '-o', f'blastem_region={REGION}', '-o', 'blastem_force_region=on']
         if battery:
             command += ['-B', battery]
         self.rom = rom
@@ -58,6 +63,11 @@ class Game:
         answer = self.runner.stdout.readline().strip()
         if answer != b'ok':
             raise RuntimeError(f'{text}: {answer[:40]!r}')
+
+    def fps(self):
+        """The frame rate the core is running at, such as 59.923 or 49.701."""
+        self._send('fps')
+        return float(self.runner.stdout.readline())
 
     def step(self, frames=1, buttons=''):
         """Run frames with pad 1 holding buttons, such as 'UP+RIGHT' or 'B'. Reads RAM after."""

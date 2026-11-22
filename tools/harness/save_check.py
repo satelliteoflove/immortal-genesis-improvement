@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check the battery saves, the level picker and the second try at Game Over.
 
-    tools/harness/save_check.py [--core blastem|picodrive|genesis_plus_gx]
+    tools/harness/save_check.py [--core blastem|picodrive|genesis_plus_gx] [--pal]
 
 Plays short scripted runs on a libretro core, BlastEm's unless --core names another,
 keeping the cartridge's battery RAM in a file between them (the runner's -B), and reads the
@@ -10,6 +10,8 @@ odd bytes the game uses into a 256-byte file, PicoDrive keeps a byte for each ad
 512 bytes, and Genesis Plus GX keeps 64 KB, filled with FF when new. The checks read and
 write it as the game sees it, the odd bytes in order, and every run that starts without a
 save starts from zeros.
+
+--pal runs it all as a European console at 50 Hz, with the region options in pal_check.py.
 A level is ended by setting the game's own "level over" byte, and Game Over is reached by
 setting its "out of retries" byte, so nothing here depends on playing well.
 
@@ -40,6 +42,7 @@ import compare_cores as cc
 sys.path.insert(0, os.path.join(cc.ROOT, 'tools'))
 import build_rom as B
 import romcheck
+import pal_check
 
 CORES = {   # path, runner options, how battery RAM is kept, its file's size
     'blastem': (os.path.join(cc.ROOT, 'build', 'cores', 'blastem', 'blastem_libretro.so'),
@@ -49,6 +52,7 @@ CORES = {   # path, runner options, how battery RAM is kept, its file's size
                         [], 'odd', 65536),
 }
 CORE = 'blastem'                        # set from --core
+RATE = 60                               # 50 with --pal
 OUT = os.path.join(cc.ROOT, 'scratch', 'save-check')    # a directory for each core is made under it
 PATCHED = os.path.join(cc.ROOT, 'build', 'immortal-patched.md')
 A4 = 0x300                              # the game's variables are addressed from here
@@ -123,9 +127,14 @@ class Run:
             command += ['-B', self.battery]
         for poke in self.pokes:
             command += ['-p', poke]
-        done = subprocess.run(command, capture_output=True, text=True)
+        for option in pal_check.CORES[CORE][2 if RATE == 60 else 3]:
+            command += ['-o', option]
+        done = subprocess.run(command, capture_output=True, text=True, errors='replace')
         if done.returncode:
             sys.exit(f'{self.name}: {done.stderr[-300:]}')
+        fps = [float(l.split()[1]) for l in done.stderr.splitlines() if l.startswith('fps ')]
+        if not fps or round(fps[0] / 10) * 10 != RATE:
+            sys.exit(f'{self.name}: the core ran at {fps} fps, not {RATE} Hz')
         with open(self.ram_path, 'rb') as f:
             self.ram = f.read()
         return self
@@ -151,12 +160,14 @@ def battery(name, data):
 
 
 def main():
-    global CORE, OUT
+    global CORE, OUT, RATE
     parser = argparse.ArgumentParser(description='Check the battery saves, the level picker and Game Over.')
     parser.add_argument('--core', choices=CORES, default='blastem')
-    CORE = parser.parse_args().core
-    OUT = os.path.join(OUT, CORE)
-    print('core:', CORE)
+    parser.add_argument('--pal', action='store_true', help='run as a European console at 50 Hz')
+    args = parser.parse_args()
+    CORE, RATE = args.core, 50 if args.pal else 60
+    OUT = os.path.join(OUT, CORE + ('-pal' if args.pal else ''))
+    print('core:', CORE, f'at {RATE} Hz')
     os.makedirs(OUT, exist_ok=True)
     for name in os.listdir(OUT):
         if name.endswith('.srm'):

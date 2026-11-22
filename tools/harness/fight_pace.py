@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Compare the pace of fights on the original ROM and the patched one.
 
-    tools/harness/fight_pace.py [ROM ...]
+    tools/harness/fight_pace.py [--pal] [ROM ...]
 
 A fight has two loops, each drawing one picture a time round. This counts the frames from
 one picture to the next in each loop, on level 7, which opens with a fight, over the same
 four scripted runs for each ROM. With no ROMs named it compares the original with
-build/immortal-patched.md. Runs on our build of the BlastEm fork.
+build/immortal-patched.md. Runs on our build of the BlastEm fork, as a US console at 60 Hz, or
+with --pal as a European one at 50 Hz.
 """
 import collections
 import os
@@ -21,6 +22,7 @@ import fork_timing as ft
 LEVEL = 6
 LOOPS = (('main loop', '1169c'), ('animation', '1177a'))     # the instruction after each loop's drawing
 OUT = os.path.join(ft.ROOT, 'scratch', 'fight-pace')
+REGION = 'U'
 
 
 def run(job):
@@ -33,7 +35,7 @@ def run(job):
                 + 'prof log on\n')
     env = {**os.environ, 'HOME': ft.HOME, 'SDL_VIDEODRIVER': 'dummy', 'SDL_AUDIODRIVER': 'dummy',
            'BLASTEM_NO_GUI': '1', 'BLASTEM_KIT_INIT': base + '.init'}
-    out = subprocess.run([ft.BLASTEM, '-b', str(cc.START + cc.FRAMES), rom], env=env, capture_output=True,
+    out = subprocess.run([ft.BLASTEM, '-r', REGION, '-b', str(cc.START + cc.FRAMES), rom], env=env, capture_output=True,
                          text=True, errors='replace', timeout=300).stdout
     frames = collections.defaultdict(list)
     for line in out.splitlines():
@@ -46,7 +48,12 @@ def run(job):
 
 
 def main():
-    roms = [os.path.abspath(r) for r in sys.argv[1:]] or [ft.ROM, os.path.join(ft.ROOT, 'build', 'immortal-patched.md')]
+    global REGION
+    args = sys.argv[1:]
+    if '--pal' in args:
+        args.remove('--pal')
+        REGION = 'E'
+    roms = [os.path.abspath(r) for r in args] or [ft.ROM, os.path.join(ft.ROOT, 'build', 'immortal-patched.md')]
     os.makedirs(OUT, exist_ok=True)
     gaps = {r: collections.defaultdict(collections.Counter) for r in roms}
     with ThreadPoolExecutor(os.cpu_count()) as pool:

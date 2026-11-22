@@ -1084,7 +1084,7 @@ def rest(g, limit=900):
     lying = False
     for _ in range(80):
         pose = g.byte(HEALTH + 0x14)            # the wizard's pose, FF0920
-        lying = lying or pose == 0x1C
+        lying = lying or pose in (0x1C, 7)      # at 50 Hz he can be getting up by the time the text is read
         if lying and pose == 0:
             return health(g) - before
         tick(g)
