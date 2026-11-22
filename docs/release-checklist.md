@@ -49,7 +49,8 @@ the retry test. Almost none of it has been seen or heard by a person playing.
 
 6. **50 Hz.** Tested by script on 2026-11-21; see "At 50 Hz" in `docs/how-the-game-works.md`.
    Late ticks, fight pace and saves are fine, and every level plays through by itself. The
-   whole game in one run doesn't finish yet, for reasons in the routes, not the patch.
+   whole game in one run doesn't finish, for reasons in the routes, not the patch. Chris
+   called that enough on 2026-11-21: basic testing shows nothing obviously wrong at 50 Hz.
 7. **Retry spots the test never reached.** By Chris's measure, the only bug that matters
    here is a soft-lock. The test covered every room the routes pass through; it didn't try
    the retry spots of rooms they skip (level 1's room 5, several on levels 3, 4 and 7). Each
