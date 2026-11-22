@@ -222,9 +222,15 @@ Buttons in the original:
   letters a second, and the pause at the end of a page is gone as well.
 - Two particular buttons held together skip the waits altogether (`00CEC0`).
 
-**The change.** A held button now shortens the waits while typing and leaves pauses alone. The
-wait after a letter is one frame, every other time; after punctuation, one frame every time. Every
-letter is drawn. The two-button shortcut is taken out. With nothing held, nothing is different.
+**The change.** A held button now shortens the waits while typing and leaves pauses alone. A
+letter has no wait after it, and drawing it takes about a frame; each of punctuation's waits is
+one frame, every other time (`FF97A9` goes up by 128 each time and the frame is waited when it
+comes round to 0). Every letter is drawn. The two-button shortcut is taken out. With nothing
+held, nothing is different.
+
+The first version waited a frame after a letter every other time and after punctuation every
+time, about twice the usual speed. Playing it, Chris found that barely different from not
+holding a button, and on 2026-11-22 it was made about 50% faster.
 
 A fresh press of A, B, C or Start ends a pause, and the rest of a run of pauses (many messages
 end in eight in a row), until typing starts again. In the original any button did that, by
@@ -239,7 +245,10 @@ The routine keeps the buttons down at the start of each pause in `FF97AC` and it
 | Opening message, first page | Nothing held | A button held |
 |---|---|---|
 | Original | 16 letters a second, then a 93-frame pause | 106 a second, no pause |
-| Patched | 17 a second, then 93 frames | 34 a second, then 81 frames |
+| Patched | 17 a second, then 93 frames | 50 a second, then 76 frames |
+
+The whole message, four pages, goes at 33, 28, 29 and 33 letters a second held in the first
+version, and 50, 42, 42 and 50 now.
 
 The pause with a button held is a little shorter than without because the wait after the page's
 last period counts as typing. `tools/harness/text_pace.py` makes the table.
