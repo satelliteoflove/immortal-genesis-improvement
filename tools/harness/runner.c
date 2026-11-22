@@ -29,6 +29,7 @@
  *        step N BUTTONS   run N frames with pad 1 holding BUTTONS ("-" for none);
  *                         answers with the 68000's 64K of RAM
  *        ram              answers with the RAM, running nothing
+ *        fps              answers with the core's frame rate, such as 59.923 or 49.701
  *        poke ADDR VALUE  as -p, at once; answers "ok"
  *        keep N / back N  remember the machine's state in slot N (0-63), or go
  *                         back to it; answers "ok" or "no"
@@ -86,6 +87,7 @@ static struct {
     size_t (*ser_size)(void);
     bool (*ser)(void *, size_t);
     bool (*unser)(const void *, size_t);
+    void (*av_info)(struct retro_system_av_info *);
 } core;
 
 static enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_0RGB1555;
@@ -423,6 +425,7 @@ int main(int argc, char **argv)
     SYM(set_audio_batch, "retro_set_audio_sample_batch"); SYM(set_poll, "retro_set_input_poll");
     SYM(set_state, "retro_set_input_state"); SYM(set_port, "retro_set_controller_port_device");
     SYM(ser_size, "retro_serialize_size"); SYM(ser, "retro_serialize"); SYM(unser, "retro_unserialize");
+    SYM(av_info, "retro_get_system_av_info");
 
     core.set_env(env);
     core.init();
@@ -440,6 +443,9 @@ int main(int argc, char **argv)
     struct retro_game_info gi = { argv[2], rom, rn, NULL };
     if (!core.load_game(&gi)) { fprintf(stderr, "load_game failed\n"); return 1; }
     if (dev) core.set_port(0, dev);
+    struct retro_system_av_info av;
+    core.av_info(&av);
+    fprintf(stderr, "fps %.3f\n", av.timing.fps);
     uint8_t *battery = NULL;
     size_t battery_n = 0;
     if (battery_path) {
@@ -489,6 +495,8 @@ int main(int argc, char **argv)
                 write_ram(proto);
             } else if (!strcmp(line, "ram")) {
                 write_ram(proto);
+            } else if (!strcmp(line, "fps")) {
+                fprintf(proto, "%.3f\n", av.timing.fps);
             } else if (sscanf(line, "poke %x %x", &a, &v) == 2) {
                 poke(a, v);
                 fputs("ok\n", proto);
