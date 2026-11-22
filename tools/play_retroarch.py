@@ -53,7 +53,7 @@ BLOCK = 0x0600                          # one read from here covers everything b
 BLOCK_END = 0x1100
 TEXT_ADDRESS = 0x0600                   # the text box's text in the ROM, low byte first
 WIZARD_X, WIZARD_Y, HEALTH = 0x08BC, 0x08D0, 0x090C
-LEVEL, ROOM = 0x1070, 0x1071
+LEVEL, ROOM = 0x1070, 0x1051
 LEVEL_OVER, GAME_OVER, RETRIES = 0x106F, 0x1072, 0x109A
 OPPONENT, ENEMY_HEALTH, FIGHT_HEALTH = 0x10AE, 0x10A7, 0x10A8
 
