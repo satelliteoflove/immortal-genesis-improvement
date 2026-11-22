@@ -68,11 +68,29 @@ class RetroArch:
         self.addr = ('127.0.0.1', port)
 
     def ask(self, command):
-        self.sock.sendto(command.encode(), self.addr)
+        """RetroArch's answer to command, or None if none came. An answer that comes too late
+        (RetroArch stalls while a state loads, for one) would otherwise be taken as the answer
+        to the next question, and every one after, so answers left over are thrown away first
+        and an answer is only taken if it starts with the question's command and address."""
+        self.sock.setblocking(False)
         try:
-            return self.sock.recv(65536).decode(errors='replace').strip()
-        except socket.timeout:
-            return None
+            while True:
+                self.sock.recv(65536)
+        except (BlockingIOError, OSError):
+            pass
+        self.sock.settimeout(0.5)
+        self.sock.sendto(command.encode(), self.addr)
+        want = command.split()[:2]
+        deadline = time.time() + 0.5
+        while (left := deadline - time.time()) > 0:
+            self.sock.settimeout(left)
+            try:
+                answer = self.sock.recv(65536).decode(errors='replace').strip()
+            except socket.timeout:
+                return None
+            if answer.split()[:2] == want:
+                return answer
+        return None
 
     def tell(self, command):
         self.sock.sendto(command.encode(), self.addr)
