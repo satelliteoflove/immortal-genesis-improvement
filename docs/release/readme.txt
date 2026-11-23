@@ -56,10 +56,23 @@ After a death
 
 Messages
 
-  Holding a button makes messages type out faster without skipping the pauses
-  in them, so you don't blow past something you wanted to read. A fresh press
-  of A, B, C or Start still ends a pause. With no button held, messages are as
-  they were.
+  Holding a button types messages at about 50 letters a second, around three
+  times the usual speed, and every letter is drawn. That's slower than holding
+  a button in the original, which put whole words up at about 106 letters a
+  second and skipped every pause, so the pages flew by.
+
+  With the patch, a held button doesn't skip the pauses. At the end of a page
+  the game waits a little over a second, much as it does with nothing held,
+  and then types the next page by itself. To go on sooner, let go and press
+  A, B, C or Start again: a fresh press ends the pause, but a button that was
+  already down when the pause began doesn't. The original's two-button
+  shortcut, which skipped every wait, is gone too. With no button held,
+  messages are as they were.
+
+  This is meant for players who read quickly: the text comes out faster
+  without blowing past something you wanted to read. If you've read the
+  messages many times and just want them gone, holding a button is slower
+  than it was in the original.
 
 Bug fixes
 

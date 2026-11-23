@@ -26,7 +26,9 @@ What it changes:
 - Game Over asks "Try this level again?", and starts the level over with three lives and what
   you carried into it.
 - "Prepare to continue..." stays up for 3 seconds after a death, unless you press a button.
-- Holding a button types messages out faster without skipping their pauses.
+- Holding a button types messages about three times faster than normal. That's slower than
+  holding a button did in the original, and it no longer skips the pauses: a page stays up for
+  a little over a second before the next one, unless you let go and press again.
 - Bug fixes: the level 4 wall torch's flame, stray pixels where characters pass behind
   scenery, the level's music starting over for no reason, and a soft-lock after a death in
   level 5's last room.
@@ -77,6 +79,14 @@ One thing I didn't expect: making the drawing faster made the fights faster too,
 fights in this game have no clock of their own. They just run as fast as they can draw. So
 the patch holds them to the pace they had in the original, and a fight plays the way it
 always did.
+
+The messages took some thought. In the original, holding a button made whole words pop up and
+skipped every pause, so pages went by faster than most people can read. I wanted something in
+between for people who read quickly: holding a button now types about three times as fast as
+normal, every letter drawn, and it doesn't skip the pause at the end of a page. Let go and
+press again and the next page comes right away. If you've read the messages many times and
+just want them gone, this is slower than the original was for that. That's not who I had in
+mind with it.
 
 The rule I held to throughout was that this is still The Immortal. It's still brutal. Traps
 still kill you without warning and the fights are unchanged; there's no easy mode in here.
