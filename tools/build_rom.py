@@ -1601,10 +1601,21 @@ def check_routine(patched, table):
 
 
 def check_background(rom, patched):
+    """Run the original background routines and the new ones on the same random screens.
+
+    Both run in the patched ROM, the original ones with their own code put back where the
+    patch jumps away. What the random screens put in video memory also depends on ROM bytes
+    outside the routines, never run in the test (changing the retry call at 81F4 alone
+    flipped the result), so running the original routines in the original ROM compared the
+    patch's other changes as well. The check began failing when the death pause went in,
+    though neither routine had changed."""
+    original = bytearray(patched)
+    for start, end in ((TABLE_RESET_TAIL, TABLE_RESET_TAIL + 6), (MAP_TILES, MAP_TILES + 6), (TILE_SYNC, DEATH_PAUSE_END)):
+        original[start:end] = rom[start:end]
     origin, code, pattern_at, pattern = background_check()
     addresses = [*range(0xFF0100, 0xFF0100 + 60), *range(0xFF0200, 0xFF0204), *range(0xFF000C, 0xFF0010)]
     results = []
-    for source, label in ((test_rom(rom), 'original'), (test_rom(patched), 'patched')):
+    for source, label in ((test_rom(original), 'original'), (test_rom(patched), 'patched')):
         test = bytearray(source)
         test[pattern_at:pattern_at + len(pattern)] = pattern
         boot_into(test, origin, code, BACKGROUND_CHECK_ROM)
