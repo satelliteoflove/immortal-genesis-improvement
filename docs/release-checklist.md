@@ -26,7 +26,8 @@ the retry test. Almost none of it has been seen or heard by a person playing.
    - a level's end with "Game saved.", the level picker, and Game Over's "Try this level
      again?" (`TODO.md`, Fairness);
    - the music-restart fix ("Not yet listened to");
-   - sampled sounds on levels 3, 4 and 7 against the original;
+   - sampled sounds, which are the fights' sounds on every level (heard in Chris's
+     play-through on 2026-11-22, nothing off);
    - the death pause and message pauses, for feel.
 2. **Patchers.** Apply the BPS with Flips and at least one other common patcher (the
    browser-based ones people use, such as RomPatcher.js), and check the result's hash

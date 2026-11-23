@@ -236,14 +236,14 @@ original's instructions in the original order. It costs about 5,000 cycles a fra
 about 4,600 more to spare.
 
 **What it does to the sound.** Nothing changes in what's sent to the Z80. What changes is how long
-the Z80 is stopped: about 0.08 ms for each copy, where it was about 0.15 ms. On levels 3, 4 and 7
+the Z80 is stopped: about 0.08 ms for each copy, where it was about 0.15 ms. In fights, on every level,
 the Z80 plays sampled sounds, which showed up in the sound chip logs as a steady stream of writes
 to the YM2612's sample register. While it's stopped, the sample it's playing waits. In the logs
 from level 4 the normal step between sample writes is 5 or 6 units of 1/44,100 s, and the stretched
 steps went from 12 or 13 to 9 or 10. So the hitches in sampled sounds are shorter, and those sounds
 run about 0.7% faster, around an eighth of a semitone. Music and effects made by the FM chip aren't
-timed by the Z80 and shouldn't change at all. Nobody has listened to it, so this is the one change
-here with a known effect on output that hasn't been judged by ear.
+timed by the Z80 and shouldn't change at all. Chris played the whole game through on 2026-11-22,
+fights and all, and heard nothing off.
 
 **Not done.** The sequencers are about 1,600 bytes of branching code that step through the song
 data. They could be rewritten to be perhaps a third faster, which would gain about 5,000 cycles a

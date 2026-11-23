@@ -65,8 +65,10 @@ the optimized game really runs.
       of work went from 11.6% to 3.7%.
 - [x] The sound link's two copies through Z80 memory are written out in place of loops. About
       900 cycles a frame saved.
-- [ ] Listen to sampled sounds on levels 3, 4 and 7 against the original. The Z80 is stopped for
-      less time now, so they should have shorter hitches and run about 0.7% faster.
+- [x] Listen to the sampled sounds. They're the fights' sounds, on every level, not only 3, 4
+      and 7 as first thought. The Z80 is stopped for less time now, so they should have
+      shorter hitches and run about 0.7% faster. Chris heard nothing off in his play-through
+      on 2026-11-22.
 - [x] Measure frames to a finished picture (`tick_parts.py --frames`): 91% of ticks are ready in
       2 frames and 99.5% in 3. The optimizing pass stops here, and `docs/optimizations.md` lists
       what wasn't done and why.

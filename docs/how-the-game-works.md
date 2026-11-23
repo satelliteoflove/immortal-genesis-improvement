@@ -606,10 +606,36 @@ vertical blank handler, `01624E` stops the Z80, copies 48 bytes from its memory 
 `FF01F0`, and lets it go. Then `015E9C` steps the music's channels and `0165AE` the six sound
 effect channels, changing those bytes: 8 for each of 6 channels. If anything changed, the link
 stops the Z80 again and copies them back, and it always writes a flag at `A00259` to say whether
-it did. The Z80's part is to turn those bytes into YM2612 writes. It also plays sampled sounds on
-levels 3, 4 and 7, timing them itself, so a sample waits whenever the 68000 has the Z80 stopped.
+it did. The Z80's part is to turn those bytes into YM2612 writes. It also plays sampled sounds,
+timing them itself, so a sample waits whenever the 68000 has the Z80 stopped.
 The 68000's sound state is `FF0000` to `FF0240`, with 80 bytes for each channel from `FF0008`.
 Songs start through `015D10` with a number in d0, and there are at least eight.
+
+#### Sampled sounds
+
+The Z80 plays one sample at a time, read from the cartridge through its bank window. The
+68000 asks for one through `0168F8`, with the sample's place as an offset from `015D08` in d1
+and a playback speed in d2 (the count of a delay loop between bytes, so a bigger number is
+slower and lower). It leaves them at `FF0220` to `FF0225`, and the sound link writes them into
+the Z80's program at `A000BB` to `A000BF` on the next vertical blank. The Z80 sets its bank and
+start from them and clears `025A` to start; a 0 byte ends the sample, and a 1 after it plays it
+again from the start.
+
+The sound effects are a table of offsets at `01648A`. Effects 46 to 52 and 63 and 64 are
+samples, and more callers of `0168F8` sit in code the disassembly hasn't reached. Effects 63
+and 64 are played from `0122F4` and `012326`, when the enemy loses a point in a fight and when
+the wizard does: one sample at speeds 11 and 17 (hex). Most effects are played by animation
+scripts, whose words carry an effect number in the high byte (`01170E`).
+
+Counting each sample as it started (a copy of the ROM with `addq.b #1,$FFFF0228` in place of
+the second of `0168F8`'s two identical moves to `FF0224`) over the whole game's routes on
+2026-11-22: 510 samples, from 18 different pairs of sample and speed, all but 12 of them in a
+fight (`FF10AE` not 0), and on every level but 8, which has no fight on the route. The 12 were
+the fight hit (63) when level 4's opening troll and the trolls of level 3's room 6 and 8 and
+level 4's room 5 were struck, where the game has no fight screen, and one sample (at `01EC7C`
+in the ROM) in level 1's room 3, level 3's room 6 and level 5's room 2. So the samples are the
+fights' blows, swings and cries. Earlier notes put them on levels 3, 4 and 7 only; that came
+from the few scripted walks the sound logs were made on.
 
 ### How the screen's cells are built
 
