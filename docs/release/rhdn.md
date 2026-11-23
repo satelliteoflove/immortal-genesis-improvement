@@ -97,12 +97,22 @@ If you run into anything odd, feel free to post here or open an issue there.
 
 ## Screenshots
 
-Taken from the patched ROM at the game's own 320 by 224.
+Taken from the patched ROM at the game's own 320 by 224, in `scratch/rhdn/final/` (kept out of
+git, since they're the game's graphics):
 
-- **Hack page:** the title screen and up to four in-game shots, from: "Continue a saved
-  game?", the level picker, "Try this level again?", and the two busy rooms.
-- **News post:** two of them.
-- **Forum post:** all of them.
+1. `1-title.png`: the title screen.
+2. `2-continue-a-saved-game.png`: the prompt at start when a save is present.
+3. `3-level-picker.png`: the level picker, showing level 5.
+4. `4-try-this-level-again.png`: Game Over's new question.
+5. `5-level-7-water.png`: level 7's room 4, the wizard in the barrel with a water creature
+   attacking. In the scripted run this room had 62% of its updates late on the original,
+   running at 71% speed, and 4% late with the patch.
+6. `6-level-8-dragon.png`: level 8's room 2, the dragon breathing fire. The original had nearly
+   every update late here (62% speed); the patch has 11% late (96% speed). It's the final
+   battle, so it gives away the last fight.
 
-[The busy rooms are still being chosen: the two that slowed down worst in the original and
-only a little now.]
+Suggested use:
+
+- **Hack page:** 1, then 2, 3, 4 and 5.
+- **News post:** 2 and 5.
+- **Forum post:** all six.
