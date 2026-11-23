@@ -23,10 +23,11 @@ WHAT THE PATCH CHANGES
 Performance
 
   The game draws objects, sprites and the scrolling background much faster.
-  Measured in emulators, about a quarter of the game's updates ran late in the
-  original, and more than half on level 6. With the patch it's under 2%, and
-  nearly all of those are the game's own deliberate waits. Fights and other
-  timed scenes still run at the original's speed.
+  In a scripted run through the whole game, about a third of the original's
+  updates ran late, and on level 8 most of them did, so that level ran at
+  about two-thirds speed. With the patch, 2% ran late in the same run, and
+  about 4% in a full play-through by hand. Fights and other timed scenes
+  still run at the original's speed.
 
 Battery saves
 
