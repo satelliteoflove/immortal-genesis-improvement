@@ -39,13 +39,43 @@ https://github.com/satelliteoflove/immortal-genesis-improvement
 
 ## News post
 
-The Immortal (Genesis) Improvement Patch fixes the Genesis version's worst slowdown, adds
-battery saves and a second try at Game Over, and fixes a few bugs, while leaving the game as
-hard as it always was. Traps, fights and items are untouched, and the game keeps its original
-pace; it just doesn't bog down the way it did, most of all on the later levels.
+The Immortal is one of the Genesis's great dungeon crawlers, and one of its hardest. It's also
+a game that fights you in ways it doesn't mean to. It slows down badly in busy rooms, a death
+throws you straight back in before you've caught your breath, and the only way to keep your
+place is to write down a 13-character certificate at the end of every level. The Immortal
+(Genesis) Improvement Patch goes after those problems and leaves the rest of the game alone.
+
+The biggest change is speed. The game used to rebuild the graphics for everything on screen,
+from scratch, on every update, and resend background tiles it had already sent. With that
+fixed, it mostly runs the way it was meant to. In a scripted run through the whole game, about
+a third of the original's updates ran late, and the last level ran at about two-thirds speed.
+With the patch, 2% ran late in the same run, and about 4% in a full play-through by hand.
+Nothing runs faster than it should, though: the game keeps its original pace, and fights are
+held to the speed they always had.
+
+Keeping your progress is easier too. Finishing a level now saves it to battery RAM, and when
+you start the game it asks "Continue a saved game?" and lets you pick any level you've
+reached. Certificates still work for anyone who wants them. When you run out of lives, Game
+Over asks "Try this level again?" and starts the level over with three fresh lives and
+whatever you carried into it, instead of sending you back to the title.
+
+There are smaller touches as well. After a death, "Prepare to continue..." stays up for 3
+seconds, unless you press a button, so the retry doesn't come at you out of nowhere. Holding a
+button types messages about three times faster than normal without skipping their pauses, for
+players who read quickly. And a few bugs are fixed: the wall torch on level 4 gets the top of
+its flame back, stray pixels along the edges of scenery are gone, the level's music no longer
+starts over for no reason, and a death in level 5's last room no longer leaves the level
+impossible to finish.
+
+What hasn't changed matters just as much. Traps, fights, creatures and items are as they were,
+and so are the three lives per level. It's still The Immortal, and it's still brutal; it just
+doesn't get in its own way anymore.
 
 The patch was made with Claude, Anthropic's AI model, which wrote most of the code and the
-testing tools under my direction.
+testing tools under my direction, and I played the game through on the finished patch myself.
+It's been tested in BlastEm, PicoDrive and Genesis Plus GX. The source, the testing tools and
+a lot of notes on how the game works are on GitHub:
+https://github.com/satelliteoflove/immortal-genesis-improvement
 
 ## Personal Projects forum post
 
