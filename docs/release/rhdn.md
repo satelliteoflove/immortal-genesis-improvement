@@ -39,8 +39,8 @@ https://github.com/satelliteoflove/immortal-genesis-improvement
 
 ## News post
 
-The Immortal is one of the Genesis's great dungeon crawlers, and one of its hardest. It's also
-a game that fights you in ways it doesn't mean to. It slows down badly in busy rooms, a death
+The Immortal is a hard game, and it's meant to be. On the Genesis, though, it also fights you
+in ways it doesn't mean to. It slows down badly in busy rooms, a death
 throws you straight back in before you've caught your breath, and the only way to keep your
 place is to write down a 13-character certificate at the end of every level. The Immortal
 (Genesis) Improvement Patch goes after those problems and leaves the rest of the game alone.
@@ -57,7 +57,8 @@ Keeping your progress is easier too. Finishing a level now saves it to battery R
 you start the game it asks "Continue a saved game?" and lets you pick any level you've
 reached. Certificates still work for anyone who wants them. When you run out of lives, Game
 Over asks "Try this level again?" and starts the level over with three fresh lives and
-whatever you carried into it, instead of sending you back to the title.
+whatever you carried into it, instead of sending you back to the prompts the game starts
+with.
 
 There are smaller touches as well. After a death, "Prepare to continue..." stays up for 3
 seconds, unless you press a button, so the retry doesn't come at you out of nowhere. Holding a
