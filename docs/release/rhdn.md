@@ -14,21 +14,21 @@ some of the more frustrating design choices out and fixes a few bugs in the orig
 leaving it the same game. It doesn't make the game easier: traps, fights, creatures, items and
 getting three lives per level stay as they were, and nothing runs faster than it was meant to.
 
-I made this patch with Claude, Anthropic's AI model, which wrote most of the code and the
-testing tools under my direction. I played the game through on the finished patch myself and
-tested each new feature.
+The patch was made with Claude, Anthropic's AI model, which wrote most of the code and the
+testing tools under the author's direction. The author played the game through on the finished
+patch and tested each new feature.
 
 What it changes:
 
 - Much less slowdown. The game is meant to move everything along 12 times a second (5 vblanks
   for each game update), but in busy rooms it often couldn't draw everything in time, and the
   whole game slowed down. The patch makes it draw creatures, objects and the scrolling
-  background much faster. To measure it, we used test scripts that play the whole game through,
+  background much faster. It was measured with test scripts that play the whole game through,
   the same way every time. In that run, about a third of the original's updates took too long,
   and on levels 7 (the barrel ride on the water) and 8 (the dragon), even more of them did, so
   the slowdowns were very noticeable. With the patch, only 2% of the updates took too long
-  (according to the automated testing), and about 4% of the updates came late when I played the
-  whole game through by hand.
+  (according to the automated testing), and about 4% of the updates came late in a full
+  play-through by hand.
 - Fights are kept at their original pace. The sword fights, which the game shows on a screen of
   their own, have no clock: they simply run as fast as the game can draw them. Faster drawing
   made them faster too, so the patch holds them to the pace they had in the original (the
@@ -69,7 +69,7 @@ Bug fixes from the original game:
   a floor, the game hides the parts of him that should be out of sight. The original got this
   slightly wrong along the edge, so a few pixels there came out in the wrong color, or showed
   when they should have been hidden. One you might have noticed is a yellow dot at the wizard's
-  foot when he stands behind the edge of a floor. In our test runs it happened in about one
+  foot when he stands behind the edge of a floor. In the test runs it happened in about one
   frame in eight. Those pixels now come out right.
 - While you walk around a level, the music would often start over from the beginning for no
   reason you could see. In many places the game asks for a different piece of music for a
