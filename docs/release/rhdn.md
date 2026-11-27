@@ -103,14 +103,14 @@ vblanks are provided for each game loop update), but in busy rooms it often stil
 process logic and draw everything in time, and the whole game slowed down. It rebuilt the
 graphics for every creature and object on screen from scratch on every update, and it sent
 background graphics to the video chip that were already there. With that fixed, it mostly runs
-the way it was meant to. We measured it with test scripts that play the whole game through, the
-same way every time. In that run, about a third of the original's updates took too long, the
-Norlac barrel race would slow down very badly, and the last level played at about two-thirds of
-its proper speed. With the patch, only about 2% of the updates took too long, and about 4% of
-the updates were late in a full play-through by hand. Nothing runs faster than it was meant to,
-though. The sword fights, which the game shows on a screen of their own, have no clock and
-simply run as fast as the game can draw them, so the patch holds them to the pace they had in
-the original (the animation is about 6% quicker).
+the way it was meant to. It was measured with test scripts that play the whole game through,
+the same way every time. In that run, about a third of the original's updates took too long,
+the Norlac barrel race would slow down very badly, and the last level played at about
+two-thirds of its proper speed. With the patch, only about 2% of the updates took too long, and
+about 4% of the updates were late in a full play-through by hand. Nothing runs faster than it
+was meant to, though. The sword fights, which the game shows on a screen of their own, have no
+clock and simply run as fast as the game can draw them, so the patch holds them to the pace
+they had in the original (the animation is about 6% quicker).
 
 Keeping your progress is easier too. Finishing a level now saves your place at the start of the
 next one to battery RAM, along with everything you're carrying. When you turn the game on, it
@@ -141,15 +141,15 @@ A few bugs from the original are fixed, too:
   him. Only a reset got you out. He now starts again at the foot of the ladder into that room.
 
 What hasn't changed are the things that make the game what it is. Traps, fights, creatures and
-items are just as they were,
-and so are the three lives per level. It's still the same (sometimes brutally) difficult game; it just
-doesn't get in its own way anymore.
+items are just as they were, and so are the three lives per level. It's still the same
+(sometimes brutally) difficult game; it just doesn't get in its own way anymore.
 
 The patch was made with Claude, Anthropic's AI model, which wrote most of the code and the
-testing tools under my direction, and I played the game through on the finished patch myself
-and tested each new feature. It's been tested in the emulators BlastEm, PicoDrive and Genesis
-Plus GX, but not yet on a real console. The source, the testing tools and a lot of notes on how
-the game works are on GitHub: https://github.com/satelliteoflove/immortal-genesis-improvement
+testing tools under the author's direction, and the author played the game through on the
+finished patch and tested each new feature. It's been tested in the emulators BlastEm,
+PicoDrive and Genesis Plus GX, but not yet on a real console. The source, the testing tools and
+a lot of notes on how the game works are on GitHub:
+https://github.com/satelliteoflove/immortal-genesis-improvement
 
 ## Personal Projects forum post
 
