@@ -5,26 +5,31 @@ Projects forum post. The screenshots for each are listed at the end.
 
 ## Hack page description
 
-The Immortal is a hard game, and the Genesis version had a few rough spots on top of that. It
-slows down badly in busy rooms, a death sends you straight back into the room before you've
-caught your breath, and the only way to keep your progress is to write down the 13-character
-certificate, the game's password, that it shows at the end of each level. This patch smooths
-those things out and fixes a few bugs in the original, while leaving it the same game. It
-doesn't make the game easier: traps, fights, creatures, items and the three lives per level
-are as they were, and nothing runs faster than it was meant to.
+The Immortal is a hard game, both due to the trial-and-error nature of the game and also
+because it is generally unforgiving of mistakes. The Genesis version had a few rough spots
+on top of that.
+It slows down badly in busy rooms, a death sends you straight back into the room almost
+immediately, and the only way to keep your progress is to write down the 13-character
+"certificate" (the game's password) that it shows at the end of each level. This patch smooths
+some of the more frustrating design choices out and fixes a few bugs in the original, while 
+leaving it the same game. It doesn't make the game easier: traps, fights, creatures, items
+and getting three lives per level stay as they were, and nothing runs faster than it was meant
+to.
 
 I made this patch with Claude, Anthropic's AI model, which wrote most of the code and the
-testing tools under my direction. I played the game through on the finished patch myself.
+testing tools under my direction. I played the game through on the finished patch myself and
+tested each new feature.
 
 What it changes:
 
-- Much less slowdown. The game is meant to move everything along 12 times a second, but in
-  busy rooms it often couldn't draw everything in time, and the whole game slowed down. The
-  patch makes it draw creatures, objects and the scrolling background much faster. To measure
-  it, we used test scripts that play the whole game through, the same way every time. In that
-  run, about a third of the original's updates took too long, and on level 8, the last level,
-  most of them did, so it played at about two-thirds of its proper speed. With the patch, 2%
-  took too long in the same run, and about 4% when I played the whole game through by hand.
+- Much less slowdown. The game is meant to move everything along 12 times a second (5 vblanks
+  for each game update), but in busy rooms it often couldn't draw everything in time, and the
+  whole game slowed down. The patch makes it draw creatures, objects and the scrolling
+  background much faster. To measure it, we used test scripts that play the whole game through,
+  the same way every time. In that run, about a third of the original's updates took too long,
+  and on levels 7 (the barrel ride on the water) and 8 (the dragon),
+  even more of them did, so the slowdowns were very noticeable. With the patch, only 2% of the updates
+  took too long (according to the automated testing), and about 4% of the updates came late when I played the whole game through by hand.
 - Fights are kept at their original speed. The sword fights, which the game shows on a screen
   of their own, have no clock: they simply run as fast as the game can draw them. Faster
   drawing would have made them faster too, so the patch holds them to the pace they had in the
