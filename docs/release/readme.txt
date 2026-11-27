@@ -160,4 +160,4 @@ CREDITS
 VERSION HISTORY
 ---------------
 
-  1.0 (2026-11-22)  First release.
+  1.0 (2026-11-27)  First release.
