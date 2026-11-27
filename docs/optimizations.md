@@ -35,6 +35,15 @@ are messages and transitions. Once the timing changes, the walks go different wa
 differences between columns don't mean much. Level 2's walks often end early at deaths and
 prompts, which makes it the weakest row.
 
+**Over real play, the walks understate it.** On 2026-11-22 the whole game was played by the
+routes on both ROMs in BlastEm's libretro core, one
+frame at a time, counting ticks outside fights with gaps under 12 frames
+(`scratch/rhdn/room_pace.py`, not kept in git). The original had 35% of them late and ran at
+86% of full speed; the patch had 2.0% late and ran at 99.3%. By level, the original was 17%,
+38%, 16%, 20%, 17%, 46%, 45% and 83% late, level 8 running at 66% speed; the patch was 1%, 0%,
+0%, 1%, 1%, 0%, 3% and 9%. Chris's play-through by hand the same day, on Genesis Plus GX, had
+4.2% of ticks late on the patch. The release readme gives these figures, not the table's.
+
 ## How it was measured
 
 A tick has about 639,000 68000 cycles, at about 127,800 per frame.
