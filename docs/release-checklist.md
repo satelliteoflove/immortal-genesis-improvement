@@ -4,6 +4,10 @@ A review on 2026-11-20 of what's been done and what a first release on RHDN stil
 `TODO.md` remains the working list; this sorts its open items, and a few that aren't on it,
 by whether they should hold up the release.
 
+**Released 2026-11-27.** v1.0 went up on RHDN, and on GitHub as release `v1.0` with the BPS and
+the readme attached. The repository was made public the same day. The RHDN texts are in
+`docs/release/rhdn.md`. What's below is kept as it was decided, with each item's outcome.
+
 ## Where things stand
 
 On `main`: faster object graphics, background scrolling, sprite masking and camera steps; the
@@ -16,11 +20,14 @@ any button ending a message's pauses again, the level 5 soft-lock fix, the retry
 dead-code survey.
 
 All of it has been checked by script: both whole-game runs, the save check, typing speed and
-the retry test. Almost none of it has been seen or heard by a person playing.
+the retry test. Chris then played the whole game through by hand and tried each new feature
+(2026-11-22).
 
 ## Should hold up the release
 
-1. **A full play-through by hand** on an ordinary emulator, start to finish, with saves used
+1. **A full play-through by hand.** Done 2026-11-22 on Genesis Plus GX in RetroArch: the
+   whole game plays fine, no slowdown noticed, the music no longer restarts, and nothing off
+   in the sampled sounds. Chris tested each new feature. The item as written: on an ordinary emulator, start to finish, with saves used
    for real. The scripts can't judge feel, sound or looks, and several changes are marked as
    never seen or heard:
    - a level's end with "Game saved.", the level picker, and Game Over's "Try this level
@@ -29,7 +36,10 @@ the retry test. Almost none of it has been seen or heard by a person playing.
    - sampled sounds, which are the fights' sounds on every level (heard in Chris's
      play-through on 2026-11-22, nothing off);
    - the death pause and message pauses, for feel.
-2. **Patchers.** Apply the BPS with Flips and at least one other common patcher (the
+2. **Patchers.** Not done before release: Flips isn't installed here, and Rom Patcher JS
+   has to be tried by hand. Our own applier in `tools/make_patch.py` checks the BPS's three
+   checksums and gives back the patched ROM (CRC32 4E217FBF). Still worth doing. The item as
+   written: apply the BPS with Flips and at least one other common patcher (the
    browser-based ones people use, such as RomPatcher.js), and check the result's hash
    against our build.
 3. **Battery saves.** Done 2026-11-20 for BlastEm, PicoDrive and Genesis Plus GX, which
@@ -42,9 +52,11 @@ the retry test. Almost none of it has been seen or heard by a person playing.
      from main on that day; if the ROM changes again before release, update them from
      `tools/make_patch.py`'s output (it prints the CRC32);
    - a name for the BPS file: `Immortal-Genesis-Improvement-v1.0.bps`, done;
-   - screenshots for the page (title, the save picker, play);
-   - the RHDN page text.
-5. **Update `README.md`.** It still says the harness runs PicoDrive, and its list of what the
+   - screenshots for the page: done, six of them, listed in `docs/release/rhdn.md`;
+   - the RHDN page text: done, with the news post and forum post, in `docs/release/rhdn.md`;
+   - the release date: 2026-11-27 in the readme. The patch didn't change, so its hashes
+     stand.
+5. **Update `README.md`.** Done. It used to say the harness runs PicoDrive, and its list of what the
    patch does stops at saves and Game Over.
 
 ## Worth doing first, if time allows
@@ -60,13 +72,14 @@ the retry test. Almost none of it has been seen or heard by a person playing.
    flood search did. That would close the question of other soft-locks like level 5's.
 8. **The retry test's remaining failures.** Thirteen haven't been looked at. Those looked
    at so far were the test's own, so they're unlikely to hide a soft-lock, but level 7's
-    two timeouts and level 5's "did not get up" are the least explained.
+   two timeouts and level 5's "did not get up" are the least explained.
 9. **A version mark in the game**, so a player or a bug report can tell which version is
-    running: for example "v1.0" on the title screen or under the "Continue a saved game?"
-    prompt. Not done; Chris's call.
+   running: for example "v1.0" on the title screen or under the "Continue a saved game?"
+   prompt. Not done for v1.0; Chris's call for a later version.
 
 ## Can wait for a later version
 
+- Trying the BPS with Flips and Rom Patcher JS (item 2).
 - Real hardware. Not feasible before release (Chris, 2026-11-20). It would answer whether
   drawing that finishes after vertical blank shows as tearing (16% of plain ticks, 52% of
   camera steps finish late), and how the sampled sounds sound.
