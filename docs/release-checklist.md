@@ -4,7 +4,7 @@ A review on 2026-11-20 of what's been done and what a first release on RHDN stil
 `TODO.md` remains the working list; this sorts its open items, and a few that aren't on it,
 by whether they should hold up the release.
 
-**Released 2026-11-27.** v1.0 went up on RHDN, and on GitHub as release `v1.0` with the BPS and
+**Released 2026-11-27.** v1.0 went up on RHDN (https://www.romhacking.net/hacks/10465/, approved automatically), and on GitHub as release `v1.0` with the BPS and
 the readme attached. The repository was made public the same day. The RHDN texts are in
 `docs/release/rhdn.md`. What's below is kept as it was decided, with each item's outcome.
 
