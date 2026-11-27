@@ -140,8 +140,9 @@ A few bugs from the original are fixed, too:
   level's first room, where the level could no longer be finished and nothing could even kill
   him. Only a reset got you out. He now starts again at the foot of the ladder into that room.
 
-What hasn't changed matters just as much. Traps, fights, creatures and items are as they were,
-and so are the three lives per level. It's still The Immortal, and it's still brutal; it just
+What hasn't changed are the things that make the game what it is. Traps, fights, creatures and
+items are just as they were,
+and so are the three lives per level. It's still the same (sometimes brutally) difficult game; it just
 doesn't get in its own way anymore.
 
 The patch was made with Claude, Anthropic's AI model, which wrote most of the code and the
@@ -154,7 +155,7 @@ the game works are on GitHub: https://github.com/satelliteoflove/immortal-genesi
 
 **The Immortal (Genesis) Improvement Patch**
 
-I've just released a patch for the Genesis version of The Immortal, and I wanted to say a bit
+I've just released a patch for the Genesis version of "The Immortal", and I wanted to say a bit
 about how it came about.
 
 This started out as an idea for a 32X port. The more I read about what people actually disliked
@@ -248,3 +249,14 @@ Suggested use:
 - **Hack page:** 1, then 2, 3, 4 and 5.
 - **News post:** 2 and 5.
 - **Forum post:** all six.
+
+Uploaded to the RHDN scratchpad:
+
+| Screenshot | Scratchpad page |
+|---|---|
+| 1, title | https://www.romhacking.net/scratchpad/101862/ |
+| 2, continue a saved game | https://www.romhacking.net/scratchpad/101863/ |
+| 3, level picker | https://www.romhacking.net/scratchpad/101864/ |
+| 4, try this level again | https://www.romhacking.net/scratchpad/101865/ |
+| 5, level 7 barrel race | https://www.romhacking.net/scratchpad/101866/ |
+| 6, level 8 dragon | https://www.romhacking.net/scratchpad/101867/ |
