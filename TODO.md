@@ -26,7 +26,8 @@ saves, retries, and things that are really bugs.
 - [x] Battery saves. Each level reached is saved when the level before it ends, and the game
       offers the saved levels when it starts. Certificates still work. See "Saving" in
       `docs/how-the-game-works.md`; `tools/harness/save_check.py` checks it.
-- [ ] Play through a level's end and a Game Over by hand, to see the new screens in use.
+- [x] Play through a level's end and a Game Over by hand, to see the new screens in use. Chris
+      played the whole game through and tried each new feature on 2026-11-22.
 - [-] Fights that start with little warning. Out of scope.
 - [-] Fights that all play alike. Out of scope.
 - [-] Ladders, which can kill when approached from the wrong angle. Not a bug: a ladder hole is
@@ -81,8 +82,11 @@ the optimized game really runs.
       those bits and pieces aren't a problem in a patch file. `tools/make_patch.py` writes a
       BPS file, the only format we'll release. It stays out of git and goes out attached to
       a release.
-- [ ] Try the patch file with a patcher other than our own, such as Flips.
-- [ ] Release the patch: where it goes, what it's called and what the notes say.
+- [ ] Try the patch file with a patcher other than our own, such as Flips or Rom Patcher JS.
+      Not done before v1.0; our own applier checks it.
+- [x] Release the patch. v1.0 went up on RHDN and as a GitHub release on 2026-11-27, as
+      `Immortal-Genesis-Improvement-v1.0.bps` with `docs/release/readme.txt`. The RHDN texts are
+      in `docs/release/rhdn.md`.
 - [ ] Try the patched ROM on real hardware.
 - [ ] Controls said to feel less responsive than the NES version. Measure the delay from
       button to screen.
@@ -95,8 +99,8 @@ the optimized game really runs.
       now stays up for 3 seconds, and a press of A, B, C or Start ends it sooner.
 - [x] Pauses in other messages could only be cut short with A or C after the change above. A
       fresh press of A, B, C or Start ends them now, as any button did in the original.
-- [x] Message text flew by with a button held. It now types at twice the usual speed with a
-      button held, and the pause at the end of a page stays. Normal typing is unchanged.
+- [x] Message text flew by with a button held. It now types at about three times the usual
+      speed with a button held, every letter drawn, and the pause at the end of a page stays. Normal typing is unchanged.
 - [x] Smoother movement at the same game speed: tried and dropped. A trial drew an in-between
       picture each update; see `docs/smoother-movement.md`. Chris chose the original drawing
       speed.
